@@ -1,0 +1,252 @@
+// resources/js/components/ModuleBuilder.jsx
+import { useState, useRef } from 'react';
+import api from '../lib/api';
+
+const FIELD_TYPES = [
+    { value: 'string', label: 'String' },
+    { value: 'text', label: 'Text' },
+    { value: 'integer', label: 'Integer' },
+    { value: 'boolean', label: 'Boolean' },
+    { value: 'date', label: 'Date' },
+    { value: 'datetime', label: 'Datetime' },
+    { value: 'select', label: 'Select' },
+    { value: 'image', label: 'Image' },
+];
+
+const greekToLatin = (str) => {
+    const map = {
+        'α': 'a', 'β': 'b', 'γ': 'g', 'δ': 'd', 'ε': 'e', 'ζ': 'z', 'η': 'i', 'θ': 'th',
+        'ι': 'i', 'κ': 'k', 'λ': 'l', 'μ': 'm', 'ν': 'n', 'ξ': 'x', 'ο': 'o', 'π': 'p',
+        'ρ': 'r', 'σ': 's', 'ς': 's', 'τ': 't', 'υ': 'y', 'φ': 'f', 'χ': 'ch', 'ψ': 'ps', 'ω': 'o',
+        'ά': 'a', 'έ': 'e', 'ή': 'i', 'ί': 'i', 'ό': 'o', 'ύ': 'y', 'ώ': 'o', 'ϊ': 'i', 'ϋ': 'y', 'ΐ': 'i', 'ΰ': 'y'
+    };
+    return str.toLowerCase().split('').map(char => map[char] || char).join('');
+};
+
+const slugify = (str) =>
+    greekToLatin(str)
+        .trim()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/(^-|-$)/g, '');
+
+const emptyField = () => ({ name: '', type: 'string', translatable: false, validation: '', options: '' });
+
+export default function ModuleBuilder({ onCreated, onCancel }) {
+    const [name, setName] = useState('');
+    const [slug, setSlug] = useState('');
+    const [slugTouched, setSlugTouched] = useState(false);
+    const [fields, setFields] = useState([{ _id: 0, ...emptyField() }]);
+    const [submitting, setSubmitting] = useState(false);
+    const [errors, setErrors] = useState(null);
+    const nextId = useRef(1);
+
+    const handleNameChange = (value) => {
+        setName(value);
+        if (!slugTouched) setSlug(slugify(value));
+    };
+
+    const addField = () =>
+        setFields((prev) => [...prev, { _id: nextId.current++, ...emptyField() }]);
+
+    const removeField = (id) =>
+        setFields((prev) => prev.filter((f) => f._id !== id));
+
+    const updateField = (id, key, value) =>
+        setFields((prev) => prev.map((f) => (f._id === id ? { ...f, [key]: value } : f)));
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        setErrors(null);
+        setSubmitting(true);
+
+        const payload = {
+            name,
+            slug,
+            schema: fields.map(({ _id, ...rest }) => ({
+                ...rest,
+                validation: rest.validation.trim(),
+                options: rest.type === 'select'
+                    ? (rest.options || '').split(',').map(s => s.trim()).filter(Boolean)
+                    : undefined
+            })),
+        };
+
+        try {
+            const { data: body } = await api.post('/modules', payload);
+            onCreated?.(body.data);
+            setName('');
+            setSlug('');
+            setSlugTouched(false);
+            setFields([{ _id: nextId.current++, ...emptyField() }]);
+        } catch (err) {
+            console.error(err);
+            if (err.response?.status === 422 && err.response.data?.errors) {
+                setErrors(err.response.data.errors);
+            } else {
+                setErrors({ general: ['Failed to save module.'] });
+            }
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    return (
+        <form onSubmit={handleSubmit} className="max-w-4xl mx-auto space-y-8 p-6 bg-white rounded-xl border border-gray-200 shadow-sm">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-gray-200 pb-5 gap-4">
+                <div className="flex items-center space-x-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 ring-1 ring-inset ring-indigo-500/15 shadow-sm shrink-0">
+                        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4.5v15m7.5-7.5h-15" />
+                        </svg>
+                    </div>
+                    <div>
+                        <h2 className="text-xl font-bold tracking-tight text-gray-900">New Module</h2>
+                        <p className="text-sm text-gray-500">Define your module name, slug, and schema fields.</p>
+                    </div>
+                </div>
+            </div>
+
+            {errors && (
+                <div className="bg-red-50 border border-red-200 text-red-700 text-sm p-4 rounded-xl space-y-1">
+                    {Object.values(errors).flat().map((msg, i) => <div key={i}>{msg}</div>)}
+                </div>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                <div>
+                    <label className="block text-sm font-semibold text-gray-900 mb-1.5">Module Name</label>
+                    <input
+                        type="text"
+                        placeholder="e.g. Products"
+                        value={name}
+                        onChange={(e) => handleNameChange(e.target.value)}
+                        className="w-full rounded-lg border border-gray-300 px-3.5 py-2 text-sm text-gray-900 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                        required
+                    />
+                </div>
+                <div>
+                    <label className="block text-sm font-semibold text-gray-900 mb-1.5">Slug</label>
+                    <input
+                        type="text"
+                        placeholder="e.g. products"
+                        value={slug}
+                        onChange={(e) => { setSlug(e.target.value); setSlugTouched(true); }}
+                        className="w-full rounded-lg border border-gray-300 px-3.5 py-2 text-sm font-mono text-gray-900 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                        required
+                    />
+                </div>
+            </div>
+
+            <div className="space-y-4 pt-4 border-t border-gray-200">
+                <div className="flex justify-between items-center">
+                    <div>
+                        <h3 className="text-base font-semibold text-gray-900">Schema Fields</h3>
+                        <p className="text-sm text-gray-500">Add the data structure for this module.</p>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={addField}
+                        className="inline-flex items-center justify-center rounded-lg bg-gray-900 px-3.5 py-2 text-sm font-semibold text-white shadow-sm hover:bg-gray-800 transition-all"
+                    >
+                        + Add Field
+                    </button>
+                </div>
+
+                <div className="space-y-3">
+                    {fields.map((field) => (
+                        <div key={field._id} className="bg-gray-50/50 border border-gray-200 rounded-xl p-4 space-y-3 transition-all hover:border-gray-300">
+                            <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center">
+                                <div className="sm:col-span-3">
+                                    <label className="block text-xs font-medium text-gray-500 mb-1 sm:hidden">Name</label>
+                                    <input
+                                        type="text"
+                                        placeholder="field_name"
+                                        value={field.name}
+                                        onChange={(e) => updateField(field._id, 'name', e.target.value)}
+                                        className="w-full rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-900 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 font-mono text-xs"
+                                        required
+                                    />
+                                </div>
+                                <div className="sm:col-span-3">
+                                    <label className="block text-xs font-medium text-gray-500 mb-1 sm:hidden">Type</label>
+                                    <select
+                                        value={field.type}
+                                        onChange={(e) => updateField(field._id, 'type', e.target.value)}
+                                        className="w-full rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-900 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                                    >
+                                        {FIELD_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+                                    </select>
+                                </div>
+                                <div className="sm:col-span-4">
+                                    <label className="block text-xs font-medium text-gray-500 mb-1 sm:hidden">Validation</label>
+                                    <input
+                                        type="text"
+                                        placeholder="required|max:60"
+                                        value={field.validation}
+                                        onChange={(e) => updateField(field._id, 'validation', e.target.value)}
+                                        className="w-full rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-900 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 font-mono text-xs"
+                                    />
+                                </div>
+                                <div className="sm:col-span-1 flex items-center justify-center sm:justify-start pt-2 sm:pt-0">
+                                    <label className="flex items-center gap-1.5 text-sm text-gray-700 cursor-pointer select-none">
+                                        <input
+                                            type="checkbox"
+                                            checked={field.translatable}
+                                            onChange={(e) => updateField(field._id, 'translatable', e.target.checked)}
+                                            className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                                        />
+                                        <span className="text-xs font-medium">Lang</span>
+                                    </label>
+                                </div>
+                                <div className="sm:col-span-1 flex justify-end">
+                                    <button
+                                        type="button"
+                                        onClick={() => removeField(field._id)}
+                                        disabled={fields.length === 1}
+                                        className="inline-flex items-center justify-center p-2 text-gray-400 hover:text-red-600 rounded-lg transition-colors disabled:opacity-30 disabled:hover:text-gray-400"
+                                        title="Remove Field"
+                                    >
+                                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+
+                            {field.type === 'select' && (
+                                <div className="pt-2">
+                                    <input
+                                        type="text"
+                                        placeholder="Comma separated options (e.g. Option 1, Option 2, Option 3)"
+                                        value={field.options || ''}
+                                        onChange={(e) => updateField(field._id, 'options', e.target.value)}
+                                        className="w-full rounded-lg border border-indigo-200 bg-indigo-50/30 px-3 py-1.5 text-sm text-gray-900 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                                    />
+                                </div>
+                            )}
+                        </div>
+                    ))}
+                </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-6 border-t border-gray-200">
+                {onCancel && (
+                    <button
+                        type="button"
+                        onClick={onCancel}
+                        className="inline-flex items-center justify-center rounded-lg bg-white px-4 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 transition-all"
+                    >
+                        Cancel
+                    </button>
+                )}
+                <button
+                    type="submit"
+                    disabled={submitting}
+                    className="inline-flex items-center justify-center rounded-lg bg-indigo-600 px-5 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:opacity-50 transition-all"
+                >
+                    {submitting ? 'Saving...' : 'Create Module'}
+                </button>
+            </div>
+        </form>
+    );
+}

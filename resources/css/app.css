@@ -1,0 +1,13 @@
+@import "tailwindcss";
+
+/* Tiptap Custom Styles */
+.tiptap-editor :first-child {
+    margin-top: 0;
+}
+
+.tiptap-editor mark {
+    background-color: #faf594;
+    border-radius: 0.4rem;
+    box-decoration-break: clone;
+    padding: 0.1rem 0.3rem;
+}

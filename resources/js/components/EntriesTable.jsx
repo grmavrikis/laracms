@@ -1,0 +1,139 @@
+const getLangCode = (l) => l.locale || l.code || l.short_code || (l.id === 1 ? 'en' : 'fr');
+
+export default function EntriesTable({ schema, entries, onEdit, languages = [], currentLangCode = 'en', onLanguageChange }) {
+    return (
+        <div className="mt-6 flex flex-col">
+            {/* Header section with title/actions and unified language switcher */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 gap-4">
+                <div className="flex items-center gap-2">
+                    <h3 className="text-base font-semibold leading-6 text-gray-900">Entries List</h3>
+                    <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-800">
+                        {entries?.length || 0} total
+                    </span>
+                </div>
+
+                {languages && languages.length > 0 && (
+                    <div className="flex p-1 space-x-1 bg-gray-100/80 rounded-lg w-max border border-gray-200/50">
+                        {languages.map((l) => {
+                            const code = getLangCode(l);
+                            const isActive = code === currentLangCode;
+                            return (
+                                <button
+                                    key={l.id}
+                                    type="button"
+                                    onClick={() => onLanguageChange?.(code)}
+                                    className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all duration-200 ${isActive
+                                        ? 'bg-white text-indigo-600 shadow-sm'
+                                        : 'text-gray-500 hover:text-gray-900 hover:bg-gray-200/50'
+                                        }`}
+                                >
+                                    {code.toUpperCase()}
+                                </button>
+                            );
+                        })}
+                    </div>
+                )}
+            </div>
+
+            {!entries || entries.length === 0 ? (
+                <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-gray-300 bg-gray-50 py-16 px-4 text-center">
+                    <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
+                    </svg>
+                    <h3 className="mt-4 text-sm font-semibold text-gray-900">No entries yet</h3>
+                    <p className="mt-1 text-sm text-gray-500">There is no data available for this module.</p>
+                </div>
+            ) : (
+                <div className="-mx-4 -my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
+                    <div className="inline-block min-w-full py-2 align-middle sm:px-6 lg:px-8">
+                        <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+                            <table className="min-w-full divide-y divide-gray-200 text-left text-sm">
+                                <thead className="bg-gray-50">
+                                    <tr>
+                                        <th scope="col" className="px-6 py-4 font-semibold text-gray-900">ID</th>
+                                        {schema.map(field => (
+                                            <th key={field.name} scope="col" className="px-4 py-4 font-semibold text-gray-900 uppercase tracking-wide text-xs">
+                                                {field.name}
+                                            </th>
+                                        ))}
+                                        <th scope="col" className="px-4 py-4 font-semibold text-gray-900 uppercase tracking-wide text-xs">
+                                            Created At
+                                        </th>
+                                        <th scope="col" className="relative px-6 py-4">
+                                            <span className="sr-only">Actions</span>
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100 bg-white">
+                                    {entries.map(entry => (
+                                        <tr key={entry.id} className="group hover:bg-gray-50/50 transition-colors duration-150">
+                                            <td className="whitespace-nowrap px-6 py-4 font-medium text-gray-900">
+                                                #{entry.id}
+                                            </td>
+                                            {schema.map(field => {
+                                                let rawValue = (entry.data && entry.data[field.name] !== undefined)
+                                                    ? entry.data[field.name]
+                                                    : entry[field.name];
+
+                                                let value = rawValue;
+                                                if (field.translatable && typeof rawValue === 'object' && rawValue !== null) {
+                                                    value = rawValue[currentLangCode] || Object.values(rawValue)[0] || '';
+                                                }
+
+                                                if (typeof value === 'boolean') {
+                                                    return (
+                                                        <td key={field.name} className="whitespace-nowrap px-4 py-4 text-gray-500">
+                                                            <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${value ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
+                                                                {value ? 'Yes' : 'No'}
+                                                            </span>
+                                                        </td>
+                                                    );
+                                                }
+
+                                                if (value === null || value === undefined) value = '';
+                                                let displayValue = String(value);
+
+                                                if (field.type === 'text' || field.type === 'richtext') {
+                                                    if (displayValue.trim() === '<p></p>') displayValue = '';
+                                                    return (
+                                                        <td key={field.name} className="px-4 py-4 text-gray-500 max-w-xs">
+                                                            <div
+                                                                className="prose prose-sm line-clamp-2 text-gray-600"
+                                                                dangerouslySetInnerHTML={{ __html: displayValue }}
+                                                            />
+                                                        </td>
+                                                    );
+                                                }
+
+                                                if (displayValue.length > 50) {
+                                                    displayValue = displayValue.substring(0, 50) + '...';
+                                                }
+
+                                                return (
+                                                    <td key={field.name} className="whitespace-nowrap px-4 py-4 text-gray-600">
+                                                        {displayValue || <span className="text-gray-300">-</span>}
+                                                    </td>
+                                                );
+                                            })}
+                                            <td className="whitespace-nowrap px-4 py-4 text-gray-500">
+                                                {entry.created_at ? new Date(entry.created_at).toLocaleDateString() : '—'}
+                                            </td>
+                                            <td className="whitespace-nowrap px-6 py-4 text-right text-sm font-medium">
+                                                <button
+                                                    onClick={() => onEdit(entry)}
+                                                    className="inline-flex items-center gap-1 rounded-md px-3 py-1.5 text-indigo-600 hover:bg-indigo-50 hover:text-indigo-900 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 opacity-0 group-hover:opacity-100 focus:opacity-100"
+                                                >
+                                                    Edit
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
