@@ -7,13 +7,6 @@
         "dev": "vite"
     },
     "devDependencies": {
-<<<<<<< HEAD
-        "@tailwindcss/vite": "^4.0.0",
-        "concurrently": "^9.0.1",
-        "laravel-vite-plugin": "^3.1",
-        "tailwindcss": "^4.0.0",
-        "vite": "^8.0.0"
-=======
         "@tailwindcss/postcss": "^4.3.2",
         "@tailwindcss/typography": "^0.5.20",
         "@tailwindcss/vite": "^4.0.0",
@@ -34,6 +27,5 @@
         "axios": "^1.18.1",
         "react": "^19.2.7",
         "react-dom": "^19.2.7"
->>>>>>> master
     }
 }

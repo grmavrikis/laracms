@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 @import 'tailwindcss';
 
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
@@ -8,8 +7,6 @@
     --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
         'Segoe UI Symbol', 'Noto Color Emoji';
 }
-=======
-@import "tailwindcss";
 
 /* Tiptap Custom Styles */
 .tiptap-editor :first-child {
@@ -22,4 +19,3 @@
     box-decoration-break: clone;
     padding: 0.1rem 0.3rem;
 }
->>>>>>> master
