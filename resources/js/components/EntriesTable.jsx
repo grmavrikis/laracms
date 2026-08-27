@@ -1,3 +1,5 @@
+import { isRichTextField, docToText } from '../lib/richText';
+
 const getLangCode = (l) => l.locale || l.code || l.short_code || (l.id === 1 ? 'en' : 'fr');
 
 export default function EntriesTable({ schema, entries, onEdit, languages = [], currentLangCode = 'en', onLanguageChange }) {
@@ -80,6 +82,20 @@ export default function EntriesTable({ schema, entries, onEdit, languages = [], 
                                                     value = rawValue[currentLangCode] || Object.values(rawValue)[0] || '';
                                                 }
 
+                                                // Rich text is a document object, not markup: render a plain
+                                                // text excerpt, which React escapes on its own. Nothing here
+                                                // injects HTML into the page.
+                                                if (isRichTextField(field)) {
+                                                    const excerpt = docToText(value);
+                                                    return (
+                                                        <td key={field.name} className="px-4 py-4 text-gray-600 max-w-xs">
+                                                            <div className="line-clamp-2">
+                                                                {excerpt || <span className="text-gray-300">-</span>}
+                                                            </div>
+                                                        </td>
+                                                    );
+                                                }
+
                                                 if (typeof value === 'boolean') {
                                                     return (
                                                         <td key={field.name} className="whitespace-nowrap px-4 py-4 text-gray-500">
@@ -92,18 +108,6 @@ export default function EntriesTable({ schema, entries, onEdit, languages = [], 
 
                                                 if (value === null || value === undefined) value = '';
                                                 let displayValue = String(value);
-
-                                                if (field.type === 'text' || field.type === 'richtext') {
-                                                    if (displayValue.trim() === '<p></p>') displayValue = '';
-                                                    return (
-                                                        <td key={field.name} className="px-4 py-4 text-gray-500 max-w-xs">
-                                                            <div
-                                                                className="prose prose-sm line-clamp-2 text-gray-600"
-                                                                dangerouslySetInnerHTML={{ __html: displayValue }}
-                                                            />
-                                                        </td>
-                                                    );
-                                                }
 
                                                 if (displayValue.length > 50) {
                                                     displayValue = displayValue.substring(0, 50) + '...';

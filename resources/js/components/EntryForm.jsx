@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import api from '../lib/api';
 import RichTextEditor from './RichTextEditor';
+import { isRichTextField, emptyDoc } from '../lib/richText';
 
 const coerce = (type, raw) => {
     if (type === 'integer') return raw === '' || raw === null ? null : Number(raw);
@@ -9,8 +10,16 @@ const coerce = (type, raw) => {
     return raw;
 };
 
+// Rich-text fields hold a document object, not a string, so they start as an
+// empty document rather than ''.
+const emptyValueFor = (field) => {
+    if (field.type === 'boolean') return false;
+    if (isRichTextField(field)) return emptyDoc();
+    return '';
+};
+
 const emptyValues = (fields) =>
-    Object.fromEntries(fields.map((f) => [f.name, f.type === 'boolean' ? false : '']));
+    Object.fromEntries(fields.map((f) => [f.name, emptyValueFor(f)]));
 
 const isTranslatable = (f) =>
     f.translatable === true || f.translatable === 1 || f.translatable === '1' || f.translatable === 'true';
@@ -28,7 +37,7 @@ export default function EntryForm({ moduleSlug, schema, languages, onSaved, onCa
         if (!isEdit) return emptyValues(staticFields);
         const obj = {};
         staticFields.forEach(f => {
-            obj[f.name] = entryData[f.name] ?? '';
+            obj[f.name] = entryData[f.name] ?? emptyValueFor(f);
         });
         return obj;
     });
@@ -96,11 +105,11 @@ export default function EntryForm({ moduleSlug, schema, languages, onSaved, onCa
     const inputClasses = "block w-full rounded-md border-0 py-2 px-3 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm transition-all duration-200 outline-none bg-white";
 
     const renderInput = (field, value, onChange) => {
-        if (field.type === 'text' || field.type === 'richtext') {
+        if (isRichTextField(field)) {
             return (
                 <div className="mt-2 rounded-md shadow-sm ring-1 ring-inset ring-gray-300 focus-within:ring-2 focus-within:ring-inset focus-within:ring-indigo-600 transition-all duration-200 overflow-hidden bg-white">
                     <RichTextEditor
-                        value={value ?? ''}
+                        value={value}
                         onChange={(content) => onChange(content)}
                     />
                 </div>

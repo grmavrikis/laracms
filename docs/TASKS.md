@@ -57,35 +57,36 @@ Format: `[ ]` open, `[x]` done. File references = `path:line`.
   **#7** (FormRequests read the bound Module — zero extra queries), and
   **#16** (entry routes grouped together).
 
-- [x] **4. Rich-text HTML sanitization.** Rich-text values are now cleaned
-  server-side, on write, by
-  [`RichTextSanitizer`](../app/Services/RichTextSanitizer.php)
-  (HTMLPurifier), called from `store()` and `update()` in
-  `Api\EntryController`. Sanitizing on write rather than on render means
-  the stored data is clean for *every* future consumer, not just the one
-  `dangerouslySetInnerHTML` call in the admin table.
+- [x] **4. Rich-text XSS.** Solved by removing HTML from the system rather
+  than by sanitizing it.
 
-  The allowlist mirrors exactly what the editor can emit (StarterKit +
-  Highlight + TextAlign), so real content is untouched:
-  `style` is permitted only on `p`/`h1..h6`, and `CSS.AllowedProperties`
-  narrows it to `text-align` alone. Only fields whose schema type is
-  `text`/`richtext`/`textarea` are purified — other types are plain data
-  that React escapes on render, and purifying them would corrupt
-  legitimate text like `a < b`. Translatable fields are walked
-  per-language.
+  First pass stored HTML and purified it with HTMLPurifier. That worked,
+  but it meant accepting an open language and then trying to remove the
+  dangerous parts of it. Replaced with the stronger option: rich-text
+  fields now store the **editor's document as JSON**
+  (`editor.getJSON()`), a closed vocabulary with no `script` node type,
+  so unsafe constructs cannot be expressed in the first place.
+  HTMLPurifier was removed as a dependency, and the app now contains no
+  `dangerouslySetInnerHTML` at all — the admin table renders a plain-text
+  excerpt.
 
-  Covered by 12 tests in
-  [`tests/Feature/RichTextSanitizationTest.php`](../tests/Feature/RichTextSanitizationTest.php)
-  (script tags, event handlers, `javascript:` hrefs, iframes, svg onload,
-  CSS-based payloads, plus the create/update HTTP paths). Also verified
-  live: posting
-  `<p>safe</p><script>alert(1)</script><img src=x onerror=alert(2)>`
-  stored `<p>safe</p>`. Scanned existing rows first — 0 of 3 entries
-  contained dangerous markup, so no backfill was needed.
+  [`RichTextDocument`](../app/Services/RichTextDocument.php) rebuilds each
+  incoming document from known node types, marks and validated attributes.
+  Attribute *values* still need real checks, since a closed vocabulary
+  does not cover them: link `href` is parsed and restricted to
+  `http`/`https`/`mailto`, while `target`/`rel` are set server-side rather
+  than taken from the payload. Depth and node count are capped.
 
-  Note: sanitizing happens on write, so anything stored *before* this
-  change is not retroactively cleaned. That's fine today (nothing dirty
-  was found), but a backfill command would be needed if that ever changes.
+  Covered by 20 tests in
+  [`tests/Feature/RichTextDocumentTest.php`](../tests/Feature/RichTextDocumentTest.php).
+  Verified live too: posting a document containing a `script` node, a
+  `javascript:` link mark and `textAlign: "evil"` stored only the
+  paragraph with its `bold` mark intact.
+
+  Existing HTML values were converted by
+  `php artisan entries:migrate-richtext`
+  ([command](../app/Console/Commands/MigrateRichTextToDocuments.php)) —
+  2 entries, verified with `--dry-run` first, idempotent on re-run.
 
 ---
 

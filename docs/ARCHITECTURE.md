@@ -113,20 +113,37 @@ from the Entry create/update request (2 separate requests).
 
 ## 7. Rich text
 
-Tiptap (`resources/js/components/RichTextEditor.jsx`) produces HTML which
-is rendered back via `dangerouslySetInnerHTML` in `EntriesTable.jsx`.
+Rich-text fields store the **editor's document as JSON**, not an HTML
+string. Tiptap (`resources/js/components/RichTextEditor.jsx`) emits
+`editor.getJSON()`, and the admin table renders a plain-text excerpt via
+`docToText()`. The app contains no `dangerouslySetInnerHTML` at all.
 
-The editor is **not** a security boundary — the entry endpoints can be
-called directly — so the HTML is purified server-side on write by
-[`RichTextSanitizer`](../app/Services/RichTextSanitizer.php)
-(HTMLPurifier), from `store()`/`update()` in `Api\EntryController`.
-Cleaning on write rather than on render keeps the stored data safe for
-every consumer, not just the admin table.
+This is deliberate. HTML is an open language: it can express `<script>`
+and event handlers, so accepting it means accepting everything and then
+trying to remove the dangerous parts. A document tree is a **closed
+vocabulary** — there is no `script` node type — so anything unknown has
+nowhere to live.
 
-The allowlist matches what the editor can actually emit (StarterKit +
-Highlight + TextAlign): `style` is allowed only on `p`/`h1..h6` and is
-narrowed to `text-align`. Only schema types `text`/`richtext`/`textarea`
-are purified; other types are plain data that React escapes on render.
+[`RichTextDocument`](../app/Services/RichTextDocument.php) rebuilds every
+incoming document on write (from `store()`/`update()` in
+`Api\EntryController`), keeping only known node types, known marks and
+attributes with validated values. Two things still need real checking,
+because a closed vocabulary does not protect attribute *values*:
+
+- **link `href`** — parsed, then compared against `http`/`https`/`mailto`.
+  A rejected target drops the link mark and keeps the text.
+- **`target`/`rel`** — set by the server, never taken from the payload.
+
+Node depth and count are capped to bound oversized payloads. Only schema
+types `text`/`richtext`/`textarea` are treated as documents; other types
+are plain data that React escapes on render.
+
+Text content is stored verbatim — `<script>` typed *as text* stays as
+text, because it is rendered as text and escaped, never as markup.
+
+Legacy HTML values were converted once by
+`php artisan entries:migrate-richtext` (idempotent; `--dry-run` shows
+the diff first).
 
 ## 8. Frontend
 

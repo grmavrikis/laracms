@@ -67,6 +67,11 @@ class SchemaRuleBuilder
             'date' => ['date'],
             'select' => self::buildSelectRules($field),
             'image' => ['string'],
+            // Rich text is stored as an editor document (JSON tree), not HTML.
+            // Laravel only checks the outer shape here; the tree itself is
+            // validated node by node by RichTextDocument, since a recursive
+            // structure cannot be expressed as validation rules.
+            'text', 'richtext', 'textarea' => ['array'],
             default => ['string'],
         };
     }

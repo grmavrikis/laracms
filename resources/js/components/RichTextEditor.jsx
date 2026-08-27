@@ -3,6 +3,7 @@ import { useEditor, EditorContent, useEditorState } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Highlight from '@tiptap/extension-highlight';
 import TextAlign from '@tiptap/extension-text-align';
+import { emptyDoc } from '../lib/richText';
 
 const MenuBar = ({ editor }) => {
     const editorState = useEditorState({
@@ -63,10 +64,11 @@ export default function RichTextEditor({ value, onChange }) {
             TextAlign.configure({ types: ['heading', 'paragraph'] }),
             Highlight,
         ],
-        content: value,
+        content: value ?? emptyDoc(),
         onUpdate: ({ editor }) => {
-            // Sends the updated HTML back to the EntryForm state
-            onChange(editor.getHTML());
+            // The document tree goes to EntryForm state, not an HTML string:
+            // it is stored and re-rendered structurally, never as raw markup.
+            onChange(editor.getJSON());
         },
         editorProps: {
             attributes: {
@@ -75,10 +77,15 @@ export default function RichTextEditor({ value, onChange }) {
         },
     });
 
-    // Synchronize external value changes (e.g., when editing an existing entry)
+    // Synchronize external value changes (e.g., when editing an existing entry).
+    // Compared by value, since getJSON() returns a fresh object every call.
     useEffect(() => {
-        if (editor && value !== editor.getHTML()) {
-            editor.commands.setContent(value);
+        if (!editor) return;
+
+        const incoming = value ?? emptyDoc();
+
+        if (JSON.stringify(incoming) !== JSON.stringify(editor.getJSON())) {
+            editor.commands.setContent(incoming);
         }
     }, [value, editor]);
 

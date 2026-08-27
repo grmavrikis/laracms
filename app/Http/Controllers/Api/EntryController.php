@@ -7,7 +7,7 @@ use App\Http\Requests\StoreEntryRequest;
 use App\Http\Requests\UpdateEntryRequest;
 use App\Models\Entry;
 use App\Models\Module;
-use App\Services\RichTextSanitizer;
+use App\Services\RichTextDocument;
 
 /**
  * Entries are always addressed through their parent Module.
@@ -20,7 +20,7 @@ use App\Services\RichTextSanitizer;
  */
 class EntryController extends Controller
 {
-    public function __construct(private readonly RichTextSanitizer $sanitizer)
+    public function __construct(private readonly RichTextDocument $richText)
     {
     }
 
@@ -65,15 +65,15 @@ class EntryController extends Controller
     }
 
     /**
-     * Validated payload with every rich-text field cleaned. The editor is not
-     * a security boundary - these endpoints can be called directly - so the
-     * HTML is purified here, on write, rather than trusted on render.
+     * Validated payload with every rich-text document rebuilt from known node
+     * types only. The editor is not a security boundary - these endpoints can
+     * be called directly - so the document is checked here, on write.
      */
     private function sanitized(StoreEntryRequest|UpdateEntryRequest $request, Module $module): array
     {
         $validated = $request->validated();
 
-        $validated['data'] = $this->sanitizer->sanitizeEntryData(
+        $validated['data'] = $this->richText->normalizeEntryData(
             $module->schema ?? [],
             $validated['data'] ?? []
         );
