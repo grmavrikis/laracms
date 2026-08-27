@@ -56,9 +56,15 @@ POST /api/login          → session
 
 `routes/api.php`: `/login` is public, everything else sits behind
 `auth:sanctum`. Sanctum only answers "who are you" — it does **not** do
-authorization. `app/Http/Requests/{Store,Update}EntryRequest.php::authorize()`
-always return `true` — there's no authorization layer anywhere else either.
-See TASKS.md #2 — this is the most critical open issue.
+authorization. That is handled separately by
+[`ModulePolicy`](../app/Policies/ModulePolicy.php).
+
+Because a Module is owned by one User and an Entry is owned only
+indirectly (`Entry → Module → User`), every authorization question reduces
+to *does this user own this Module?*. The policy is consulted from the
+controller (read/delete) and from `authorize()` on both Entry FormRequests
+(write) — the latter runs before validation, so a Module's schema is never
+exposed to someone who can't write to it.
 
 ## 4. Module schema → validation
 
@@ -82,16 +88,21 @@ identical** — e.g. `textarea` only exists backend-side.
 ## 5. Entry request flow
 
 ```
-POST/PUT /api/modules/{moduleSlug}/entries[/{id}]
+POST/PUT /api/modules/{module}/entries[/{entry}]
+    → route model binding (scoped): {module} by slug,
+      {entry} through $module->entries()
     → EntryController (Api\)
+        → ModulePolicy (ownership)
         → Store/UpdateEntryRequest (validation via SchemaRuleBuilder)
         → Entry model (create/update)
         → JSON response
 ```
 
-`show/update/destroy` take `$moduleSlug` as a route param but **never use
-it** — they go straight to `Entry::findOrFail($id)` with no scoping to the
-Module or the authenticated user. See TASKS.md #2.
+The entry routes are wrapped in `Route::scopeBindings()`, so `{entry}` is
+resolved *through* the parent Module's relationship. An Entry that belongs
+to a different Module is a 404 before any controller code runs; a Module
+owned by a different user is a 403 from the policy. Modules are addressed
+by slug only — numeric ids are not accepted.
 
 ## 6. File uploads
 

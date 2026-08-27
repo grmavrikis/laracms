@@ -8,19 +8,22 @@ use Illuminate\Foundation\Http\FormRequest;
 
 class StoreEntryRequest extends FormRequest
 {
+    /**
+     * Creating an Entry means writing into the Module, so it requires
+     * ownership of that Module. Runs before rules(), which keeps the
+     * Module's schema from leaking to users who cannot write to it.
+     */
     public function authorize(): bool
     {
-        return true;
+        $module = $this->route('module');
+
+        return $module instanceof Module
+            && $this->user()?->can('update', $module);
     }
 
     public function rules(): array
     {
-        $moduleSlugOrId = $this->route('moduleSlug');
-
-        $module = Module::where('slug', $moduleSlugOrId)
-            ->orWhere('id', $moduleSlugOrId)
-            ->firstOrFail();
-
-        return SchemaRuleBuilder::build($module->schema);
+        // Already resolved by route model binding - no second lookup.
+        return SchemaRuleBuilder::build($this->route('module')->schema);
     }
 }

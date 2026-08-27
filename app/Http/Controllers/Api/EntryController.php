@@ -2,54 +2,58 @@
 
 namespace App\Http\Controllers\Api;
 
-use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreEntryRequest;
 use App\Http\Requests\UpdateEntryRequest;
 use App\Models\Entry;
 use App\Models\Module;
 
+/**
+ * Entries are always addressed through their parent Module.
+ *
+ * Two things guarantee that, and both are needed:
+ *   - scoped route model binding (routes/api.php) resolves {entry} through
+ *     $module->entries(), so an Entry belonging to another Module is a 404;
+ *   - ModulePolicy checks that the authenticated User owns the Module, so
+ *     another user's Module is a 403.
+ */
 class EntryController extends Controller
 {
-    public function index($moduleSlugOrId)
+    public function index(Module $module)
     {
-        $module = Module::where('slug', $moduleSlugOrId)
-            ->orWhere('id', $moduleSlugOrId)
-            ->firstOrFail();
+        $this->authorize('view', $module);
 
         return $module->entries()->latest()->paginate(15);
     }
 
-    public function store(StoreEntryRequest $request, $moduleSlugOrId)
+    public function store(StoreEntryRequest $request, Module $module)
     {
-        \Log::info('DEBUG_PAYLOAD', $request->all()); // Debug payload
-
-        $module = Module::where('slug', $moduleSlugOrId)
-            ->orWhere('id', $moduleSlugOrId)
-            ->firstOrFail();
-
+        // Authorized by StoreEntryRequest::authorize().
         // $request->validated() returns the array ['data' => [...]]
         $entry = $module->entries()->create($request->validated());
 
         return response()->json($entry, 201);
     }
 
-    public function show($moduleSlug, $id)
+    public function show(Module $module, Entry $entry)
     {
-        return Entry::findOrFail($id);
+        $this->authorize('view', $module);
+
+        return response()->json($entry);
     }
 
-    public function update(UpdateEntryRequest $request, $moduleSlug, $id)
+    public function update(UpdateEntryRequest $request, Module $module, Entry $entry)
     {
-        $entry = Entry::findOrFail($id);
+        // Authorized by UpdateEntryRequest::authorize().
         $entry->update($request->validated());
 
         return response()->json($entry);
     }
 
-    public function destroy($moduleSlug, $id)
+    public function destroy(Module $module, Entry $entry)
     {
-        $entry = Entry::findOrFail($id);
+        $this->authorize('update', $module);
+
         $entry->delete();
 
         return response()->noContent();

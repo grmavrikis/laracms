@@ -24,13 +24,21 @@ Route::middleware('auth:sanctum')->group(function ()
     // Modules Routes
     Route::post('/modules', [ModuleController::class, 'store']);
     Route::get('/modules', [ModuleController::class, 'index']);
-    Route::delete('/modules/{moduleSlug}/entries/{id}', [EntryController::class, 'destroy']);
 
     // Entries Routes
-    Route::post('/modules/{moduleSlug}/entries', [EntryController::class, 'store']);
-    Route::get('/modules/{moduleSlug}/entries', [EntryController::class, 'index']);
-    Route::get('/modules/{moduleSlug}/entries/{id}', [EntryController::class, 'show']);
-    Route::put('/modules/{moduleSlug}/entries/{id}', [EntryController::class, 'update']);
+    //
+    // {module} resolves by slug (Module::getRouteKeyName). scopeBindings()
+    // makes {entry} resolve through $module->entries(), so an Entry that
+    // does not belong to this Module is a 404 - enforced by the framework
+    // rather than by a check each controller method has to remember.
+    Route::scopeBindings()->group(function ()
+    {
+        Route::get('/modules/{module}/entries', [EntryController::class, 'index']);
+        Route::post('/modules/{module}/entries', [EntryController::class, 'store']);
+        Route::get('/modules/{module}/entries/{entry}', [EntryController::class, 'show']);
+        Route::put('/modules/{module}/entries/{entry}', [EntryController::class, 'update']);
+        Route::delete('/modules/{module}/entries/{entry}', [EntryController::class, 'destroy']);
+    });
 
     // Upload Route
     Route::post('/upload', [UploadController::class, 'store']);

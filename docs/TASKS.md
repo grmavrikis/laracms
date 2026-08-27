@@ -28,34 +28,38 @@ Format: `[ ]` open, `[x]` done. File references = `path:line`.
   [`ARCHITECTURE.md`](ARCHITECTURE.md#2-domain-model). Removing the dead
   table/model is tracked as P2 item #18 below.
 
+- [x] **2. Entry/Module authorization.** Closed the cross-user data
+  access hole. Entries are now reachable only through a Module the
+  authenticated user owns, enforced two ways:
+  - **Scoped route model binding** (`Route::scopeBindings()` in
+    [`routes/api.php`](../routes/api.php)): `{module}` resolves by slug,
+    `{entry}` resolves *through* `$module->entries()`, so an Entry in
+    another Module is a 404 — guaranteed by the framework rather than by
+    a check each method has to remember. Replaced every
+    `Entry::findOrFail($id)`.
+  - **[`ModulePolicy`](../app/Policies/ModulePolicy.php)**: another
+    user's Module is a 403. Called from the controller for read/delete,
+    and from `authorize()` on both Entry FormRequests (which now run a
+    real ownership check instead of `return true`) so the Module schema
+    can't leak to users who can't write to it.
+
+  Covered by 8 tests in
+  [`tests/Feature/EntryAuthorizationTest.php`](../tests/Feature/EntryAuthorizationTest.php),
+  including the exact original attack (own module slug + someone else's
+  entry id) and a happy-path test proving the owner flow still works.
+  Full suite green (10 passed). API URL shape is unchanged, so the React
+  client needed no changes.
+
+  Resolved as part of the same change: **#3** (removed the
+  `DEBUG_PAYLOAD` log), **#6** (module lookup is now slug-only — this was
+  a live bug: a module with slug `"2"` coexists with the module of
+  `id=2`, and the old `orWhere('id', ...)` matched both ambiguously),
+  **#7** (FormRequests read the bound Module — zero extra queries), and
+  **#16** (entry routes grouped together).
+
 ---
 
 ## P0 — Security / correctness blockers
-
-- [ ] **2. Entry/Module authorization — currently nonexistent.**
-  [`app/Http/Controllers/Api/EntryController.php`](../app/Http/Controllers/Api/EntryController.php):
-  - `show()` (L37-40), `update()` (L42-48), `destroy()` (L50-56): do
-    `Entry::findOrFail($id)`, **ignoring** the `$moduleSlug` from the
-    route. An authenticated user can read/change/delete another user's
-    Entry if they guess the ID.
-  - `index()` (L14-21), `store()` (L23-35): `Module::where('slug', ...)
-    ->orWhere('id', ...)->firstOrFail()` doesn't filter by `user_id` —
-    nothing checks that the Module belongs to the authenticated user.
-  - [`StoreEntryRequest.php:12`](../app/Http/Requests/StoreEntryRequest.php:12)
-    and [`UpdateEntryRequest.php:12`](../app/Http/Requests/UpdateEntryRequest.php:12):
-    `authorize()` always returns `true`.
-  → Needs a real authorization layer: Policy (`ModulePolicy`,
-  `EntryPolicy`) + every query going through
-  `Module::where('user_id', auth()->id())` and
-  `$module->entries()->findOrFail($id)` (not a global
-  `Entry::findOrFail`). Ideally via scoped route model binding so the
-  framework guarantees it, instead of manual lookups in 4 different
-  places.
-
-- [ ] **3. Debug log with the entire request payload.**
-  [`Api/EntryController.php:25`](../app/Http/Controllers/Api/EntryController.php:25):
-  `\Log::info('DEBUG_PAYLOAD', $request->all())`. Remove it — it may
-  write sensitive data to the logs.
 
 - [ ] **4. Rich-text HTML has no sanitization anywhere.**
   Tiptap output is stored raw and rendered raw via
@@ -74,19 +78,11 @@ Format: `[ ]` open, `[x]` done. File references = `path:line`.
 
 ## P1 — Consistency before the schema system solidifies
 
-- [ ] **6. `moduleSlugOrId` contradicts the route contract.**
-  The route is `{moduleSlug}` and `Module` already has
-  `getRouteKeyName() = 'slug'`
-  ([`Module.php:17`](../app/Models/Module.php:17)), but the code
-  everywhere also accepts a raw ID (`->orWhere('id', $moduleSlugOrId)`).
-  Pick one (suggestion: slug-only, via route model binding) and drop
-  the other.
+- [x] **6. `moduleSlugOrId` contradicts the route contract.** Done with
+  Done #2 — module lookup is now slug-only via route model binding.
 
-- [ ] **7. Duplicate Module/Entry lookups.** The Controller and the
-  FormRequest each run their own query for the same Module/Entry
-  (e.g. `StoreEntryRequest::rules()` re-fetches the Module that
-  `EntryController::store()` already found). This gets solved
-  naturally alongside #2 and #6 if you move to route model binding.
+- [x] **7. Duplicate Module/Entry lookups.** Done with Done #2 — the
+  FormRequests read the already-bound Module instead of re-querying.
 
 - [ ] **8. Slug generation in two places.** The frontend
   ([`ModuleBuilder.jsx:16-30`](../resources/js/components/ModuleBuilder.jsx:16))
@@ -125,9 +121,8 @@ Format: `[ ]` open, `[x]` done. File references = `path:line`.
   [`2026_07_14_191839_add_user_id_to_modules_table.php`](../database/migrations/2026_07_14_191839_add_user_id_to_modules_table.php)
   does nothing (empty up/down, a no-op). Decision needed: keep as
   history or squash — not a functional problem, just cleanup.
-- [ ] **16.** Route organization: `DELETE .../entries/{id}` is placed
-  among the Modules routes in `routes/api.php` instead of with the rest
-  of the Entries routes — simple reordering.
+- [x] **16.** Route organization — done with Done #2; the entry routes
+  are now one `scopeBindings()` group.
 - [ ] **17.** `/languages` is an inline closure route instead of a
   controller method — minor stylistic inconsistency with the rest of
   the API.
