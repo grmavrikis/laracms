@@ -141,6 +141,16 @@ are plain data that React escapes on render.
 Text content is stored verbatim — `<script>` typed *as text* stays as
 text, because it is rendered as text and escaped, never as markup.
 
+**Do not let `TrimStrings` near entry payloads.** A mark splits a sentence
+into several text nodes, and the spaces between words sit at the edges of
+those nodes (`"Κάτι "`, `"έντονο"`, `" εδώ"`). Trimming each string on its
+own glues the words together on save. `bootstrap/app.php` therefore
+excludes `data.*` from trimming, and
+`test_spacing_around_marked_text_survives_the_request` pins the behaviour.
+The side effect is that plain string fields are no longer auto-trimmed
+either — which is the right default for a CMS: content is stored as the
+author typed it.
+
 Legacy HTML values were converted once by
 `php artisan entries:migrate-richtext` (idempotent; `--dry-run` shows
 the diff first).

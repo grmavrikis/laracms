@@ -260,6 +260,48 @@ class RichTextDocumentTest extends TestCase
         $this->assertArrayNotHasKey('marks', $stored['content'][0]['content'][0]);
     }
 
+    /**
+     * Marks split a sentence into several text nodes, and the spaces between
+     * words live at the edges of those nodes. Laravel's TrimStrings middleware
+     * trims every string in a request, which would silently glue the words
+     * together once rich text stopped being a single HTML string.
+     */
+    public function test_spacing_around_marked_text_survives_the_request(): void
+    {
+        $owner = User::factory()->create();
+
+        $module = Module::create([
+            'user_id' => $owner->id,
+            'name' => 'Posts',
+            'slug' => 'posts',
+            'schema' => [['name' => 'body', 'type' => 'text', 'translatable' => false]],
+        ]);
+
+        $this->actingAs($owner)
+            ->postJson("/api/modules/{$module->slug}/entries", [
+                'data' => [
+                    'body' => $this->doc([
+                        'type' => 'paragraph',
+                        'content' => [
+                            ['type' => 'text', 'text' => 'Κάτι '],
+                            ['type' => 'text', 'text' => 'έντονο', 'marks' => [['type' => 'bold']]],
+                            ['type' => 'text', 'text' => ' εδώ'],
+                        ],
+                    ]),
+                ],
+            ])
+            ->assertCreated();
+
+        $stored = $module->entries()->sole()->data['body'];
+
+        $this->assertSame(
+            ['Κάτι ', 'έντονο', ' εδώ'],
+            array_column($stored['content'][0]['content'], 'text')
+        );
+
+        $this->assertSame('Κάτι έντονο εδώ', $this->richText()->toPlainText($stored));
+    }
+
     public function test_a_plain_string_is_rejected_for_a_rich_text_field(): void
     {
         $owner = User::factory()->create();

@@ -1,5 +1,10 @@
 @import 'tailwindcss';
 
+/* Tailwind's preflight resets headings to font-size/font-weight: inherit, so
+   without this the `prose` class on the editor is inert and H1/H2/H3 render
+   identically to a paragraph. Tailwind v4 requires plugins to be declared. */
+@plugin '@tailwindcss/typography';
+
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
 @source '../../storage/framework/views/*.php';
 
@@ -9,6 +14,47 @@
 }
 
 /* Tiptap Custom Styles */
+
+/* `prose` is tuned for reading long-form articles: line-height 1.75 and a
+   1.25em margin on every block. Tiptap starts a new <p> on each Enter, so
+   inside a form field that reads as huge gaps between lines. Keep prose's
+   type scale and list markers, tighten the vertical rhythm.
+   prose selectors are wrapped in :where(), so these plain rules outrank them. */
+.tiptap-editor {
+    line-height: 1.5;
+}
+
+.tiptap-editor p,
+.tiptap-editor ul,
+.tiptap-editor ol,
+.tiptap-editor blockquote,
+.tiptap-editor pre,
+.tiptap-editor hr {
+    margin-top: 0.5em;
+    margin-bottom: 0.5em;
+}
+
+.tiptap-editor h1,
+.tiptap-editor h2,
+.tiptap-editor h3,
+.tiptap-editor h4,
+.tiptap-editor h5,
+.tiptap-editor h6 {
+    margin-top: 0.8em;
+    margin-bottom: 0.3em;
+}
+
+/* Tiptap wraps list item content in a paragraph of its own. */
+.tiptap-editor li {
+    margin-top: 0.15em;
+    margin-bottom: 0.15em;
+}
+
+.tiptap-editor li > p {
+    margin-top: 0;
+    margin-bottom: 0;
+}
+
 .tiptap-editor :first-child {
     margin-top: 0;
 }

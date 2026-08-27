@@ -16,6 +16,13 @@ return Application::configure(basePath: dirname(__DIR__))
     {
         // Enable stateful API for Sanctum
         $middleware->statefulApi();
+
+        // Entry payloads carry rich-text documents. A mark splits a sentence
+        // into several text nodes, and the spaces between words sit at the
+        // edges of those nodes ("Κάτι ", "έντονο", " εδώ"). Trimming each
+        // string on its own would glue the words together on save. Content is
+        // stored as the author typed it.
+        $middleware->trimStrings(except: ['data.*']);
     })
     ->withExceptions(function (Exceptions $exceptions): void
     {
