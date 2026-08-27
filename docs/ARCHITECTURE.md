@@ -12,7 +12,7 @@ For what's left to fix/build: [`TASKS.md`](TASKS.md).
 React (Vite/Axios/Sanctum SPA)
         │  /api/*  (JSON)
         ▼
-Laravel routes → Controllers → Form Requests → Models → DB (SQLite)
+Laravel routes → Controllers → Form Requests → Models → DB (MySQL)
 ```
 
 Backend: `app/Http/Controllers/Api/*`, `app/Http/Requests/*`, `app/Models/*`,

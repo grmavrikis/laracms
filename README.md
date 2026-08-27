@@ -10,25 +10,50 @@ field schema, and manage multilingual "Entries" on top of them.
 - **Auth:** Laravel Sanctum (session-based, SPA)
 - **Frontend:** React 19 + Vite
 - **HTTP:** Axios
-- **DB:** SQLite (dev)
+- **DB:** MySQL (`mini_cms`), served by Laragon
 - **Rich text:** Tiptap
 - **Styling:** Tailwind CSS 4
 
 ## Running (dev)
 
+This project is served by **Laragon's Apache**, not `php artisan serve`.
+Laragon auto-creates the `mini-cms.test` vhost pointing at `public/`.
+
+1. Start Laragon → **Start All** (Apache + MySQL).
+2. In the project folder:
+
+```bash
+composer run dev   # queue worker + vite dev server
+```
+
+3. Open **http://mini-cms.test/admin**
+
+Seeded account: `test@example.com` / `password`
+
+First-time setup only:
+
 ```bash
 composer install
 npm install
-
-cp .env.example .env   # if you don't already have a .env
 php artisan key:generate
 php artisan migrate --seed
-
-composer run dev   # runs server + queue + logs + vite together
+php artisan storage:link
 ```
 
-Admin panel: `http://localhost:8000/admin`
-Seeded account: `test@example.com` / `password`
+### Gotchas
+
+- **Use `http://mini-cms.test`, not `localhost:8000`.** `.env` sets
+  `SANCTUM_STATEFUL_DOMAINS=localhost,127.0.0.1,mini-cms.test` — no `:8000`
+  entry — so Sanctum won't treat a `php artisan serve` origin as stateful
+  and login will fail with 401/419. `APP_URL` and `Storage::url()` (upload
+  URLs) also point at `mini-cms.test`. To use `artisan serve` anyway, add
+  `localhost:8000` to `SANCTUM_STATEFUL_DOMAINS` and update `APP_URL`.
+- **`php artisan pail` is not in the `dev` script.** It needs the `pcntl`
+  PHP extension, which doesn't exist on Windows; it used to crash and take
+  the whole `concurrently` group down with it via `--kill-others`. Read
+  logs from `storage/logs/laravel.log` instead.
+- `npm run dev` (Vite, port 5173) only serves JS/CSS assets — it is *not*
+  the application server. Apache serves the app.
 
 ## Documentation
 

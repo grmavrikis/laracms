@@ -136,6 +136,13 @@ Format: `[ ]` open, `[x]` done. File references = `path:line`.
   its migration — confirmed unused (see Done #1). Harmless to leave for
   now, but it misleads anyone reading the schema into thinking it's the
   active translation model.
+- [ ] **19.** Hitting any `/api/*` route unauthenticated *without* an
+  `Accept: application/json` header (e.g. pasting the URL in a browser)
+  returns **500 `Route [login] not defined`** instead of 401 — Laravel
+  tries to redirect guests to a named `login` route that doesn't exist in
+  this API-only app. The React client always sends the JSON header so it
+  correctly gets 401; this only bites manual/curl testing. Fix with
+  `->redirectGuestsTo(fn () => null)` in `bootstrap/app.php`.
 
 ---
 
