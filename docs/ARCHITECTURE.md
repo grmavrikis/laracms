@@ -113,10 +113,20 @@ from the Entry create/update request (2 separate requests).
 
 ## 7. Rich text
 
-Tiptap (`resources/js/components/RichTextEditor.jsx`) produces HTML that
-is stored as-is in `Entry.data`/`EntryTranslation.data` and rendered back
-via `dangerouslySetInnerHTML` in `EntriesTable.jsx`. There is currently no
-sanitization on either the input or the output side.
+Tiptap (`resources/js/components/RichTextEditor.jsx`) produces HTML which
+is rendered back via `dangerouslySetInnerHTML` in `EntriesTable.jsx`.
+
+The editor is **not** a security boundary — the entry endpoints can be
+called directly — so the HTML is purified server-side on write by
+[`RichTextSanitizer`](../app/Services/RichTextSanitizer.php)
+(HTMLPurifier), from `store()`/`update()` in `Api\EntryController`.
+Cleaning on write rather than on render keeps the stored data safe for
+every consumer, not just the admin table.
+
+The allowlist matches what the editor can actually emit (StarterKit +
+Highlight + TextAlign): `style` is allowed only on `p`/`h1..h6` and is
+narrowed to `text-align`. Only schema types `text`/`richtext`/`textarea`
+are purified; other types are plain data that React escapes on render.
 
 ## 8. Frontend
 

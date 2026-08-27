@@ -57,17 +57,39 @@ Format: `[ ]` open, `[x]` done. File references = `path:line`.
   **#7** (FormRequests read the bound Module — zero extra queries), and
   **#16** (entry routes grouped together).
 
+- [x] **4. Rich-text HTML sanitization.** Rich-text values are now cleaned
+  server-side, on write, by
+  [`RichTextSanitizer`](../app/Services/RichTextSanitizer.php)
+  (HTMLPurifier), called from `store()` and `update()` in
+  `Api\EntryController`. Sanitizing on write rather than on render means
+  the stored data is clean for *every* future consumer, not just the one
+  `dangerouslySetInnerHTML` call in the admin table.
+
+  The allowlist mirrors exactly what the editor can emit (StarterKit +
+  Highlight + TextAlign), so real content is untouched:
+  `style` is permitted only on `p`/`h1..h6`, and `CSS.AllowedProperties`
+  narrows it to `text-align` alone. Only fields whose schema type is
+  `text`/`richtext`/`textarea` are purified — other types are plain data
+  that React escapes on render, and purifying them would corrupt
+  legitimate text like `a < b`. Translatable fields are walked
+  per-language.
+
+  Covered by 12 tests in
+  [`tests/Feature/RichTextSanitizationTest.php`](../tests/Feature/RichTextSanitizationTest.php)
+  (script tags, event handlers, `javascript:` hrefs, iframes, svg onload,
+  CSS-based payloads, plus the create/update HTTP paths). Also verified
+  live: posting
+  `<p>safe</p><script>alert(1)</script><img src=x onerror=alert(2)>`
+  stored `<p>safe</p>`. Scanned existing rows first — 0 of 3 entries
+  contained dangerous markup, so no backfill was needed.
+
+  Note: sanitizing happens on write, so anything stored *before* this
+  change is not retroactively cleaned. That's fine today (nothing dirty
+  was found), but a backfill command would be needed if that ever changes.
+
 ---
 
 ## P0 — Security / correctness blockers
-
-- [ ] **4. Rich-text HTML has no sanitization anywhere.**
-  Tiptap output is stored raw and rendered raw via
-  `dangerouslySetInnerHTML` in
-  [`EntriesTable.jsx:102`](../resources/js/components/EntriesTable.jsx:102).
-  Stored XSS if someone passes HTML/JS directly through the API
-  (without ever going through the Tiptap UI). → sanitize server-side
-  before persisting (e.g. HTMLPurifier), or at least before rendering.
 
 - [ ] **5. Unknown field type silently becomes `string`.**
   [`SchemaRuleBuilder.php:70`](../app/Services/SchemaRuleBuilder.php:70)
@@ -91,6 +113,15 @@ Format: `[ ]` open, `[x]` done. File references = `path:line`.
   ([`ModuleController.php:27`](../app/Http/Controllers/Api/ModuleController.php:27)).
   Different rules = different slug for the same input. → the backend is
   the authority, the frontend only suggests.
+
+- [ ] **20. Known vulnerabilities in dependencies.** `composer audit`
+  reports 12 advisories across `guzzlehttp/guzzle` (one rated high:
+  CVE-2026-69246, host-based check bypass) and `league/commonmark`. Both
+  are transitive dependencies of `laravel/framework`, pre-existing and
+  unrelated to app code. A partial update is blocked by the lock file —
+  needs `composer update guzzlehttp/guzzle league/commonmark -W`, which
+  also moves `guzzlehttp/psr7` and `guzzlehttp/promises`. Deserves its
+  own commit plus a full test run, not a drive-by fix.
 
 - [ ] **9. Field types inconsistent frontend/backend.** Frontend
   `FIELD_TYPES` in `ModuleBuilder.jsx:5-14` has no `textarea`, while the

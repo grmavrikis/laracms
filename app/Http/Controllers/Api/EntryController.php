@@ -7,6 +7,7 @@ use App\Http\Requests\StoreEntryRequest;
 use App\Http\Requests\UpdateEntryRequest;
 use App\Models\Entry;
 use App\Models\Module;
+use App\Services\RichTextSanitizer;
 
 /**
  * Entries are always addressed through their parent Module.
@@ -19,6 +20,10 @@ use App\Models\Module;
  */
 class EntryController extends Controller
 {
+    public function __construct(private readonly RichTextSanitizer $sanitizer)
+    {
+    }
+
     public function index(Module $module)
     {
         $this->authorize('view', $module);
@@ -30,7 +35,7 @@ class EntryController extends Controller
     {
         // Authorized by StoreEntryRequest::authorize().
         // $request->validated() returns the array ['data' => [...]]
-        $entry = $module->entries()->create($request->validated());
+        $entry = $module->entries()->create($this->sanitized($request, $module));
 
         return response()->json($entry, 201);
     }
@@ -45,7 +50,7 @@ class EntryController extends Controller
     public function update(UpdateEntryRequest $request, Module $module, Entry $entry)
     {
         // Authorized by UpdateEntryRequest::authorize().
-        $entry->update($request->validated());
+        $entry->update($this->sanitized($request, $module));
 
         return response()->json($entry);
     }
@@ -57,5 +62,22 @@ class EntryController extends Controller
         $entry->delete();
 
         return response()->noContent();
+    }
+
+    /**
+     * Validated payload with every rich-text field cleaned. The editor is not
+     * a security boundary - these endpoints can be called directly - so the
+     * HTML is purified here, on write, rather than trusted on render.
+     */
+    private function sanitized(StoreEntryRequest|UpdateEntryRequest $request, Module $module): array
+    {
+        $validated = $request->validated();
+
+        $validated['data'] = $this->sanitizer->sanitizeEntryData(
+            $module->schema ?? [],
+            $validated['data'] ?? []
+        );
+
+        return $validated;
     }
 }
