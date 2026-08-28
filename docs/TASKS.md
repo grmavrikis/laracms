@@ -158,13 +158,33 @@ Format: `[ ]` open, `[x]` done. File references = `path:line`.
   `-2`, `-3`; an explicit taken slug gave 422; a Greek name gave
   `estiatoria-probe`; `"???"` gave `module`. Probe modules cleaned up.
 
-- [ ] **8. Slug generation in two places.** The frontend
-  ([`ModuleBuilder.jsx:16-30`](../resources/js/components/ModuleBuilder.jsx:16))
-  has its own `greekToLatin`/`slugify`; the backend does
-  `Str::slug($validated['name'])`
-  ([`ModuleController.php:27`](../app/Http/Controllers/Api/ModuleController.php:27)).
-  Different rules = different slug for the same input. → the backend is
-  the authority, the frontend only suggests.
+- [x] **8. Slug generation in two places.** `ModuleBuilder.jsx` carried its
+  own `greekToLatin`/`slugify` and *sent* the result, so the frontend's
+  version was the one actually stored and the backend's `Str::slug` never
+  ran. Measured the two against each other — they disagreed on 4 of 9
+  sample names:
+
+  | name | frontend | backend |
+  |---|---|---|
+  | Νέα & Ανακοινώσεις | nea-anakoin**o**seis | nea-anakoin**w**seis |
+  | Ψυχαγωγία | ps**ych**agogia | ps**ikhagh**oghia |
+  | Ξενοδοχεία 2026 | **x**enodo**ch**eia-2026 | **ks**enodo**kh**ia-2026 |
+  | Café Münchén | **caf-m-nch-n** | cafe-munchen |
+
+  The last one is the worst: the map only covered Greek, so accented Latin
+  was stripped to hyphens.
+
+  Removed the frontend implementation entirely rather than trying to keep
+  two in sync. The slug box is now optional and blank by default; leaving
+  it blank omits the key so the backend derives it (#21), and typing one
+  sends it as an explicit request. No live preview is shown, because the
+  only honest preview would have to come from the backend — showing a
+  locally computed guess is what caused this.
+
+  Verified live: posting `Ψυχαγωγία Probe` with no slug stored
+  `psikhaghoghia-probe`, where the old frontend would have sent
+  `psychagogia-probe`. **Not verified by clicking through the form** — see
+  the note under #22.
 
 - [ ] **20. Known vulnerabilities in dependencies.** `composer audit`
   reports 12 advisories across `guzzlehttp/guzzle` (one rated high:
@@ -221,6 +241,13 @@ Format: `[ ]` open, `[x]` done. File references = `path:line`.
   this API-only app. The React client always sends the JSON header so it
   correctly gets 401; this only bites manual/curl testing. Fix with
   `->redirectGuestsTo(fn () => null)` in `bootstrap/app.php`.
+- [ ] **22. No test coverage of the React components.** There is no JS
+  test runner at all, so every frontend change so far has been verified
+  only by `npm run build` (which proves it compiles, not that it behaves)
+  plus the API contract underneath it. The gaps that leaves are real: the
+  editor round-trip and the module form have both had to be checked by
+  hand. Worth a small Vitest setup covering at least `richText.js` and the
+  ModuleBuilder payload shape — it does not need a full DOM harness.
 
 ---
 

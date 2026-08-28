@@ -13,37 +13,21 @@ const FIELD_TYPES = [
     { value: 'image', label: 'Image' },
 ];
 
-const greekToLatin = (str) => {
-    const map = {
-        'α': 'a', 'β': 'b', 'γ': 'g', 'δ': 'd', 'ε': 'e', 'ζ': 'z', 'η': 'i', 'θ': 'th',
-        'ι': 'i', 'κ': 'k', 'λ': 'l', 'μ': 'm', 'ν': 'n', 'ξ': 'x', 'ο': 'o', 'π': 'p',
-        'ρ': 'r', 'σ': 's', 'ς': 's', 'τ': 't', 'υ': 'y', 'φ': 'f', 'χ': 'ch', 'ψ': 'ps', 'ω': 'o',
-        'ά': 'a', 'έ': 'e', 'ή': 'i', 'ί': 'i', 'ό': 'o', 'ύ': 'y', 'ώ': 'o', 'ϊ': 'i', 'ϋ': 'y', 'ΐ': 'i', 'ΰ': 'y'
-    };
-    return str.toLowerCase().split('').map(char => map[char] || char).join('');
-};
-
-const slugify = (str) =>
-    greekToLatin(str)
-        .trim()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/(^-|-$)/g, '');
-
+// There is deliberately no slugify here. This component used to transliterate
+// the name itself and send the result, which meant the stored slug came from a
+// Greek-only character map that disagreed with the backend's Str::slug:
+// 'Ψυχαγωγία' became psychagogia instead of psikhaghoghia, and 'Café Münchén'
+// collapsed to caf-m-nch-n. The backend is the authority - leave the slug field
+// empty and it derives one from the name.
 const emptyField = () => ({ name: '', type: 'string', translatable: false, validation: '', options: '' });
 
 export default function ModuleBuilder({ onCreated, onCancel }) {
     const [name, setName] = useState('');
     const [slug, setSlug] = useState('');
-    const [slugTouched, setSlugTouched] = useState(false);
     const [fields, setFields] = useState([{ _id: 0, ...emptyField() }]);
     const [submitting, setSubmitting] = useState(false);
     const [errors, setErrors] = useState(null);
     const nextId = useRef(1);
-
-    const handleNameChange = (value) => {
-        setName(value);
-        if (!slugTouched) setSlug(slugify(value));
-    };
 
     const addField = () =>
         setFields((prev) => [...prev, { _id: nextId.current++, ...emptyField() }]);
@@ -59,9 +43,14 @@ export default function ModuleBuilder({ onCreated, onCancel }) {
         setErrors(null);
         setSubmitting(true);
 
+        const trimmedSlug = slug.trim();
+
         const payload = {
             name,
-            slug,
+            // Omitted when blank, so the backend derives it. Sending one means
+            // "I want exactly this", and a duplicate is then a 422 rather than
+            // being silently renamed.
+            ...(trimmedSlug === '' ? {} : { slug: trimmedSlug }),
             schema: fields.map(({ _id, ...rest }) => ({
                 ...rest,
                 validation: rest.validation.trim(),
@@ -76,7 +65,6 @@ export default function ModuleBuilder({ onCreated, onCancel }) {
             onCreated?.(body.data);
             setName('');
             setSlug('');
-            setSlugTouched(false);
             setFields([{ _id: nextId.current++, ...emptyField() }]);
         } catch (err) {
             console.error(err);
@@ -119,21 +107,25 @@ export default function ModuleBuilder({ onCreated, onCancel }) {
                         type="text"
                         placeholder="e.g. Products"
                         value={name}
-                        onChange={(e) => handleNameChange(e.target.value)}
+                        onChange={(e) => setName(e.target.value)}
                         className="w-full rounded-lg border border-gray-300 px-3.5 py-2 text-sm text-gray-900 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
                         required
                     />
                 </div>
                 <div>
-                    <label className="block text-sm font-semibold text-gray-900 mb-1.5">Slug</label>
+                    <label className="block text-sm font-semibold text-gray-900 mb-1.5">
+                        Slug <span className="font-normal text-gray-500">(optional)</span>
+                    </label>
                     <input
                         type="text"
-                        placeholder="e.g. products"
+                        placeholder="generated from the name"
                         value={slug}
-                        onChange={(e) => { setSlug(e.target.value); setSlugTouched(true); }}
+                        onChange={(e) => setSlug(e.target.value)}
                         className="w-full rounded-lg border border-gray-300 px-3.5 py-2 text-sm font-mono text-gray-900 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-                        required
                     />
+                    <p className="mt-1.5 text-xs text-gray-500">
+                        Leave blank to let the server build it from the name.
+                    </p>
                 </div>
             </div>
 

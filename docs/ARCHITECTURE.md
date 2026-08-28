@@ -38,6 +38,13 @@ User (1:N) Module (1:N) Entry
   suffix until it is free (`products-2`) and falls back to `module` when
   `Str::slug()` yields nothing, which it does for a punctuation-only name.
   An empty slug would make the module unreachable.
+
+  **The backend is the only place that builds a slug.** `ModuleBuilder.jsx`
+  deliberately has no `slugify`: it used to transliterate the name locally
+  with a Greek-only map and send that, which disagreed with `Str::slug`
+  (`Ψυχαγωγία` → `psychagogia` vs `psikhaghoghia`, and `Café Münchén` →
+  `caf-m-nch-n`). Since the frontend sent its value, the wrong one was the
+  one stored. The form now leaves the slug blank unless the user types one.
 - **Entry** — `id, module_id, data(json)`. Belongs to one Module. Has no
   `user_id` of its own — ownership is derived indirectly through
   `Entry → Module → User`.
