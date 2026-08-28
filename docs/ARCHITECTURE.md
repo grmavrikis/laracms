@@ -96,16 +96,21 @@ schema field into Laravel validation rules based on its `type` and its
 `translatable` flag.
 
 `SchemaRuleBuilder::SUPPORTED_TYPES` is the **single list** of field types
-the backend understands (`string`, `text`, `textarea`, `richtext`,
-`integer`, `boolean`, `date`, `datetime`, `select`, `image`).
-`ModuleController` validates incoming schemas against that same constant,
-so a Module cannot declare a type the rule builder is unable to handle.
-An unrecognised type throws rather than falling back to `string` — the old
-fallback hid the fact that `datetime` had no arm at all and was being
-validated as a plain string.
+the system understands: `string`, `text`, `integer`, `boolean`, `date`,
+`datetime`, `select`, `image`. `ModuleController` validates incoming
+schemas against that same constant, so a Module cannot declare a type the
+rule builder is unable to handle. An unrecognised type throws rather than
+falling back to `string` — the old fallback hid the fact that `datetime`
+had no arm at all and was being validated as a plain string.
 
-The **frontend** list in `ModuleBuilder.jsx` is still separate and offers
-fewer types (no `textarea`, no `richtext`) — see TASKS.md #9.
+`text` is the one rich-text type. `richtext` and `textarea` used to be
+accepted as aliases that behaved identically, and were dropped rather than
+surfaced in the form.
+
+The list is mirrored in JS — `FIELD_TYPES` in `ModuleBuilder.jsx` (with
+labels) and in `lib/richText.js` (which types are documents).
+`FieldTypeConsistencyTest` reads both files and fails if they drift from
+the PHP constants, since there is no JS test runner to assert it natively.
 
 ## 5. Entry request flow
 

@@ -17,8 +17,6 @@ class SchemaRuleBuilder
     public const SUPPORTED_TYPES = [
         'string',
         'text',
-        'textarea',
-        'richtext',
         'integer',
         'boolean',
         'date',
@@ -93,7 +91,7 @@ class SchemaRuleBuilder
             // Laravel only checks the outer shape here; the tree itself is
             // validated node by node by RichTextDocument, since a recursive
             // structure cannot be expressed as validation rules.
-            'text', 'richtext', 'textarea' => ['array'],
+            'text' => ['array'],
             // No silent fallback: an unrecognised type used to validate as a
             // string, so a schema typo passed unnoticed and the field was
             // never really checked.

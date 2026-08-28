@@ -195,11 +195,27 @@ Format: `[ ]` open, `[x]` done. File references = `path:line`.
   also moves `guzzlehttp/psr7` and `guzzlehttp/promises`. Deserves its
   own commit plus a full test run, not a drive-by fix.
 
-- [ ] **9. Field types inconsistent frontend/backend.** Frontend
-  `FIELD_TYPES` in `ModuleBuilder.jsx:5-14` has no `textarea`, while the
-  backend validation accepts it
-  ([`ModuleController.php:20`](../app/Http/Controllers/Api/ModuleController.php:20)).
-  One field-type list, shared by both sides.
+- [x] **9. Field types inconsistent frontend/backend.** The API accepted
+  `textarea` and `richtext`; the form offered neither. The fix was not to
+  add them to the form, because all three names behaved *identically* —
+  each rendered the Tiptap editor and stored a document — and three
+  dropdown entries doing one thing is worse than one. Collapsed to `text`
+  as the single rich-text type, in `SUPPORTED_TYPES`,
+  `RichTextDocument::FIELD_TYPES` and `richText.js`. Verified first that no
+  module used either alias.
+
+  Added [`FieldTypeConsistencyTest`](../tests/Feature/FieldTypeConsistencyTest.php)
+  so this cannot drift again: it reads the two JS literals and compares
+  them against the PHP constants. That is a workaround for having no JS
+  test runner (#22) and is sensitive to reformatting of those literals —
+  the test says so.
+
+  Verified live: posting a module with `textarea` or `richtext` now
+  returns 422, `text` returns 201.
+
+  Note: the frontend list carries labels the backend has no notion of
+  (`Datetime`, `Image`…). Only the type values are pinned; the labels
+  stay a frontend concern.
 
 ---
 

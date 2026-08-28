@@ -59,8 +59,13 @@ class RichTextDocument
     /**
      * Field types whose value is a rich-text document. EntryForm.jsx renders
      * RichTextEditor for exactly these.
+     *
+     * `richtext` and `textarea` used to be listed here as well, but all three
+     * behaved identically, and offering three names for one behaviour in the
+     * form's dropdown is worse than offering one. They were never creatable
+     * through the UI and no module used them.
      */
-    public const FIELD_TYPES = ['text', 'richtext', 'textarea'];
+    public const FIELD_TYPES = ['text'];
 
     public static function isRichTextField(array $field): bool
     {

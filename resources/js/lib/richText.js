@@ -3,8 +3,9 @@
 // as raw HTML, so there is no markup to sanitize on the way out.
 //
 // Keep FIELD_TYPES in sync with RichTextDocument::FIELD_TYPES on the backend.
+// FieldTypeConsistencyTest reads this file and fails if the two drift apart.
 
-export const FIELD_TYPES = ['text', 'richtext', 'textarea'];
+export const FIELD_TYPES = ['text'];
 
 export const isRichTextField = (field) => FIELD_TYPES.includes(field?.type);
 
