@@ -6,6 +6,7 @@ use App\Models\Module;
 use App\Models\User;
 use App\Services\SchemaRuleBuilder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 /**
@@ -64,6 +65,63 @@ class SchemaFieldTypeTest extends TestCase
         // is just as opaque as the silent fallback it replaced.
         $this->assertStringContainsString('bogus', $response->getContent());
         $this->assertDatabaseCount('entries', 0);
+    }
+
+    /**
+     * `richtext` and `textarea` stopped being creatable when they were
+     * collapsed into `text`, but a schema written before that may still
+     * declare one. Such a module must keep working - it only ever meant
+     * `text` - even though it can no longer be chosen.
+     *
+     * @param string $legacyType
+     */
+    #[DataProvider('legacyRichTextTypeProvider')]
+    public function test_a_legacy_rich_text_type_still_accepts_entries(string $legacyType): void
+    {
+        $module = $this->moduleWith(['name' => 'body', 'type' => $legacyType]);
+
+        $document = [
+            'type' => 'doc',
+            'content' => [[
+                'type' => 'paragraph',
+                'content' => [['type' => 'text', 'text' => 'legacy content']],
+            ]],
+        ];
+
+        $this->actingAs($this->owner)
+            ->postJson("/api/modules/{$module->slug}/entries", ['data' => ['body' => $document]])
+            ->assertCreated();
+
+        $stored = $module->entries()->sole()->data['body'];
+
+        // Treated as a document, not coerced to a string.
+        $this->assertSame('doc', $stored['type']);
+        $this->assertSame('legacy content', $stored['content'][0]['content'][0]['text']);
+    }
+
+    /**
+     * Recognising them for reading must not make them selectable again.
+     *
+     * @param string $legacyType
+     */
+    #[DataProvider('legacyRichTextTypeProvider')]
+    public function test_a_legacy_rich_text_type_cannot_be_created(string $legacyType): void
+    {
+        $this->actingAs($this->owner)
+            ->postJson('/api/modules', [
+                'name' => 'Legacy',
+                'schema' => [['name' => 'body', 'type' => $legacyType, 'translatable' => false]],
+            ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('schema.0.type');
+    }
+
+    public static function legacyRichTextTypeProvider(): array
+    {
+        return [
+            'richtext' => ['richtext'],
+            'textarea' => ['textarea'],
+        ];
     }
 
     public function test_module_creation_rejects_an_unsupported_type(): void

@@ -57,19 +57,31 @@ class RichTextDocument
     private int $nodeBudget = self::MAX_NODES;
 
     /**
-     * Field types whose value is a rich-text document. EntryForm.jsx renders
-     * RichTextEditor for exactly these.
-     *
-     * `richtext` and `textarea` used to be listed here as well, but all three
-     * behaved identically, and offering three names for one behaviour in the
-     * form's dropdown is worse than offering one. They were never creatable
-     * through the UI and no module used them.
+     * The field type whose value is a rich-text document, and the only one
+     * offered when building a Module. `richtext` and `textarea` were once
+     * listed here too, but all three behaved identically and three names for
+     * one behaviour is worse than one.
      */
     public const FIELD_TYPES = ['text'];
 
+    /**
+     * Types that can no longer be chosen but may still appear in a schema
+     * written before they were collapsed into `text`.
+     *
+     * Reading and creation are deliberately different questions here. Dropping
+     * these outright left such a Module unable to save an entry *and* unable
+     * to be migrated, since the rich-text migration selects fields through
+     * isRichTextField(). They are recognised so that data keeps working; they
+     * stay out of SchemaRuleBuilder::SUPPORTED_TYPES so no new one is created.
+     */
+    public const LEGACY_FIELD_TYPES = ['richtext', 'textarea'];
+
     public static function isRichTextField(array $field): bool
     {
-        return in_array($field['type'] ?? null, self::FIELD_TYPES, true);
+        $type = $field['type'] ?? null;
+
+        return in_array($type, self::FIELD_TYPES, true)
+            || in_array($type, self::LEGACY_FIELD_TYPES, true);
     }
 
     public static function empty(): array

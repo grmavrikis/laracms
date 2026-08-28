@@ -92,4 +92,32 @@ class FieldTypeConsistencyTest extends TestCase
             );
         }
     }
+
+    public function test_the_frontend_agrees_on_the_legacy_rich_text_types(): void
+    {
+        $frontend = $this->jsStringArray('resources/js/lib/richText.js', 'export const LEGACY_FIELD_TYPES');
+        $backend = RichTextDocument::LEGACY_FIELD_TYPES;
+
+        sort($frontend);
+        sort($backend);
+
+        $this->assertSame($backend, $frontend);
+    }
+
+    /**
+     * Legacy types are readable, not creatable. If one ever reappeared in
+     * SUPPORTED_TYPES the module form would start offering two names for the
+     * same behaviour again.
+     */
+    public function test_legacy_rich_text_types_are_not_creatable(): void
+    {
+        foreach (RichTextDocument::LEGACY_FIELD_TYPES as $type)
+        {
+            $this->assertNotContains(
+                $type,
+                SchemaRuleBuilder::SUPPORTED_TYPES,
+                "Legacy type '{$type}' should not be offered as a creatable field type."
+            );
+        }
+    }
 }

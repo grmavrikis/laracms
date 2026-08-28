@@ -264,16 +264,31 @@ Format: `[ ]` open, `[x]` done. File references = `path:line`.
   (`Datetime`, `Image`…). Only the type values are pinned; the labels
   stay a frontend concern.
 
-- [ ] **23. Dropping the type aliases left no migration path.** #9 removed
-  `textarea` and `richtext` (and the unreachable `number`/`email`/`url`)
-  from `SUPPORTED_TYPES`. Any module already declaring one now throws on
-  every entry write, and
+- [x] **23. Dropping the type aliases left no migration path.** #9 removed
+  `textarea` and `richtext` from `SUPPORTED_TYPES`, which broke any module
+  already declaring one in two ways at once: entry writes threw
+  "unsupported type", and
   [`MigrateRichTextToDocuments`](../app/Console/Commands/MigrateRichTextToDocuments.php)
-  filters with `RichTextDocument::isRichTextField()`, which no longer
-  matches them — so legacy HTML in such a field can be neither saved nor
-  converted. Only this dev database was checked for absence. Either accept
-  the aliases as read-only legacy in the rule builder, or add a command
-  that rewrites them to `text`.
+  selects fields through `isRichTextField()`, so legacy HTML in such a
+  field could not even be converted out. A regression from #9, not a
+  pre-existing fault.
+
+  Fixed by separating the two questions #9 had conflated. *Creatable* is
+  still the eight types in `SUPPORTED_TYPES`. *Readable* now also includes
+  `RichTextDocument::LEGACY_FIELD_TYPES` — the aliases only ever meant
+  `text`, so the rule builder normalises them to it and
+  `isRichTextField()` matches them. The module form is untouched and still
+  offers one rich-text choice, which was the point of #9.
+
+  `richText.js` mirrors the legacy list too, otherwise the form would
+  render a document object into a plain text input.
+
+  Covered by 6 tests: entries save on a legacy-typed module, the types
+  still cannot be created, and both JS lists are pinned to the PHP
+  constants. Verified live end to end: a `richtext` module holding
+  `<p>legacy <strong>html</strong></p>` was picked up by the migration
+  command and converted with its bold mark intact, and a POST to that
+  module returned 201.
 
 - [ ] **24. A translatable field can never be optional.**
   [`SchemaRuleBuilder.php:66`](../app/Services/SchemaRuleBuilder.php:66)

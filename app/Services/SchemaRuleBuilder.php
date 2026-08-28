@@ -79,6 +79,14 @@ class SchemaRuleBuilder
     {
         $type = $field['type'] ?? 'string';
 
+        // A schema written before the rich-text aliases were collapsed can
+        // still say 'richtext' or 'textarea'. They only ever meant 'text', so
+        // they are read as such rather than rejected - see RichTextDocument.
+        if (in_array($type, RichTextDocument::LEGACY_FIELD_TYPES, true))
+        {
+            $type = 'text';
+        }
+
         return match ($type)
         {
             // An image field stores the URL returned by the upload endpoint.

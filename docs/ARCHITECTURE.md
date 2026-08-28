@@ -111,9 +111,13 @@ rule builder is unable to handle. An unrecognised type throws rather than
 falling back to `string` — the old fallback hid the fact that `datetime`
 had no arm at all and was being validated as a plain string.
 
-`text` is the one rich-text type. `richtext` and `textarea` used to be
-accepted as aliases that behaved identically, and were dropped rather than
-surfaced in the form.
+`text` is the one rich-text type. `richtext` and `textarea` were once
+accepted as aliases that behaved identically and are no longer creatable,
+but they remain *readable*: `RichTextDocument::LEGACY_FIELD_TYPES` lists
+them, the rule builder normalises them to `text`, and `isRichTextField()`
+matches them. Creatable and readable are separate questions — dropping
+them from both left older schemas unable to save an entry or to be
+migrated.
 
 The list is mirrored in JS — `FIELD_TYPES` in `ModuleBuilder.jsx` (with
 labels) and in `lib/richText.js` (which types are documents).
