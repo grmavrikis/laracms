@@ -186,14 +186,33 @@ Format: `[ ]` open, `[x]` done. File references = `path:line`.
   `psychagogia-probe`. **Not verified by clicking through the form** — see
   the note under #22.
 
-- [ ] **20. Known vulnerabilities in dependencies.** `composer audit`
-  reports 12 advisories across `guzzlehttp/guzzle` (one rated high:
-  CVE-2026-69246, host-based check bypass) and `league/commonmark`. Both
-  are transitive dependencies of `laravel/framework`, pre-existing and
-  unrelated to app code. A partial update is blocked by the lock file —
-  needs `composer update guzzlehttp/guzzle league/commonmark -W`, which
-  also moves `guzzlehttp/psr7` and `guzzlehttp/promises`. Deserves its
-  own commit plus a full test run, not a drive-by fix.
+- [x] **20. Known vulnerabilities in dependencies.** `composer audit`
+  reported 12 advisories across `guzzlehttp/guzzle` (one rated high:
+  CVE-2026-69246, host-based check bypass) and `league/commonmark`.
+  Cleared with `composer update guzzlehttp/guzzle league/commonmark -W`,
+  which moved six packages, all within their current major version:
+
+  | package | from | to |
+  |---|---|---|
+  | guzzlehttp/guzzle | 7.14.0 | 7.15.5 |
+  | guzzlehttp/psr7 | 2.12.4 | 2.13.1 |
+  | guzzlehttp/promises | 2.5.1 | 2.5.3 |
+  | league/commonmark | 2.8.2 | 2.10.0 |
+  | nette/schema | 1.3.5 | 1.3.6 |
+  | nette/utils | 4.1.4 | 4.1.5 |
+
+  `laravel/framework` itself did not move, which kept the change
+  contained. `composer audit` now reports none.
+
+  Low risk by construction, and checked rather than assumed: neither
+  package is a direct dependency, and nothing under `app/`, `routes/` or
+  `resources/js/` references Guzzle, the `Http` facade or CommonMark —
+  they are framework-level deps this CMS never calls.
+
+  Verified with 43 tests passing and a live pass over `mini-cms.test`:
+  login, `/api/modules`, `/api/modules/rest/entries`, `/api/languages`
+  and `/admin` all 200, plus a create/delete round trip (201 then 204)
+  whose document came back intact.
 
 - [x] **9. Field types inconsistent frontend/backend.** The API accepted
   `textarea` and `richtext`; the form offered neither. The fix was not to
