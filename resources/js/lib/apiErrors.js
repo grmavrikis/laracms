@@ -16,13 +16,21 @@ export const validationErrors = (err) =>
  *
  * Different failures need different words: a 403 is not a network problem and
  * "please try again" is useless advice for it.
+ *
+ * `overrides` maps a status to wording for callers where the default reading is
+ * wrong. The sign-in form is the case that matters: a 401 there means the
+ * credentials were wrong, not that a session expired.
  */
-export const errorSummary = (err, fallback = 'Something went wrong.') => {
+export const errorSummary = (err, fallback = 'Something went wrong.', overrides = {}) => {
     if (!err?.response) {
         return ['Could not reach the server. Check your connection and try again.'];
     }
 
     const { status, data } = err.response;
+
+    if (overrides[status]) {
+        return [overrides[status]];
+    }
 
     if (status === 422) {
         const errors = data?.errors;

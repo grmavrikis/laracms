@@ -275,11 +275,25 @@ Format: `[ ]` open, `[x]` done. File references = `path:line`.
 - [ ] **11.** `EntriesManager.jsx:41` sends a `lang` param to
   `GET .../entries`, but the backend `index()` ignores it entirely —
   every language is always fetched.
-- [ ] **12.** [`Login.jsx:22`](../resources/js/components/Login.jsx:22)
-  shows "Invalid credentials" for EVERY error (network, 500, CSRF) —
-  a misleading message. Now a small job: `lib/apiErrors.js` already
-  separates those cases, so this is swapping the `catch` body for
-  `errorSummary(err, 'Invalid credentials.')`.
+- [x] **12. Sign-in reported every failure as bad credentials.** The
+  `catch` wrapped both the `/sanctum/csrf-cookie` request and the login
+  call, so a server that was down, a 500 or a CSRF mismatch all read
+  "Invalid credentials" — a user would go on retyping a correct password.
+  Now uses `errorSummary` from `lib/apiErrors.js`.
+
+  This needed one addition to the helper. Its default 401 wording is
+  "your session has ended", which is right inside the app but wrong on the
+  sign-in form, where a 401 *is* bad credentials. `errorSummary` therefore
+  takes per-status `overrides`, and Login passes
+  `{ 401: 'Wrong email or password.' }`. Checked that the override does not
+  leak into the other two callers.
+
+  Confirmed against the live endpoint first: a wrong password returns
+  `401 {"message":"Invalid credentials"}` and a stale token returns
+  `419 {"message":"CSRF token mismatch."}` — two cases the old code showed
+  identically. 25 node checks now cover the helper, including that a failed
+  csrf-cookie request reads as a connection problem rather than a rejected
+  password.
 - [ ] **13.** Two axios instances (raw `axios` for the csrf-cookie vs
   the `api` client) — could become one centralized auth/api client.
 - [ ] **14.** [`app/Http/Controllers/EntryController.php`](../app/Http/Controllers/EntryController.php)

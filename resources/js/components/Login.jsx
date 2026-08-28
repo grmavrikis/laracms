@@ -1,15 +1,16 @@
 import { useState } from 'react';
 import api from '../lib/api';
 import axios from 'axios'; // We need axios to get the CSRF cookie before login
+import { errorSummary } from '../lib/apiErrors';
 
 export default function Login({ onLogin }) {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
-    const [error, setError] = useState('');
+    const [errors, setErrors] = useState([]);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        setError('');
+        setErrors([]);
 
         try {
             // 1. Get CSRF Cookie (Required before login with Sanctum)
@@ -19,7 +20,16 @@ export default function Login({ onLogin }) {
             const { data } = await api.post('/login', { email, password });
             onLogin(data.user);
         } catch (err) {
-            setError('Invalid credentials');
+            console.error('Login Error:', err);
+
+            // Every failure here used to read "Invalid credentials", including
+            // the csrf-cookie request above failing outright - so a server that
+            // was down looked like a typo in the password. On this form a 401
+            // really is bad credentials, which the default wording would
+            // otherwise report as an expired session.
+            setErrors(errorSummary(err, 'Could not sign you in.', {
+                401: 'Wrong email or password.',
+            }));
         }
     };
 
@@ -27,7 +37,11 @@ export default function Login({ onLogin }) {
         <div className="flex items-center justify-center min-h-screen bg-gray-100">
             <div className="bg-white p-8 rounded shadow-md w-96">
                 <h2 className="text-2xl font-bold mb-6 text-center">Admin Login</h2>
-                {error && <p className="text-red-500 mb-4 text-sm text-center">{error}</p>}
+                {errors.length > 0 && (
+                    <div className="mb-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700 space-y-1">
+                        {errors.map((message, i) => <p key={i}>{message}</p>)}
+                    </div>
+                )}
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <div>
                         <label className="block text-sm font-medium">Email</label>
