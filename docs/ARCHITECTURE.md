@@ -76,14 +76,20 @@ Module.schema  →  SchemaRuleBuilder::build()  →  Laravel validation rules
 ```
 
 `SchemaRuleBuilder` (`app/Services/SchemaRuleBuilder.php`) converts each
-schema field into Laravel validation rules based on its `type`
-(`string|text|textarea|integer|boolean|date|datetime|select|image`) and
-its `translatable` flag. An unknown type silently falls back to `string`
-(see TASKS.md #5).
+schema field into Laravel validation rules based on its `type` and its
+`translatable` flag.
 
-Frontend field types (`ModuleBuilder.jsx`) and backend field types
-(`ModuleController::store` validation + `SchemaRuleBuilder`) are **not
-identical** — e.g. `textarea` only exists backend-side.
+`SchemaRuleBuilder::SUPPORTED_TYPES` is the **single list** of field types
+the backend understands (`string`, `text`, `textarea`, `richtext`,
+`integer`, `boolean`, `date`, `datetime`, `select`, `image`).
+`ModuleController` validates incoming schemas against that same constant,
+so a Module cannot declare a type the rule builder is unable to handle.
+An unrecognised type throws rather than falling back to `string` — the old
+fallback hid the fact that `datetime` had no arm at all and was being
+validated as a plain string.
+
+The **frontend** list in `ModuleBuilder.jsx` is still separate and offers
+fewer types (no `textarea`, no `richtext`) — see TASKS.md #9.
 
 ## 5. Entry request flow
 

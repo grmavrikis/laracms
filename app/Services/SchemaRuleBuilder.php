@@ -2,8 +2,31 @@
 
 namespace App\Services;
 
+use Illuminate\Validation\ValidationException;
+
 class SchemaRuleBuilder
 {
+    /**
+     * The one list of field types the CMS understands.
+     *
+     * ModuleController validates incoming schemas against this same constant,
+     * so the API and the rule builder cannot drift apart - which is how
+     * `datetime` ended up being accepted by the API while quietly validating
+     * as a plain string here.
+     */
+    public const SUPPORTED_TYPES = [
+        'string',
+        'text',
+        'textarea',
+        'richtext',
+        'integer',
+        'boolean',
+        'date',
+        'datetime',
+        'select',
+        'image',
+    ];
+
     public static function build(array $schema): array
     {
         $rules = [
@@ -60,20 +83,33 @@ class SchemaRuleBuilder
 
         return match ($type)
         {
-            'integer', 'number' => ['numeric'],
+            // An image field stores the URL returned by the upload endpoint.
+            'string', 'image' => ['string'],
+            'integer' => ['numeric'],
             'boolean' => ['boolean'],
-            'email' => ['email'],
-            'url' => ['url'],
-            'date' => ['date'],
+            'date', 'datetime' => ['date'],
             'select' => self::buildSelectRules($field),
-            'image' => ['string'],
             // Rich text is stored as an editor document (JSON tree), not HTML.
             // Laravel only checks the outer shape here; the tree itself is
             // validated node by node by RichTextDocument, since a recursive
             // structure cannot be expressed as validation rules.
             'text', 'richtext', 'textarea' => ['array'],
-            default => ['string'],
+            // No silent fallback: an unrecognised type used to validate as a
+            // string, so a schema typo passed unnoticed and the field was
+            // never really checked.
+            default => throw self::unsupportedType($field, $type),
         };
+    }
+
+    protected static function unsupportedType(array $field, mixed $type): ValidationException
+    {
+        $name = $field['name'] ?? '(unnamed)';
+        $type = is_scalar($type) ? (string) $type : get_debug_type($type);
+
+        return ValidationException::withMessages([
+            'data' => "Module schema field '{$name}' declares unsupported type '{$type}'."
+                . ' Supported types: ' . implode(', ', self::SUPPORTED_TYPES) . '.',
+        ]);
     }
 
     protected static function buildSelectRules(array $field): array

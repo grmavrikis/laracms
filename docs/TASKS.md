@@ -88,14 +88,37 @@ Format: `[ ]` open, `[x]` done. File references = `path:line`.
   ([command](../app/Console/Commands/MigrateRichTextToDocuments.php)) —
   2 entries, verified with `--dry-run` first, idempotent on re-run.
 
+- [x] **5. Unknown field type silently becomes `string`.** The `default`
+  arm in `SchemaRuleBuilder::rulesForType()` now throws a
+  `ValidationException` naming the field and the offending type, instead
+  of quietly validating it as a string.
+
+  The silent fallback was hiding a real defect: `datetime` was accepted by
+  `ModuleController` but had no arm in the rule builder, so a `datetime`
+  field validated as a plain string and accepted
+  `"definitely-not-a-date"`. Fixed by giving `date`/`datetime` a shared
+  arm and by introducing
+  [`SchemaRuleBuilder::SUPPORTED_TYPES`](../app/Services/SchemaRuleBuilder.php)
+  as the single list, which `ModuleController` now validates against via
+  `Rule::in(...)` — the two lists can no longer drift. Dropped the
+  unreachable `number`/`email`/`url` arms (no module in the database used
+  them; they were not creatable through the API).
+
+  Covered by 4 tests in
+  [`tests/Feature/SchemaFieldTypeTest.php`](../tests/Feature/SchemaFieldTypeTest.php),
+  including one that builds a module using *every* supported type, which
+  pins the API's accepted list to the rule builder's.
+
+  Fixed alongside, because that last test hit it: posting a module
+  **without** a `slug` returned a 500. `slug` is `nullable`, so the key is
+  absent rather than null, and `$validated['slug']` raised "Undefined
+  array key". One-line fix in the method already being edited.
+
 ---
 
 ## P0 — Security / correctness blockers
 
-- [ ] **5. Unknown field type silently becomes `string`.**
-  [`SchemaRuleBuilder.php:70`](../app/Services/SchemaRuleBuilder.php:70)
-  `default => ['string']`. A typo in the module schema slips through
-  silently instead of failing loudly. → throw/422 on an unknown type.
+*(none open)*
 
 ---
 
@@ -106,6 +129,16 @@ Format: `[ ]` open, `[x]` done. File references = `path:line`.
 
 - [x] **7. Duplicate Module/Entry lookups.** Done with Done #2 — the
   FormRequests read the already-bound Module instead of re-querying.
+
+- [ ] **21. A generated slug bypasses the uniqueness check.** When `slug`
+  is omitted, `ModuleController::store()` derives it with
+  `Str::slug($name)` *after* validation, so the `unique:modules,slug`
+  rule never sees it. Verified: posting the same module name twice
+  without a slug returns 201 then **500** (DB unique constraint), where
+  it should be a 422. The UI is unaffected because `ModuleBuilder.jsx`
+  always sends a derived slug, which validation does check — this only
+  bites API clients. Needs a decision: auto-suffix (`products-2`) or
+  reject. Related to #8.
 
 - [ ] **8. Slug generation in two places.** The frontend
   ([`ModuleBuilder.jsx:16-30`](../resources/js/components/ModuleBuilder.jsx:16))
