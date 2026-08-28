@@ -403,9 +403,25 @@ Format: `[ ]` open, `[x]` done. File references = `path:line`.
   simply omits it. Confirmed both after deleting.
 - [x] **16.** Route organization — done with Done #2; the entry routes
   are now one `scopeBindings()` group.
-- [ ] **17.** `/languages` is an inline closure route instead of a
-  controller method — minor stylistic inconsistency with the rest of
-  the API.
+- [x] **17. `/languages` was an inline closure.** Moved to
+  [`Api\LanguageController::index`](../app/Http/Controllers/Api/LanguageController.php),
+  so every endpoint is now reached the same way and the handler is a place
+  a test can name.
+
+  Checked for a functional reason first and did not find one: closures are
+  often said to block `route:cache`, but `php artisan route:cache`
+  succeeded with the closure in place. So this was the stylistic cleanup it
+  was filed as, nothing more.
+
+  Added an explicit `orderBy('id')` while moving the query. It changes
+  nothing observable — that is the order the database already returned —
+  but the panel selects the *first* language it receives as the one to
+  display, and leaving that to an unordered query means the default depends
+  on the database's mood.
+
+  3 tests added (auth required, inactive languages excluded, order stable
+  across repeated calls). Verified live that the response is byte-identical
+  to the closure's.
 - [x] **18. The dead `entry_translations` table.** It belonged to the
   translation model this CMS did not adopt (see Done #1), and reading the
   schema suggested it was the live one. Dropped the table via
@@ -487,6 +503,15 @@ Format: `[ ]` open, `[x]` done. File references = `path:line`.
   breaks the pattern or silently parses the wrong list. It is a stand-in
   for having no JS runner (#22); the real fix is one source of truth, e.g.
   serving the list from an endpoint or generating the JS constant.
+- [ ] **33. `languages.is_default` is ignored.** The column exists and is
+  set — `en` is flagged default in the seeded data — but nothing reads it.
+  `EntriesManager` picks `list[0]`, which after #17's explicit ordering is
+  reliably the lowest id, so the panel opens on **Greek** while **English**
+  is the language marked default. Two candidate fixes, and the choice is a
+  product decision: order the endpoint by `is_default` first, or have the
+  frontend look for the flag. Same shape as #32 — a column that looks
+  authoritative and is not.
+
 - [ ] **32. The schema's `required` key is dead data.**
   [`DatabaseSeeder`](../database/seeders/DatabaseSeeder.php) writes
   `'required' => true` into module schemas, but nothing reads it:

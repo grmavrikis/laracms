@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\LanguageController;
 use App\Http\Controllers\Api\ModuleController;
 use App\Http\Controllers\Api\EntryController;
 use App\Http\Controllers\UploadController;
@@ -15,10 +16,7 @@ Route::middleware('auth:sanctum')->group(function ()
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/user', [AuthController::class, 'user']);
 
-    Route::get('/languages', function ()
-    {
-        return response()->json(\App\Models\Language::where('is_active', true)->get());
-    });
+    Route::get('/languages', [LanguageController::class, 'index']);
 
 
     // Modules Routes
