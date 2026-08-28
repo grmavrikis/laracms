@@ -516,14 +516,29 @@ Format: `[ ]` open, `[x]` done. File references = `path:line`.
   breaks the pattern or silently parses the wrong list. It is a stand-in
   for having no JS runner (#22); the real fix is one source of truth, e.g.
   serving the list from an endpoint or generating the JS constant.
-- [ ] **34. Two high-severity npm advisories.** `npm audit` reports
-  `postcss <=8.5.22` (path traversal via `sourceMappingURL`, two
-  advisories) and `nanoid <=3.3.17` (non-terminating loops), both fixable
-  with `npm audit fix`. Pre-existing rather than new: `postcss` is a direct
-  devDependency in `HEAD`'s `package.json` and `nanoid` reaches the tree
-  through it, with vitest in neither chain — the audit only surfaced when
-  installing it. Build tooling, so nothing ships to a browser, but it
-  deserves its own commit and a build check like #20 had, not a drive-by.
+- [x] **34. Two high-severity npm advisories.** `postcss <=8.5.22` (path
+  traversal via `sourceMappingURL`, two advisories) and `nanoid <=3.3.17`
+  (non-terminating loops). Pre-existing rather than introduced by the
+  vitest install — `postcss` is a direct devDependency in `HEAD` and
+  `nanoid` reaches the tree through it, with vitest in neither chain.
+
+  Cleared with `npm audit fix`: postcss 8.5.16 → **8.5.26**, nanoid
+  3.3.15 → **3.3.18**, both within the existing semver ranges.
+  `npm audit` now reports none.
+
+  The dry run was misleading — it printed "2 high severity vulnerabilities"
+  *after* saying it had changed two packages, which reads as a failure but
+  is the pre-fix state. Checked the published versions instead of trusting
+  it, and 8.5.26 and 3.3.18 both sit above the vulnerable ranges.
+
+  postcss is the CSS pipeline, so the build output was checked rather than
+  the build merely being run: the `prose` rules survive with `h1` still at
+  `2.25em`, along with the `.tiptap-editor` spacing overrides, the `mark`
+  highlight and Tailwind's preflight. CSS grew 79.98 → 80.55 kB because
+  the newer postcss emits more webkit prefixes.
+
+  65 PHP and 56 JS tests pass, and a live pass returned 200 for modules,
+  entries, languages and `/admin`.
 
 - [ ] **33. `languages.is_default` is ignored.** The column exists and is
   set — `en` is flagged default in the seeded data — but nothing reads it.
