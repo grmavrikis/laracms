@@ -39,6 +39,14 @@ User (1:N) Module (1:N) Entry
   `Str::slug()` yields nothing, which it does for a punctuation-only name.
   An empty slug would make the module unreachable.
 
+  Two constraints apply to both paths. The value must match
+  `^[a-z0-9]+(?:-[a-z0-9]+)*$` — the shape `Str::slug()` produces — because
+  the slug is a single URL segment and something like `a/b` could never be
+  routed to. And it must fit `modules.slug`, which is `varchar(255)`: since
+  `name` also allows 255 characters, `generateSlug()` shortens the base via
+  `fitToColumn()` to leave room for the suffix rather than overflowing the
+  column.
+
   **The backend is the only place that builds a slug.** `ModuleBuilder.jsx`
   deliberately has no `slugify`: it used to transliterate the name locally
   with a Greek-only map and send that, which disagreed with `Str::slug`

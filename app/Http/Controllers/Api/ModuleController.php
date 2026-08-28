@@ -12,11 +12,23 @@ use Illuminate\Validation\Rule;
 
 class ModuleController extends Controller
 {
+    /** Matches the modules.slug column, which is varchar(255). */
+    private const SLUG_MAX_LENGTH = 255;
+
     public function store(Request $request): JsonResponse
     {
         $validated = $request->validate([
             'name' => 'required|string|max:255',
-            'slug' => 'nullable|string|max:255|unique:modules,slug',
+            'slug' => [
+                'nullable',
+                'string',
+                'max:' . self::SLUG_MAX_LENGTH,
+                // The slug is the Module's route key and routes match a single
+                // segment, so 'a/b' would create a Module nothing can address.
+                // This is the shape Str::slug produces.
+                'regex:/^[a-z0-9]+(?:-[a-z0-9]+)*$/',
+                'unique:modules,slug',
+            ],
             'schema' => 'required|array',
             'schema.*.name' => 'required|string|alpha_dash',
             // Single source of truth, shared with the rule builder that has to
@@ -26,11 +38,21 @@ class ModuleController extends Controller
             'schema.*.validation' => 'nullable|string',
             'schema.*.options' => 'nullable|array',
             'schema.*.options.*' => 'string'
+        ], [
+            'slug.regex' => 'The slug may only contain lowercase letters, numbers and single hyphens.',
         ]);
 
         // slug is nullable, so the key is simply absent when it is not sent -
         // reading it directly raised "Undefined array key" and returned a 500.
-        $slug = ($validated['slug'] ?? null) ?: $this->generateSlug($validated['name']);
+        //
+        // Compared against null rather than used with `?:`, because the string
+        // "0" is falsy in PHP and a falsy test would silently discard a slug
+        // the client explicitly asked for.
+        $explicitSlug = $validated['slug'] ?? null;
+
+        $slug = $explicitSlug === null
+            ? $this->generateSlug($validated['name'])
+            : $explicitSlug;
 
         $module = Module::create([
             'user_id' => $request->user()->id,
@@ -63,15 +85,32 @@ class ModuleController extends Controller
         // make the Module unreachable, since the slug is its route key.
         $base = Str::slug($name) ?: 'module';
 
-        $slug = $base;
+        $slug = $this->fitToColumn($base, '');
         $suffix = 2;
 
         while (Module::where('slug', $slug)->exists())
         {
-            $slug = $base . '-' . $suffix++;
+            $slug = $this->fitToColumn($base, '-' . $suffix++);
         }
 
         return $slug;
+    }
+
+    /**
+     * Join a base and a suffix so the result fits modules.slug.
+     *
+     * `name` allows 255 characters and Str::slug can return just as many, so
+     * appending a collision suffix would overflow the column and fail the
+     * insert. The base is shortened to make room instead. Str::slug output is
+     * ASCII, so byte-based trimming is safe here.
+     */
+    private function fitToColumn(string $base, string $suffix): string
+    {
+        $room = self::SLUG_MAX_LENGTH - strlen($suffix);
+
+        // Truncation can land on a hyphen; leaving it would produce a slug
+        // shaped differently from anything Str::slug emits.
+        return rtrim(substr($base, 0, $room), '-') . $suffix;
     }
 
     public function index(Request $request): JsonResponse

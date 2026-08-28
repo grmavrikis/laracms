@@ -109,6 +109,62 @@ class ModuleSlugTest extends TestCase
         $this->assertSame($slug, trim($slug));
     }
 
+    /**
+     * modules.slug is varchar(255) and `name` allows 255 characters, so the
+     * derived slug plus its collision suffix has to be made to fit. The
+     * client-supplied path is covered by max:255; the derived one is not.
+     */
+    public function test_a_generated_slug_stays_within_the_column_limit(): void
+    {
+        $name = str_repeat('a', 255);
+
+        $this->actingAs($this->owner)
+            ->postJson('/api/modules', $this->payload($name))
+            ->assertCreated();
+
+        // The second one needs a suffix, which is where the overflow appears.
+        $this->actingAs($this->owner)
+            ->postJson('/api/modules', $this->payload($name))
+            ->assertCreated();
+
+        foreach (Module::pluck('slug') as $slug)
+        {
+            $this->assertLessThanOrEqual(255, strlen($slug), "Slug '{$slug}' exceeds the column limit");
+        }
+
+        $this->assertSame(2, Module::count());
+    }
+
+    /**
+     * '0' is falsy in PHP, so a `?:` fallback would quietly throw it away and
+     * generate a slug from the name instead.
+     */
+    public function test_an_explicit_slug_of_zero_is_respected(): void
+    {
+        $this->actingAs($this->owner)
+            ->postJson('/api/modules', $this->payload('Products', '0'))
+            ->assertCreated();
+
+        $this->assertSame('0', Module::sole()->slug);
+    }
+
+    /**
+     * The slug is the route key and routes match a single segment, so a slug
+     * containing a slash would create a Module nothing can address.
+     */
+    public function test_a_slug_that_would_break_routing_is_rejected(): void
+    {
+        foreach (['a/b', '..', 'has space', 'ΕΛΛΗΝΙΚΑ', 'Upper'] as $candidate)
+        {
+            $this->actingAs($this->owner)
+                ->postJson('/api/modules', $this->payload('Anything', $candidate))
+                ->assertStatus(422)
+                ->assertJsonValidationErrors('slug');
+        }
+
+        $this->assertDatabaseCount('modules', 0);
+    }
+
     public function test_a_greek_name_is_transliterated_by_the_backend(): void
     {
         $this->actingAs($this->owner)
