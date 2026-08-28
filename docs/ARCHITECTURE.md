@@ -29,6 +29,15 @@ User (1:N) Module (1:N) Entry
 
 - **Module** — `id, user_id, name, slug, schema(json)`. `slug` is the route
   key. `schema` defines which fields its Entries can have.
+
+  Slugs come from one of two paths, and they behave differently on
+  purpose. A slug the **client sends** is validated like any other input,
+  so a duplicate is a 422 — it asked for that exact value. A slug the
+  **server derives** from the name (when the client sends none) is a
+  request to pick one, so `ModuleController::generateSlug()` appends a
+  suffix until it is free (`products-2`) and falls back to `module` when
+  `Str::slug()` yields nothing, which it does for a punctuation-only name.
+  An empty slug would make the module unreachable.
 - **Entry** — `id, module_id, data(json)`. Belongs to one Module. Has no
   `user_id` of its own — ownership is derived indirectly through
   `Entry → Module → User`.

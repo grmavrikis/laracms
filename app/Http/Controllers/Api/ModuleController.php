@@ -30,7 +30,7 @@ class ModuleController extends Controller
 
         // slug is nullable, so the key is simply absent when it is not sent -
         // reading it directly raised "Undefined array key" and returned a 500.
-        $slug = ($validated['slug'] ?? null) ?: Str::slug($validated['name']);
+        $slug = ($validated['slug'] ?? null) ?: $this->generateSlug($validated['name']);
 
         $module = Module::create([
             'user_id' => $request->user()->id,
@@ -43,6 +43,35 @@ class ModuleController extends Controller
             'message' => 'Module created successfully.',
             'data' => $module
         ], 201);
+    }
+
+    /**
+     * Derive a free slug from the Module name.
+     *
+     * Only used when the client did not supply one. An explicit slug that is
+     * already taken is rejected by the `unique` rule above, because the client
+     * asked for that exact value; a derived slug means "pick one for me", so a
+     * free one is picked instead of failing.
+     *
+     * This is a check-then-insert, so two simultaneous requests could still
+     * race. The unique index on modules.slug remains the actual guarantee.
+     */
+    private function generateSlug(string $name): string
+    {
+        // Str::slug transliterates Greek ('Εστιατόρια' -> 'estiatoria') but
+        // returns '' for a name made only of punctuation. An empty slug would
+        // make the Module unreachable, since the slug is its route key.
+        $base = Str::slug($name) ?: 'module';
+
+        $slug = $base;
+        $suffix = 2;
+
+        while (Module::where('slug', $slug)->exists())
+        {
+            $slug = $base . '-' . $suffix++;
+        }
+
+        return $slug;
     }
 
     public function index(Request $request): JsonResponse

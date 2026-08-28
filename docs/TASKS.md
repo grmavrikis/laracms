@@ -130,15 +130,33 @@ Format: `[ ]` open, `[x]` done. File references = `path:line`.
 - [x] **7. Duplicate Module/Entry lookups.** Done with Done #2 — the
   FormRequests read the already-bound Module instead of re-querying.
 
-- [ ] **21. A generated slug bypasses the uniqueness check.** When `slug`
-  is omitted, `ModuleController::store()` derives it with
-  `Str::slug($name)` *after* validation, so the `unique:modules,slug`
-  rule never sees it. Verified: posting the same module name twice
-  without a slug returns 201 then **500** (DB unique constraint), where
-  it should be a 422. The UI is unaffected because `ModuleBuilder.jsx`
-  always sends a derived slug, which validation does check — this only
-  bites API clients. Needs a decision: auto-suffix (`products-2`) or
-  reject. Related to #8.
+- [x] **21. A generated slug bypassed the uniqueness check.** `slug` was
+  derived with `Str::slug($name)` *after* validation, so the
+  `unique:modules,slug` rule never saw it — posting the same module name
+  twice without a slug returned 201 then **500** on the DB unique index.
+
+  Resolved by splitting the two cases, which are genuinely different
+  requests: an **explicit** slug that is taken stays a 422, because the
+  client asked for that exact value; a **derived** slug means "pick one
+  for me", so `ModuleController::generateSlug()` picks a free one
+  (`products`, `products-2`, `products-3`).
+
+  It also fixes a second way to get an unusable module: `Str::slug()`
+  returns `''` for a name made only of punctuation, and since the slug is
+  the route key an empty one makes the module unreachable. Such names now
+  fall back to `module`. Greek names were already fine —
+  `Str::slug('Εστιατόρια')` gives `estiatoria` — and a test now pins that,
+  since #8 depends on it.
+
+  Known limit, noted in the code: `generateSlug()` is a check-then-insert,
+  so concurrent requests could still race. The unique index stays the real
+  guarantee.
+
+  Covered by 5 tests in
+  [`tests/Feature/ModuleSlugTest.php`](../tests/Feature/ModuleSlugTest.php).
+  Verified live: three posts of the same name gave `live-slug-probe`,
+  `-2`, `-3`; an explicit taken slug gave 422; a Greek name gave
+  `estiatoria-probe`; `"???"` gave `module`. Probe modules cleaned up.
 
 - [ ] **8. Slug generation in two places.** The frontend
   ([`ModuleBuilder.jsx:16-30`](../resources/js/components/ModuleBuilder.jsx:16))
