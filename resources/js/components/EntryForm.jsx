@@ -3,6 +3,7 @@ import { useState } from 'react';
 import api from '../lib/api';
 import RichTextEditor from './RichTextEditor';
 import { isRichTextField, emptyDoc } from '../lib/richText';
+import { validationErrors, errorSummary, messagesForField, messagesNotForFields } from '../lib/apiErrors';
 
 const coerce = (type, raw) => {
     if (type === 'integer') return raw === '' || raw === null ? null : Number(raw);
@@ -61,6 +62,11 @@ export default function EntryForm({ moduleSlug, schema, languages, onSaved, onCa
     const [activeLangId, setActiveLangId] = useState(languages[0]?.id ?? null);
     const [submitting, setSubmitting] = useState(false);
 
+    // Field errors keyed by attribute path, plus the messages that belong to
+    // no field and would otherwise never be shown.
+    const [fieldErrors, setFieldErrors] = useState({});
+    const [summary, setSummary] = useState([]);
+
     const setStaticField = (name, value) => setStaticValues((prev) => ({ ...prev, [name]: value }));
     const setTranslatedField = (langId, name, value) => {
         setTranslations((prev) => ({
@@ -72,6 +78,8 @@ export default function EntryForm({ moduleSlug, schema, languages, onSaved, onCa
     const handleSubmit = async (e) => {
         e.preventDefault();
         setSubmitting(true);
+        setFieldErrors({});
+        setSummary([]);
 
         const payloadData = {};
 
@@ -96,10 +104,35 @@ export default function EntryForm({ moduleSlug, schema, languages, onSaved, onCa
             onSaved?.();
         } catch (err) {
             console.error('API Error:', err);
-            alert('Failed to save.');
+
+            const errors = validationErrors(err);
+            setFieldErrors(errors);
+
+            // On a 422 the per-field messages are rendered beside their inputs,
+            // so only what belongs to no field goes in the banner. Anything
+            // else has no field to attach to and goes there in full.
+            setSummary(
+                Object.keys(errors).length > 0
+                    ? messagesNotForFields(errors, schema.map((f) => f.name))
+                    : errorSummary(err, 'Failed to save the entry.')
+            );
         } finally {
             setSubmitting(false);
         }
+    };
+
+    const fieldErrorList = (field) => {
+        const messages = messagesForField(fieldErrors, field.name);
+
+        if (messages.length === 0) {
+            return null;
+        }
+
+        return (
+            <ul className="mt-1.5 space-y-0.5 text-xs text-red-600">
+                {messages.map((message, i) => <li key={i}>{message}</li>)}
+            </ul>
+        );
     };
 
     const inputClasses = "block w-full rounded-md border-0 py-2 px-3 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm transition-all duration-200 outline-none bg-white";
@@ -179,7 +212,10 @@ export default function EntryForm({ moduleSlug, schema, languages, onSaved, onCa
                     onChange(res.data.url);
                 } catch (err) {
                     console.error('Upload Error:', err);
-                    alert('Failed to upload image.');
+                    // The upload endpoint rejects by type and size, and those
+                    // reasons are worth showing rather than replacing with
+                    // "failed".
+                    setSummary(errorSummary(err, 'Failed to upload the image.'));
                 }
             };
 
@@ -229,6 +265,12 @@ export default function EntryForm({ moduleSlug, schema, languages, onSaved, onCa
     return (
         <form onSubmit={handleSubmit} className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm md:col-span-2">
             <div className="px-6 py-8">
+                {summary.length > 0 && (
+                    <div className="mb-8 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 space-y-1">
+                        {summary.map((message, i) => <div key={i}>{message}</div>)}
+                    </div>
+                )}
+
                 <div className="grid max-w-2xl grid-cols-1 gap-x-6 gap-y-6 sm:grid-cols-6">
                     {staticFields.map((field) => (
                         <div key={field.name} className="sm:col-span-full">
@@ -236,6 +278,7 @@ export default function EntryForm({ moduleSlug, schema, languages, onSaved, onCa
                                 {field.name}
                             </label>
                             {renderInput(field, staticValues[field.name], (v) => setStaticField(field.name, v))}
+                            {fieldErrorList(field)}
                         </div>
                     ))}
                 </div>
@@ -268,6 +311,10 @@ export default function EntryForm({ moduleSlug, schema, languages, onSaved, onCa
                                         </span>
                                     </label>
                                     {renderInput(field, translations[activeLangId]?.[field.name], (v) => setTranslatedField(activeLangId, field.name, v))}
+                                    {/* Messages for every language, not just the
+                                        visible tab - otherwise an error on a tab
+                                        the user is not looking at is invisible. */}
+                                    {fieldErrorList(field)}
                                 </div>
                             ))}
                         </div>

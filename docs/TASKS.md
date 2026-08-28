@@ -116,6 +116,34 @@ Format: `[ ]` open, `[x]` done. File references = `path:line`.
 
 ---
 
+- [x] **Entry save errors reached nobody.** `EntryForm` collapsed every
+  failure into `alert('Failed to save.')`, discarding
+  `response.data.errors`. So the 422 that P0 #5 was built to produce —
+  naming the field and the unsupported type — was invisible in the app and
+  loud only for API clients.
+
+  Added [`lib/apiErrors.js`](../resources/js/lib/apiErrors.js) and used it
+  from both forms. `EntryForm` now shows messages beside the field they
+  belong to (covering `data.title` and every `data.title.{lang}`) and puts
+  anything that belongs to no field — a schema-level complaint keyed under
+  `data` alone — in a banner, where it would otherwise be dropped.
+  `ModuleBuilder` was rewritten onto the same helper rather than keeping
+  its own copy, and gains the status handling it lacked. The image upload
+  in `EntryForm` also stopped using `alert`.
+
+  The helper distinguishes what the old code flattened: 401, 403, 404, 419,
+  5xx and an absent response each get their own wording, since "please try
+  again" is useless advice for a 403.
+
+  Verified against the real response bodies rather than assumed ones: a
+  missing-field 422 returns
+  `{"data":[…],"data.r1":[…],"data.r2":[…]}` and the unsupported-type case
+  returns `{"data":["Module schema field 'mystery' declares unsupported
+  type 'bogus'…"]}`. 19 node checks cover the helper, including that a
+  field named `title` does not swallow errors for `titles`.
+
+---
+
 ## P0 — Security / correctness blockers
 
 *(none open)*
@@ -249,7 +277,9 @@ Format: `[ ]` open, `[x]` done. File references = `path:line`.
   every language is always fetched.
 - [ ] **12.** [`Login.jsx:22`](../resources/js/components/Login.jsx:22)
   shows "Invalid credentials" for EVERY error (network, 500, CSRF) —
-  a misleading message.
+  a misleading message. Now a small job: `lib/apiErrors.js` already
+  separates those cases, so this is swapping the `catch` body for
+  `errorSummary(err, 'Invalid credentials.')`.
 - [ ] **13.** Two axios instances (raw `axios` for the csrf-cookie vs
   the `api` client) — could become one centralized auth/api client.
 - [ ] **14.** [`app/Http/Controllers/EntryController.php`](../app/Http/Controllers/EntryController.php)

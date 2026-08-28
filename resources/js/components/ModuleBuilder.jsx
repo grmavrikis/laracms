@@ -1,6 +1,7 @@
 // resources/js/components/ModuleBuilder.jsx
 import { useState, useRef } from 'react';
 import api from '../lib/api';
+import { errorSummary } from '../lib/apiErrors';
 
 const FIELD_TYPES = [
     { value: 'string', label: 'String' },
@@ -26,7 +27,7 @@ export default function ModuleBuilder({ onCreated, onCancel }) {
     const [slug, setSlug] = useState('');
     const [fields, setFields] = useState([{ _id: 0, ...emptyField() }]);
     const [submitting, setSubmitting] = useState(false);
-    const [errors, setErrors] = useState(null);
+    const [errors, setErrors] = useState([]);
     const nextId = useRef(1);
 
     const addField = () =>
@@ -40,7 +41,7 @@ export default function ModuleBuilder({ onCreated, onCancel }) {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        setErrors(null);
+        setErrors([]);
         setSubmitting(true);
 
         const trimmedSlug = slug.trim();
@@ -68,11 +69,7 @@ export default function ModuleBuilder({ onCreated, onCancel }) {
             setFields([{ _id: nextId.current++, ...emptyField() }]);
         } catch (err) {
             console.error(err);
-            if (err.response?.status === 422 && err.response.data?.errors) {
-                setErrors(err.response.data.errors);
-            } else {
-                setErrors({ general: ['Failed to save module.'] });
-            }
+            setErrors(errorSummary(err, 'Failed to save the module.'));
         } finally {
             setSubmitting(false);
         }
@@ -94,9 +91,9 @@ export default function ModuleBuilder({ onCreated, onCancel }) {
                 </div>
             </div>
 
-            {errors && (
+            {errors.length > 0 && (
                 <div className="bg-red-50 border border-red-200 text-red-700 text-sm p-4 rounded-xl space-y-1">
-                    {Object.values(errors).flat().map((msg, i) => <div key={i}>{msg}</div>)}
+                    {errors.map((msg, i) => <div key={i}>{msg}</div>)}
                 </div>
             )}
 
