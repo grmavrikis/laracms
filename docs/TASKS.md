@@ -264,6 +264,25 @@ Format: `[ ]` open, `[x]` done. File references = `path:line`.
   (`Datetime`, `Image`…). Only the type values are pinned; the labels
   stay a frontend concern.
 
+- [ ] **23. Dropping the type aliases left no migration path.** #9 removed
+  `textarea` and `richtext` (and the unreachable `number`/`email`/`url`)
+  from `SUPPORTED_TYPES`. Any module already declaring one now throws on
+  every entry write, and
+  [`MigrateRichTextToDocuments`](../app/Console/Commands/MigrateRichTextToDocuments.php)
+  filters with `RichTextDocument::isRichTextField()`, which no longer
+  matches them — so legacy HTML in such a field can be neither saved nor
+  converted. Only this dev database was checked for absence. Either accept
+  the aliases as read-only legacy in the rule builder, or add a command
+  that rewrites them to `text`.
+
+- [ ] **24. A translatable field can never be optional.**
+  [`SchemaRuleBuilder.php:66`](../app/Services/SchemaRuleBuilder.php:66)
+  hardcodes `['required','array']` for the outer `data.{name}` key,
+  discarding the field's own `validation` string, which is only applied to
+  `data.{name}.*`. A translatable field marked `nullable` still returns 422
+  when omitted, so translatable and non-translatable fields of the same
+  type behave differently.
+
 ---
 
 ## P2 — Polish
@@ -327,6 +346,50 @@ Format: `[ ]` open, `[x]` done. File references = `path:line`.
   editor round-trip and the module form have both had to be checked by
   hand. Worth a small Vitest setup covering at least `richText.js` and the
   ModuleBuilder payload shape — it does not need a full DOM harness.
+  `lib/apiErrors.js` already has 25 checks written as a throwaway node
+  script; they should become real tests when a runner exists.
+- [ ] **25. A missing `type` key still falls back to `string`.**
+  [`SchemaRuleBuilder.php:80`](../app/Services/SchemaRuleBuilder.php:80)
+  `$field['type'] ?? 'string'` never reaches the throw added by #5, so a
+  field with no type is silently validated as a string — the exact silent
+  fallback that item set out to remove. Unreachable through the API, which
+  requires `schema.*.type`, but the seeder writes schemas with `DB::table`
+  and bypasses validation.
+- [ ] **26. Custom validation rules can contradict type rules.**
+  [`SchemaRuleBuilder.php:56`](../app/Services/SchemaRuleBuilder.php:56)
+  merges the schema's `validation` string with the type rules unchecked. A
+  `text` field with `max:255` yields `['array','max:255']`, where Laravel
+  reads `max` as a node count rather than characters; `validation: 'string'`
+  yields `['array','string']`, which can never pass. Both fail silently or
+  confusingly. Grew more likely once `text` became an array.
+- [ ] **27. Generated slugs reveal other users' slugs.**
+  `ModuleController::generateSlug()` checks uniqueness globally, so a user
+  naming a module `Products` while another account holds `products` gets
+  `products-2` and can infer the other exists. Modules are otherwise
+  strictly per-owner via `ModulePolicy`, making this the one observable
+  cross-tenant detail. Follows from the global unique index, so fixing it
+  means deciding whether slugs should be unique per user instead.
+- [ ] **28. Slug generation runs one query per collision.**
+  `generateSlug()` calls `exists()` for each candidate suffix. A single
+  `where('slug','like',$base.'%')` would resolve it in one round trip.
+  Negligible now, linear in the number of same-named modules.
+- [ ] **29. `FieldTypeConsistencyTest` duplicates its own parser.**
+  `jsStringArray()` was written to read a JS array literal, but
+  `test_the_module_form_offers_exactly_the_types_the_backend_supports`
+  re-implements the same read/locate/guard sequence inline because it needs
+  the `value:` key. Give the helper an optional pattern and use it in both.
+- [ ] **30. Type-list consistency is enforced by scraping JS from PHP.**
+  `FieldTypeConsistencyTest` regex-reads the two JS literals. Reformatting
+  either — double quotes, a commented-out entry, splitting the array —
+  breaks the pattern or silently parses the wrong list. It is a stand-in
+  for having no JS runner (#22); the real fix is one source of truth, e.g.
+  serving the list from an endpoint or generating the JS constant.
+- [ ] **31. The typography plugin ships to pages with no prose.**
+  `@plugin '@tailwindcss/typography'` sits in the single global stylesheet,
+  which `welcome.blade.php` loads as well as the admin panel, although only
+  the Tiptap editor uses `prose`. It took `app.css` from 66.96 kB to
+  79.55 kB. Scope it to the admin bundle, or replace `prose` with the
+  heading and list rules the editor actually needs.
 
 ---
 
