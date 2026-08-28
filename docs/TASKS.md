@@ -458,15 +458,28 @@ Format: `[ ]` open, `[x]` done. File references = `path:line`.
   `401 {"message":"Unauthenticated."}` with no Accept header, with
   `text/html`, and with `application/json`. Logged-in requests and `/admin`
   are unchanged.
-- [ ] **22. No test coverage of the React components.** There is no JS
-  test runner at all, so every frontend change so far has been verified
-  only by `npm run build` (which proves it compiles, not that it behaves)
-  plus the API contract underneath it. The gaps that leaves are real: the
-  editor round-trip and the module form have both had to be checked by
-  hand. Worth a small Vitest setup covering at least `richText.js` and the
-  ModuleBuilder payload shape — it does not need a full DOM harness.
-  `lib/apiErrors.js` already has 25 checks written as a throwaway node
-  script; they should become real tests when a runner exists.
+- [x] **22. No JS test runner.** Every frontend change had been verified by
+  `npm run build`, which proves the code compiles and nothing else, plus
+  throwaway node scripts that were deleted as soon as they had run.
+
+  Vitest now runs with `npm test`, over **56 tests** in three files beside
+  the code they cover: `apiErrors`, `pagination` and `richText`. The
+  throwaway checks are all in there, so they no longer have to be
+  rewritten each time something near them changes.
+
+  `vitest.config.js` is deliberately separate from `vite.config.js`, which
+  Vitest would otherwise reuse — that one loads the Laravel, React and
+  Tailwind plugins, and the Laravel plugin expects a serving application.
+  The environment is `node`, since these are pure functions.
+
+  Checked the suite can actually fail: deleting a single `.trim()` in
+  `docToText` turned 9 tests red, and they passed again once it was put
+  back. A suite that has never failed proves nothing.
+
+  **Still uncovered:** the components themselves. Rendering `EntryForm` or
+  `ModuleBuilder` needs jsdom and a heavier setup, so the module form and
+  the editor round-trip are still verified by running the app. That is a
+  smaller gap than before but not nothing.
 - [ ] **25. A missing `type` key still falls back to `string`.**
   [`SchemaRuleBuilder.php:80`](../app/Services/SchemaRuleBuilder.php:80)
   `$field['type'] ?? 'string'` never reaches the throw added by #5, so a
@@ -503,6 +516,15 @@ Format: `[ ]` open, `[x]` done. File references = `path:line`.
   breaks the pattern or silently parses the wrong list. It is a stand-in
   for having no JS runner (#22); the real fix is one source of truth, e.g.
   serving the list from an endpoint or generating the JS constant.
+- [ ] **34. Two high-severity npm advisories.** `npm audit` reports
+  `postcss <=8.5.22` (path traversal via `sourceMappingURL`, two
+  advisories) and `nanoid <=3.3.17` (non-terminating loops), both fixable
+  with `npm audit fix`. Pre-existing rather than new: `postcss` is a direct
+  devDependency in `HEAD`'s `package.json` and `nanoid` reaches the tree
+  through it, with vitest in neither chain — the audit only surfaced when
+  installing it. Build tooling, so nothing ships to a browser, but it
+  deserves its own commit and a build check like #20 had, not a drive-by.
+
 - [ ] **33. `languages.is_default` is ignored.** The column exists and is
   set — `en` is flagged default in the seeded data — but nothing reads it.
   `EntriesManager` picks `list[0]`, which after #17's explicit ordering is

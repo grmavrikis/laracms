@@ -30,6 +30,20 @@ composer run dev   # queue worker + vite dev server
 
 Seeded account: `test@example.com` / `password`
 
+## Tests
+
+Two suites, run separately:
+
+```bash
+php artisan test   # backend: authorization, validation, schema, pagination
+npm test           # frontend helpers in resources/js/lib
+```
+
+`npm run test:watch` reruns on change. The JS side covers the pure helpers
+only — API error handling, pagination metadata and rich-text documents. It
+does not render components, so anything about the forms themselves is still
+verified by running the app.
+
 First-time setup only:
 
 ```bash
