@@ -342,9 +342,30 @@ Format: `[ ]` open, `[x]` done. File references = `path:line`.
   13 node checks cover the helper, 3 PHP tests cover ordering and the page
   boundaries. Verified live on MySQL: page 1 now starts at the newest
   entry, and the two pages together return 18 distinct ids for 18 rows.
-- [ ] **11.** `EntriesManager.jsx:41` sends a `lang` param to
-  `GET .../entries`, but the backend `index()` ignores it entirely —
-  every language is always fetched.
+- [x] **11. A `lang` param was sent and never read.** `EntriesManager`
+  passed `lang` to `GET .../entries`; `index()` has no parameter for it.
+  Confirmed against the live endpoint — `lang=gr`, `lang=en` and
+  `lang=NONSENSE` all returned byte-identical responses.
+
+  Removed rather than implemented. Language switching is deliberately
+  client-side: an entry carries every translation and `EntriesTable` picks
+  one to display, which is what makes switching instant. Filtering
+  server-side would mean flattening `title: {en, el}` to a single value,
+  changing the response shape and breaking both the table's language
+  switcher and the edit form, which needs every language at once.
+
+  The dead param had a real cost. `viewLangCode` was a dependency of the
+  fetch effect, so every tab switch triggered a full refetch of an
+  identical response. Entries no longer depend on the language at all, so
+  switching now costs nothing. The effect also used the language as a
+  "languages have loaded" gate, which is gone too — entries and languages
+  now load in parallel, and the `setLoading(false)` calls in the languages
+  handler went with it, since `loading` belongs to the entries request.
+
+  Entries can now render in the brief window before languages arrive, so
+  `currentLangCode` is momentarily `null`. Checked: the existing fallback
+  (`rawValue[code] || Object.values(rawValue)[0]`) resolves that to the
+  first available translation rather than crashing or blanking.
 - [x] **12. Sign-in reported every failure as bad credentials.** The
   `catch` wrapped both the `/sanctum/csrf-cookie` request and the login
   call, so a server that was down, a 500 or a CSRF mismatch all read
@@ -366,23 +387,39 @@ Format: `[ ]` open, `[x]` done. File references = `path:line`.
   password.
 - [ ] **13.** Two axios instances (raw `axios` for the csrf-cookie vs
   the `api` client) — could become one centralized auth/api client.
-- [ ] **14.** [`app/Http/Controllers/EntryController.php`](../app/Http/Controllers/EntryController.php)
-  is dead code (an empty resource-controller stub, not wired to any
-  route) — delete it.
-- [ ] **15.** Migration
-  [`2026_07_14_191839_add_user_id_to_modules_table.php`](../database/migrations/2026_07_14_191839_add_user_id_to_modules_table.php)
-  does nothing (empty up/down, a no-op). Decision needed: keep as
-  history or squash — not a functional problem, just cleanup.
+- [x] **14. Dead `EntryController` stub.** `App\Http\Controllers\EntryController`
+  was an empty resource-controller stub — five methods with `//` for a
+  body — sitting next to the real `Api\EntryController`, which is the one
+  every route uses. Deleted after confirming nothing referenced it.
+- [x] **15. No-op migration.** `2026_07_14_191839_add_user_id_to_modules_table`
+  opened a `Schema::table` closure and did nothing, in both `up` and
+  `down` — a duplicate of `2026_07_11_072149`, which is the one that
+  actually added the column. Deleted rather than kept as history, since it
+  records no history to keep.
+
+  Its row stays in the `migrations` table. Checked what that costs before
+  deciding: `Migrator::rollback` skips a row whose file is missing and
+  reports "Migration not found" instead of failing, and `migrate:status`
+  simply omits it. Confirmed both after deleting.
 - [x] **16.** Route organization — done with Done #2; the entry routes
   are now one `scopeBindings()` group.
 - [ ] **17.** `/languages` is an inline closure route instead of a
   controller method — minor stylistic inconsistency with the rest of
   the API.
-- [ ] **18.** Remove the dead `entry_translations` table,
-  [`EntryTranslation.php`](../app/Models/EntryTranslation.php) model, and
-  its migration — confirmed unused (see Done #1). Harmless to leave for
-  now, but it misleads anyone reading the schema into thinking it's the
-  active translation model.
+- [x] **18. The dead `entry_translations` table.** It belonged to the
+  translation model this CMS did not adopt (see Done #1), and reading the
+  schema suggested it was the live one. Dropped the table via
+  `2026_08_28_120000_drop_entry_translations_table` and deleted the
+  `EntryTranslation` model, which nothing but its own file referenced.
+
+  Checked the row count first — **0** — since dropping a populated table
+  would have been unrecoverable. The `down()` recreates the original
+  structure exactly, so the step is reversible.
+
+  The *create* migration is deliberately kept. Deleting a migration that
+  has already run elsewhere makes the schema history unreproducible, and
+  a create-then-drop pair states plainly what happened. Only the file with
+  nothing in it (#15) was worth removing outright.
 - [ ] **19.** Hitting any `/api/*` route unauthenticated *without* an
   `Accept: application/json` header (e.g. pasting the URL in a browser)
   returns **500 `Route [login] not defined`** instead of 401 — Laravel

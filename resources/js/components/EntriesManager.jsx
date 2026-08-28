@@ -23,25 +23,30 @@ export default function EntriesManager({ module, onBack }) {
             .then(({ data }) => {
                 const list = Array.isArray(data) ? data : data?.data ?? [];
                 setLanguages(list);
+
+                // `loading` belongs to the entries request alone. These used to
+                // clear it because entries were gated behind a language.
                 if (list.length > 0) {
                     setViewLangCode(list[0].code);
                 } else {
-                    setLoading(false);
                     setLanguagesError('No active languages found in the database. Please add a language.');
                 }
             })
             .catch((err) => {
                 console.error(err);
                 setLanguagesError('Failed to fetch /api/languages.');
-                setLoading(false);
             });
     }, []);
 
+    // Entries do not depend on the selected language: an entry carries every
+    // translation, and the table picks one to display. A `lang` param used to
+    // be sent and the language was a dependency of this effect, so switching
+    // tabs refetched a byte-identical response - the endpoint never read it.
     useEffect(() => {
-        if (!viewLangCode || view !== 'list') return;
+        if (view !== 'list') return;
         setLoading(true);
         setError(null);
-        api.get(`/modules/${module.slug}/entries`, { params: { lang: viewLangCode, page } })
+        api.get(`/modules/${module.slug}/entries`, { params: { page } })
             .then(({ data }) => {
                 const meta = paginationFrom(data);
 
@@ -58,7 +63,7 @@ export default function EntriesManager({ module, onBack }) {
                 setError('Failed to load entries.');
             })
             .finally(() => setLoading(false));
-    }, [viewLangCode, module.slug, refreshKey, view, page]);
+    }, [module.slug, refreshKey, view, page]);
 
     const handleEdit = async (entry) => {
         setLoading(true);

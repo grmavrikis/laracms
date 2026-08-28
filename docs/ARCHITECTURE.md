@@ -63,11 +63,12 @@ lives *inside* `Entry.data.{field}.{lang}` — there is no per-entry
 translation record. `SchemaRuleBuilder`, `EntryController`, and
 `EntryForm.jsx`/`EntriesTable.jsx` already agree on this shape end to end.
 
-The `entry_translations` table and the `EntryTranslation` model exist in
-the codebase but are **dead** — nothing reads or writes them. They're the
-leftover of the model that was *not* chosen (a real per-language DB row per
-translation, joined to `Entry`). Removing them is tracked as cleanup in
-TASKS.md, not a blocker.
+There was once an `entry_translations` table and an `EntryTranslation`
+model — the other model, a per-language row joined to `Entry`. Nothing ever
+read or wrote them, and the table was empty, so both were removed
+(TASKS.md #18). The create migration is still there, followed by
+`2026_08_28_120000_drop_entry_translations_table`; the pair is the record
+of a path not taken.
 
 ## 3. Auth
 
@@ -159,6 +160,12 @@ return them differently between requests, so a paginated list can repeat
 or skip rows. On the client, `lib/pagination.js` reduces the paginator
 envelope and `EntriesTable` renders the controls; a page past the end
 falls back to the last page.
+
+The listing takes **no language parameter**. An entry carries all of its
+translations and `EntriesTable` chooses one to display, which is what
+makes switching language instant and free. Filtering server-side would
+mean flattening `title: {en, el}` into one value — a different response
+shape, and the edit form needs every language at once anyway.
 
 ## 6. File uploads
 
