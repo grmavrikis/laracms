@@ -420,13 +420,28 @@ Format: `[ ]` open, `[x]` done. File references = `path:line`.
   has already run elsewhere makes the schema history unreproducible, and
   a create-then-drop pair states plainly what happened. Only the file with
   nothing in it (#15) was worth removing outright.
-- [ ] **19.** Hitting any `/api/*` route unauthenticated *without* an
-  `Accept: application/json` header (e.g. pasting the URL in a browser)
-  returns **500 `Route [login] not defined`** instead of 401 — Laravel
-  tries to redirect guests to a named `login` route that doesn't exist in
-  this API-only app. The React client always sends the JSON header so it
-  correctly gets 401; this only bites manual/curl testing. Fix with
-  `->redirectGuestsTo(fn () => null)` in `bootstrap/app.php`.
+- [x] **19. Unauthenticated `/api/*` answered 500 without a JSON header.**
+  Laravel redirects a guest to a route named `login`, which an API-only app
+  never defines, so opening an API URL in a browser or reaching for curl
+  returned `Route [login] not defined` instead of 401.
+
+  Worth reading the mechanism, because it explains why the existing
+  `shouldRenderJsonWhen(api/*)` did not already cover it:
+  `Authenticate::unauthenticated()` builds the redirect **as an argument**
+  to the `AuthenticationException` constructor
+  ([`Authenticate.php:104`](../vendor/laravel/framework/src/Illuminate/Auth/Middleware/Authenticate.php)),
+  so `route('login')` threw before an `AuthenticationException` ever
+  existed. The handler never saw an auth failure to render.
+
+  Fixed with `redirectGuestsTo(fn () => null)`. Checked the handler first
+  rather than assuming null was safe: it returns 401 JSON when
+  `shouldReturnJson`, and `response()->noContent(401)` when there is no
+  redirect — no `?? route('login')` fallback lurking in either branch.
+
+  Verified live: `/api/user` unauthenticated now returns
+  `401 {"message":"Unauthenticated."}` with no Accept header, with
+  `text/html`, and with `application/json`. Logged-in requests and `/admin`
+  are unchanged.
 - [ ] **22. No test coverage of the React components.** There is no JS
   test runner at all, so every frontend change so far has been verified
   only by `npm run build` (which proves it compiles, not that it behaves)

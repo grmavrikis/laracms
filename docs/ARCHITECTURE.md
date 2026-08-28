@@ -84,6 +84,12 @@ POST /api/login          → session
 authorization. That is handled separately by
 [`ModulePolicy`](../app/Policies/ModulePolicy.php).
 
+There is **no route named `login`**: signing in is an API call, and
+`/admin` is a public shell that decides what to show client-side. Laravel
+would otherwise redirect guests to that route name and fail, so
+`bootstrap/app.php` sets `redirectGuestsTo(fn () => null)`; an
+unauthenticated `/api/*` request answers 401 whatever it asks to `Accept`.
+
 Because a Module is owned by one User and an Entry is owned only
 indirectly (`Entry → Module → User`), every authorization question reduces
 to *does this user own this Module?*. The policy is consulted from the

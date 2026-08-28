@@ -23,6 +23,16 @@ return Application::configure(basePath: dirname(__DIR__))
         // string on its own would glue the words together on save. Content is
         // stored as the author typed it.
         $middleware->trimStrings(except: ['data.*']);
+
+        // There is no route named `login` to send a guest to: authentication
+        // is an API call and /admin is a client-side shell. Laravel's default
+        // callback builds that redirect while *constructing* the
+        // AuthenticationException, so it threw RouteNotFoundException before
+        // the handler could turn the failure into a 401 - any /api/* URL
+        // opened without an `Accept: application/json` header answered 500.
+        // Returning null leaves the exception with no redirect, and the
+        // handler answers 401 either way.
+        $middleware->redirectGuestsTo(fn () => null);
     })
     ->withExceptions(function (Exceptions $exceptions): void
     {

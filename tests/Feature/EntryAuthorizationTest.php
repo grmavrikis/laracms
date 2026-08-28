@@ -165,4 +165,22 @@ class EntryAuthorizationTest extends TestCase
         $this->getJson("/api/modules/{$module->slug}/entries")
             ->assertUnauthorized();
     }
+
+    /**
+     * Without a JSON Accept header Laravel tries to redirect a guest to a
+     * route named `login`, which this API-only app does not define - turning a
+     * 401 into a 500. The React client always sends the header, so this only
+     * showed up when opening an API URL in a browser or reaching for curl.
+     */
+    public function test_an_unauthenticated_request_is_401_even_without_a_json_header(): void
+    {
+        $victim = User::factory()->create();
+        $module = $this->makeModule($victim, 'victim-module');
+
+        $this->get("/api/modules/{$module->slug}/entries", ['Accept' => 'text/html'])
+            ->assertUnauthorized();
+
+        $this->get('/api/user', ['Accept' => 'text/html'])
+            ->assertUnauthorized();
+    }
 }
