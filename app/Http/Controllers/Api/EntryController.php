@@ -28,7 +28,14 @@ class EntryController extends Controller
     {
         $this->authorize('view', $module);
 
-        return $module->entries()->latest()->paginate(15);
+        // The id tie-break is what makes this a total order. created_at alone
+        // ties for entries saved in the same second, and the database is then
+        // free to return them in any order - which for a paginated list means
+        // rows can repeat across pages or be skipped entirely.
+        return $module->entries()
+            ->latest()
+            ->orderByDesc('id')
+            ->paginate(15);
     }
 
     public function store(StoreEntryRequest $request, Module $module)

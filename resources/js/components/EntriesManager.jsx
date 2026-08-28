@@ -2,12 +2,15 @@ import { useState, useEffect } from 'react';
 import api from '../lib/api';
 import EntryForm from './EntryForm';
 import EntriesTable from './EntriesTable';
+import { paginationFrom, rowsFrom, isPastLastPage } from '../lib/pagination';
 
 export default function EntriesManager({ module, onBack }) {
     const [languages, setLanguages] = useState([]);
     const [languagesError, setLanguagesError] = useState(null);
     const [viewLangCode, setViewLangCode] = useState(null);
     const [entries, setEntries] = useState([]);
+    const [pagination, setPagination] = useState(null);
+    const [page, setPage] = useState(1);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [refreshKey, setRefreshKey] = useState(0);
@@ -38,14 +41,24 @@ export default function EntriesManager({ module, onBack }) {
         if (!viewLangCode || view !== 'list') return;
         setLoading(true);
         setError(null);
-        api.get(`/modules/${module.slug}/entries`, { params: { lang: viewLangCode } })
-            .then(({ data }) => setEntries(Array.isArray(data) ? data : data?.data ?? []))
+        api.get(`/modules/${module.slug}/entries`, { params: { lang: viewLangCode, page } })
+            .then(({ data }) => {
+                const meta = paginationFrom(data);
+
+                if (isPastLastPage(meta)) {
+                    setPage(meta.lastPage);
+                    return;
+                }
+
+                setEntries(rowsFrom(data));
+                setPagination(meta);
+            })
             .catch((err) => {
                 console.error(err);
                 setError('Failed to load entries.');
             })
             .finally(() => setLoading(false));
-    }, [viewLangCode, module.slug, refreshKey, view]);
+    }, [viewLangCode, module.slug, refreshKey, view, page]);
 
     const handleEdit = async (entry) => {
         setLoading(true);
@@ -62,9 +75,18 @@ export default function EntriesManager({ module, onBack }) {
     };
 
     const handleFormClose = (saved = false) => {
+        const wasCreating = view === 'create';
+
         setView('list');
         setEditingEntry(null);
+
         if (saved) {
+            // Entries are listed newest first, so a new one is on page one.
+            // After an edit the entry stays where it was, so does the reader.
+            if (wasCreating) {
+                setPage(1);
+            }
+
             setRefreshKey((n) => n + 1);
         }
     };
@@ -161,6 +183,8 @@ export default function EntriesManager({ module, onBack }) {
                     languages={languages}
                     currentLangCode={viewLangCode}
                     onLanguageChange={setViewLangCode}
+                    pagination={pagination}
+                    onPageChange={setPage}
                 />
             )}
         </div>

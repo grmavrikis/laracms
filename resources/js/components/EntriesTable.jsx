@@ -2,7 +2,21 @@ import { isRichTextField, docToText } from '../lib/richText';
 
 const getLangCode = (l) => l.locale || l.code || l.short_code || (l.id === 1 ? 'en' : 'fr');
 
-export default function EntriesTable({ schema, entries, onEdit, languages = [], currentLangCode = 'en', onLanguageChange }) {
+export default function EntriesTable({
+    schema,
+    entries,
+    onEdit,
+    languages = [],
+    currentLangCode = 'en',
+    onLanguageChange,
+    pagination = null,
+    onPageChange,
+}) {
+    // Fall back to the row count only when the response was not paginated;
+    // otherwise this counted one page and labelled it the total.
+    const total = pagination?.total ?? entries?.length ?? 0;
+    const hasPages = (pagination?.lastPage ?? 1) > 1;
+
     return (
         <div className="mt-6 flex flex-col">
             {/* Header section with title/actions and unified language switcher */}
@@ -10,7 +24,7 @@ export default function EntriesTable({ schema, entries, onEdit, languages = [], 
                 <div className="flex items-center gap-2">
                     <h3 className="text-base font-semibold leading-6 text-gray-900">Entries List</h3>
                     <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-800">
-                        {entries?.length || 0} total
+                        {total} total
                     </span>
                 </div>
 
@@ -135,6 +149,40 @@ export default function EntriesTable({ schema, entries, onEdit, languages = [], 
                                 </tbody>
                             </table>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {hasPages && (
+                <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <p className="text-sm text-gray-500">
+                        Showing <span className="font-medium text-gray-900">{pagination.from}</span>
+                        {' '}to <span className="font-medium text-gray-900">{pagination.to}</span>
+                        {' '}of <span className="font-medium text-gray-900">{pagination.total}</span>
+                    </p>
+
+                    <div className="flex items-center gap-2">
+                        <button
+                            type="button"
+                            onClick={() => onPageChange?.(pagination.currentPage - 1)}
+                            disabled={pagination.currentPage <= 1}
+                            className="inline-flex items-center rounded-lg bg-white px-3 py-1.5 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                        >
+                            &larr; Previous
+                        </button>
+
+                        <span className="text-sm text-gray-600 px-1">
+                            Page {pagination.currentPage} of {pagination.lastPage}
+                        </span>
+
+                        <button
+                            type="button"
+                            onClick={() => onPageChange?.(pagination.currentPage + 1)}
+                            disabled={pagination.currentPage >= pagination.lastPage}
+                            className="inline-flex items-center rounded-lg bg-white px-3 py-1.5 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                        >
+                            Next &rarr;
+                        </button>
                     </div>
                 </div>
             )}

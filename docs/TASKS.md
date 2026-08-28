@@ -317,10 +317,31 @@ Format: `[ ]` open, `[x]` done. File references = `path:line`.
 
 ## P2 — Polish
 
-- [ ] **10. Pagination is wrong in the UI.** The backend does
-  `paginate(15)`, but `EntriesTable.jsx:12` shows `entries.length` as
-  "total" (only the current page) and there are no page controls —
-  after the first 15 entries the user can't see the rest.
+- [x] **10. Pagination is wrong in the UI.** `EntriesManager` read only
+  `data` from the paginated response and dropped the rest, so the table
+  counted the rows it held and called that the total, and nothing could
+  reach past the first 15 entries.
+
+  The response metadata is now kept and passed down:
+  [`lib/pagination.js`](../resources/js/lib/pagination.js) reduces the
+  paginator envelope to what the table needs, and `EntriesTable` shows the
+  real total with Previous/Next controls and a "showing X to Y of Z" line.
+  Requesting a page past the end — after deleting entries, or switching to
+  a smaller module — falls back to the last page instead of rendering
+  blank. Creating an entry returns to page 1, since the list is newest
+  first; editing leaves the reader where they were.
+
+  **Found while testing this:** ordering was not a total order.
+  `EntryController::index` used `latest()` alone, and entries saved in the
+  same second tie on `created_at`, leaving the database free to order them
+  as it likes — which is how a paginated list repeats or skips rows. It was
+  not hypothetical: 18 entries sharing a timestamp came back *oldest*
+  first. Added an `id` tie-break. Fixed here rather than logged because
+  page controls over an unstable sort would be a feature shipped broken.
+
+  13 node checks cover the helper, 3 PHP tests cover ordering and the page
+  boundaries. Verified live on MySQL: page 1 now starts at the newest
+  entry, and the two pages together return 18 distinct ids for 18 rows.
 - [ ] **11.** `EntriesManager.jsx:41` sends a `lang` param to
   `GET .../entries`, but the backend `index()` ignores it entirely —
   every language is always fetched.

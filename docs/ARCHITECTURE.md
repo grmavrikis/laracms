@@ -152,6 +152,14 @@ to a different Module is a 404 before any controller code runs; a Module
 owned by a different user is a 403 from the policy. Modules are addressed
 by slug only — numeric ids are not accepted.
 
+**Listing** is paginated at 15 per page, ordered by `created_at` **and
+`id`** descending. The `id` is not decoration: entries saved in the same
+second tie on `created_at`, and without a total order the database may
+return them differently between requests, so a paginated list can repeat
+or skip rows. On the client, `lib/pagination.js` reduces the paginator
+envelope and `EntriesTable` renders the controls; a page past the end
+falls back to the last page.
+
 ## 6. File uploads
 
 `POST /api/upload` (`UploadController::store`) → validates
