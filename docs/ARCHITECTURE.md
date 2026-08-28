@@ -103,6 +103,15 @@ Module.schema  →  SchemaRuleBuilder::build()  →  Laravel validation rules
 schema field into Laravel validation rules based on its `type` and its
 `translatable` flag.
 
+A **translatable** field yields two levels of rules, because its value is a
+map of language code to value: `data.{name}` governs the map and
+`data.{name}.*` governs each value. Both are built from the field's own
+`validation` string, so a field is required only when configured that way —
+the outer level was once hardcoded to `required`, which made every
+translatable field mandatory. Requiredness comes from `validation`
+containing `required`; the `required` key some schemas carry is not read
+(TASKS.md #32).
+
 `SchemaRuleBuilder::SUPPORTED_TYPES` is the **single list** of field types
 the system understands: `string`, `text`, `integer`, `boolean`, `date`,
 `datetime`, `select`, `image`. `ModuleController` validates incoming

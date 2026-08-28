@@ -290,13 +290,28 @@ Format: `[ ]` open, `[x]` done. File references = `path:line`.
   command and converted with its bold mark intact, and a POST to that
   module returned 201.
 
-- [ ] **24. A translatable field can never be optional.**
-  [`SchemaRuleBuilder.php:66`](../app/Services/SchemaRuleBuilder.php:66)
-  hardcodes `['required','array']` for the outer `data.{name}` key,
-  discarding the field's own `validation` string, which is only applied to
-  `data.{name}.*`. A translatable field marked `nullable` still returns 422
-  when omitted, so translatable and non-translatable fields of the same
-  type behave differently.
+- [x] **24. A translatable field can never be optional.** A translatable
+  field produces two levels of rules — the map of language code to value,
+  and each value inside it — but only the inner level was built from the
+  field's `validation` string. The outer key was hardcoded
+  `['required','array']`, so every translatable field was mandatory
+  regardless of configuration, while a non-translatable field of the same
+  type was not.
+
+  The outer level now follows the field's own rules: `['required','array']`
+  when the field is configured required, `['nullable','array']` otherwise.
+  Per-language rules are unchanged.
+
+  **Behaviour change worth knowing about:** translatable fields with an
+  empty `validation` box were *accidentally* mandatory and are now
+  optional. That affects existing modules — verified live, posting to
+  `rest` with `r2` omitted returned 201 where it previously returned 422.
+  Requiredness is now something you opt into by typing `required` in the
+  field's validation box, which is what that box was always for.
+
+  Covered by 6 tests in
+  [`TranslatableFieldValidationTest`](../tests/Feature/TranslatableFieldValidationTest.php),
+  three of which reproduced the bug first.
 
 ---
 
@@ -399,6 +414,16 @@ Format: `[ ]` open, `[x]` done. File references = `path:line`.
   breaks the pattern or silently parses the wrong list. It is a stand-in
   for having no JS runner (#22); the real fix is one source of truth, e.g.
   serving the list from an endpoint or generating the JS constant.
+- [ ] **32. The schema's `required` key is dead data.**
+  [`DatabaseSeeder`](../database/seeders/DatabaseSeeder.php) writes
+  `'required' => true` into module schemas, but nothing reads it:
+  `SchemaRuleBuilder` derives requiredness from the `validation` string,
+  and `ModuleController` does not even validate a `schema.*.required` key,
+  so the API accepts and stores whatever is sent. Leftover from an earlier
+  design, and misleading — the seeded `title` field looks required and is
+  not. Either drop it or make it the real mechanism instead of `validation`
+  containing the word `required`.
+
 - [ ] **31. The typography plugin ships to pages with no prose.**
   `@plugin '@tailwindcss/typography'` sits in the single global stylesheet,
   which `welcome.blade.php` loads as well as the admin panel, although only

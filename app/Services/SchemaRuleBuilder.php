@@ -63,7 +63,15 @@ class SchemaRuleBuilder
 
             if ($isTranslatable)
             {
-                $rules["data.{$name}"] = ['required', 'array'];
+                // A translatable field produces two levels of rules: the map of
+                // language code to value, and each value inside it. Only the
+                // inner level used to be built from the field's configuration;
+                // the outer one was always `required`, so a field configured as
+                // optional still had to be sent.
+                $rules["data.{$name}"] = in_array('required', $fieldRules, true)
+                    ? ['required', 'array']
+                    : ['nullable', 'array'];
+
                 $rules["data.{$name}.*"] = $fieldRules;
             }
             else
