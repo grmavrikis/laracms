@@ -2,83 +2,43 @@
 
 namespace Tests\Feature;
 
+use App\Console\Commands\SyncFieldTypes;
 use App\Services\RichTextDocument;
 use App\Services\SchemaRuleBuilder;
 use Tests\TestCase;
 
 /**
- * Field types are declared in PHP and consumed in JS, so nothing stops the two
- * from drifting apart - which is exactly what happened: the API accepted
- * `textarea` and `richtext` while the form never offered them.
+ * Field types are defined in PHP and consumed in JS, so something has to stop
+ * the two drifting apart - which they had: the API accepted `textarea` and
+ * `richtext` while the form offered neither.
  *
- * There is no JS test runner yet (TASKS.md #22), so these read the frontend
- * source and compare. That makes them sensitive to reformatting of those two
- * literals; if one fails after a purely cosmetic edit, fix the pattern here
- * rather than the list.
+ * This used to scrape the JS source with a regex, which would have broken on
+ * any reformatting of those literals and could have parsed the wrong list
+ * without saying so. The JS now imports `fieldTypes.json`, written from these
+ * same constants, so the check is a file comparison.
  */
 class FieldTypeConsistencyTest extends TestCase
 {
-    /**
-     * @return array<int, string>
-     */
-    private function jsStringArray(string $relativePath, string $constant): array
+    public function test_the_generated_file_matches_the_php_constants(): void
     {
-        $source = file_get_contents(base_path($relativePath));
+        $path = SyncFieldTypes::path();
 
-        $this->assertIsString($source, "Could not read {$relativePath}");
-
-        preg_match('/' . preg_quote($constant, '/') . '\s*=\s*\[(.*?)\]/s', $source, $block);
-
-        $this->assertNotEmpty(
-            $block[1] ?? '',
-            "Could not locate {$constant} in {$relativePath}"
-        );
-
-        preg_match_all("/'([^']+)'/", $block[1], $matches);
-
-        $values = $matches[1] ?? [];
-
-        $this->assertNotEmpty($values, "{$constant} in {$relativePath} parsed as empty");
-
-        return $values;
-    }
-
-    public function test_the_module_form_offers_exactly_the_types_the_backend_supports(): void
-    {
-        // The form stores its list as objects: { value: 'string', label: 'String' }.
-        // Only the values matter here, and labels are single-quoted too, so the
-        // value key is matched explicitly.
-        $source = file_get_contents(base_path('resources/js/components/ModuleBuilder.jsx'));
-
-        preg_match('/const FIELD_TYPES\s*=\s*\[(.*?)\];/s', $source, $block);
-        $this->assertNotEmpty($block[1] ?? '', 'Could not locate FIELD_TYPES in ModuleBuilder.jsx');
-
-        preg_match_all("/value:\s*'([^']+)'/", $block[1], $matches);
-        $frontend = $matches[1];
-
-        $this->assertNotEmpty($frontend, 'FIELD_TYPES in ModuleBuilder.jsx parsed as empty');
-
-        $backend = SchemaRuleBuilder::SUPPORTED_TYPES;
-
-        sort($frontend);
-        sort($backend);
+        $this->assertFileExists($path, 'Run: php artisan schema:sync-field-types');
 
         $this->assertSame(
-            $backend,
-            $frontend,
-            'The types offered by ModuleBuilder.jsx and SchemaRuleBuilder::SUPPORTED_TYPES have drifted apart.'
+            SyncFieldTypes::encode(),
+            file_get_contents($path),
+            'fieldTypes.json is stale. Run: php artisan schema:sync-field-types'
         );
     }
 
-    public function test_the_frontend_agrees_on_which_types_are_rich_text(): void
+    public function test_the_generated_file_carries_the_lists_the_frontend_needs(): void
     {
-        $frontend = $this->jsStringArray('resources/js/lib/richText.js', 'export const FIELD_TYPES');
-        $backend = RichTextDocument::FIELD_TYPES;
+        $generated = json_decode(file_get_contents(SyncFieldTypes::path()), true);
 
-        sort($frontend);
-        sort($backend);
-
-        $this->assertSame($backend, $frontend);
+        $this->assertSame(SchemaRuleBuilder::SUPPORTED_TYPES, $generated['supported']);
+        $this->assertSame(RichTextDocument::FIELD_TYPES, $generated['richText']);
+        $this->assertSame(RichTextDocument::LEGACY_FIELD_TYPES, $generated['legacyRichText']);
     }
 
     public function test_every_rich_text_type_is_a_supported_type(): void
@@ -93,19 +53,8 @@ class FieldTypeConsistencyTest extends TestCase
         }
     }
 
-    public function test_the_frontend_agrees_on_the_legacy_rich_text_types(): void
-    {
-        $frontend = $this->jsStringArray('resources/js/lib/richText.js', 'export const LEGACY_FIELD_TYPES');
-        $backend = RichTextDocument::LEGACY_FIELD_TYPES;
-
-        sort($frontend);
-        sort($backend);
-
-        $this->assertSame($backend, $frontend);
-    }
-
     /**
-     * Legacy types are readable, not creatable. If one ever reappeared in
+     * Legacy types are readable, not creatable. If one reappeared in
      * SUPPORTED_TYPES the module form would start offering two names for the
      * same behaviour again.
      */
@@ -119,5 +68,16 @@ class FieldTypeConsistencyTest extends TestCase
                 "Legacy type '{$type}' should not be offered as a creatable field type."
             );
         }
+    }
+
+    /**
+     * Deliberately not run through `artisan`: invoking the command would write
+     * the real resources/js/lib/fieldTypes.json, so a test would be editing a
+     * tracked source file - and would happily persist a mutation that another
+     * test was about to report as drift.
+     */
+    public function test_the_generated_contents_are_deterministic(): void
+    {
+        $this->assertSame(SyncFieldTypes::encode(), SyncFieldTypes::encode());
     }
 }

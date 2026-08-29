@@ -176,10 +176,16 @@ matches them. Creatable and readable are separate questions — dropping
 them from both left older schemas unable to save an entry or to be
 migrated.
 
-The list is mirrored in JS — `FIELD_TYPES` in `ModuleBuilder.jsx` (with
-labels) and in `lib/richText.js` (which types are documents).
-`FieldTypeConsistencyTest` reads both files and fails if they drift from
-the PHP constants, since there is no JS test runner to assert it natively.
+The frontend does not restate these lists. `php artisan
+schema:sync-field-types` writes `resources/js/lib/fieldTypes.json` from the
+PHP constants, and `richText.js` and `ModuleBuilder.jsx` import it — so
+adding a type on the backend reaches the form without a second edit. Only
+the labels live in JS, being wording rather than fact; a type without one
+gets its own name capitalised.
+
+`FieldTypeConsistencyTest` compares the generated file against the
+constants and tells you to re-run the command when it is stale. **Run it
+after changing `SUPPORTED_TYPES` or the rich-text lists.**
 
 ## 5. Entry request flow
 

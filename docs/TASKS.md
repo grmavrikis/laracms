@@ -583,17 +583,31 @@ Format: `[ ]` open, `[x]` done. File references = `path:line`.
   Verified live: five modules named the same gave `zz-products` through
   `zz-products-5`, and a 255-character name twice gave slugs of 247 and 249
   characters. The query-count test failed at 7 first.
-- [ ] **29. `FieldTypeConsistencyTest` duplicates its own parser.**
-  `jsStringArray()` was written to read a JS array literal, but
-  `test_the_module_form_offers_exactly_the_types_the_backend_supports`
-  re-implements the same read/locate/guard sequence inline because it needs
-  the `value:` key. Give the helper an optional pattern and use it in both.
-- [ ] **30. Type-list consistency is enforced by scraping JS from PHP.**
-  `FieldTypeConsistencyTest` regex-reads the two JS literals. Reformatting
-  either — double quotes, a commented-out entry, splitting the array —
-  breaks the pattern or silently parses the wrong list. It is a stand-in
-  for having no JS runner (#22); the real fix is one source of truth, e.g.
-  serving the list from an endpoint or generating the JS constant.
+- [x] **29 + 30. Type lists were restated in JS and policed by regex.** Done
+  together, because the second removes the first: with one source of truth
+  the duplicated parser has nothing left to parse.
+
+  The frontend no longer restates anything. `php artisan
+  schema:sync-field-types` writes
+  [`fieldTypes.json`](../resources/js/lib/fieldTypes.json) from the PHP
+  constants, and `richText.js` and `ModuleBuilder.jsx` import it. Labels
+  stay in JS, since they are wording; a type with no label gets its own
+  name capitalised, so adding one on the backend now surfaces in the form
+  without a second edit — verified by adding a `colour` type and watching
+  it come through as `{value: 'colour', label: 'Colour'}`.
+
+  The check is now a file comparison instead of a regex over JS source.
+  Both approaches rely on a test failing when things drift; the difference
+  is only whether that test can be broken by reformatting a literal. It
+  fails with something actionable: *"fieldTypes.json is stale. Run: php
+  artisan schema:sync-field-types"* — confirmed by changing the PHP
+  constant without regenerating.
+
+  Caught while doing it: the idempotency test called the command through
+  `artisan`, so it **wrote the real tracked file** — and during the drift
+  check it persisted the mutation another test was meant to report. It now
+  asserts that `encode()` is deterministic instead, with no filesystem
+  side effect.
 - [x] **34. Two high-severity npm advisories.** `postcss <=8.5.22` (path
   traversal via `sourceMappingURL`, two advisories) and `nanoid <=3.3.17`
   (non-terminating loops). Pre-existing rather than introduced by the
@@ -669,12 +683,33 @@ Format: `[ ]` open, `[x]` done. File references = `path:line`.
   not. Either drop it or make it the real mechanism instead of `validation`
   containing the word `required`.
 
-- [ ] **31. The typography plugin ships to pages with no prose.**
-  `@plugin '@tailwindcss/typography'` sits in the single global stylesheet,
-  which `welcome.blade.php` loads as well as the admin panel, although only
-  the Tiptap editor uses `prose`. It took `app.css` from 66.96 kB to
-  79.55 kB. Scope it to the admin bundle, or replace `prose` with the
-  heading and list rules the editor actually needs.
+- [x] **31. The typography plugin ships to pages with no prose.**
+  *(Measured, then accepted.)* Built the stylesheet with and without the
+  plugin: **78.7 kB vs 66.4 kB raw**, so it costs **12.3 kB raw — about
+  1.5 kB gzipped** of a 15.11 kB total. `welcome.blade.php` does load it
+  and does not use `prose`.
+
+  Both fixes cost more than the problem:
+
+  - **Splitting the stylesheet per page** would give each its own bundle,
+    but both need Tailwind's base, so someone visiting both pages
+    downloads roughly 144 kB instead of 78 kB. It optimises the stock
+    Laravel placeholder at the expense of the actual product.
+  - **Replacing `prose` with hand-written editor rules** would save ~11 kB
+    raw for everyone, but trades a maintained plugin for bespoke CSS
+    covering headings, list markers, blockquote and code, with real visual
+    risk, to save ~9% of one asset.
+
+  Left as it is. Worth revisiting only if `/` stops being a placeholder,
+  since the cleanest resolution is that the page which does not need
+  `prose` also does not need to exist.
+
+- [ ] **35. `welcome.blade.php` loads an empty JS bundle.** It pulls in
+  `resources/js/app.js`, which is three bytes — a single `//`. The file is
+  also a Vite entry point in `vite.config.js`, producing a 0.00 kB chunk in
+  every build. Removing all three is dead-code cleanup in the family of
+  #14/#15/#18; noticed while measuring #31 and left alone to keep that
+  measurement's conclusion separate from an unrelated change.
 
 ---
 

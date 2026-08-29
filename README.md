@@ -44,6 +44,15 @@ only — API error handling, pagination metadata and rich-text documents. It
 does not render components, so anything about the forms themselves is still
 verified by running the app.
 
+After changing the field types in `SchemaRuleBuilder` or
+`RichTextDocument`, regenerate the copy the frontend imports:
+
+```bash
+php artisan schema:sync-field-types
+```
+
+The test suite fails with that instruction if you forget.
+
 First-time setup only:
 
 ```bash

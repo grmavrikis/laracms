@@ -2,16 +2,17 @@
 // document), not an HTML string. Nothing in the app ever renders that document
 // as raw HTML, so there is no markup to sanitize on the way out.
 //
-// Keep both lists in sync with RichTextDocument on the backend.
-// FieldTypeConsistencyTest reads this file and fails if they drift apart.
+// The lists come from the PHP constants that define them, via
+// `php artisan schema:sync-field-types`. They are not restated here.
+import fieldTypes from './fieldTypes.json';
 
-export const FIELD_TYPES = ['text'];
+export const FIELD_TYPES = fieldTypes.richText;
 
 // No longer offered when building a Module, but a schema written before these
 // were collapsed into 'text' can still declare one. Rendering such a field as a
 // plain input would show a document object in a text box, so they are
 // recognised here too.
-export const LEGACY_FIELD_TYPES = ['richtext', 'textarea'];
+export const LEGACY_FIELD_TYPES = fieldTypes.legacyRichText;
 
 export const isRichTextField = (field) =>
     FIELD_TYPES.includes(field?.type) || LEGACY_FIELD_TYPES.includes(field?.type);

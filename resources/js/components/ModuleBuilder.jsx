@@ -2,17 +2,27 @@
 import { useState, useRef } from 'react';
 import api from '../lib/api';
 import { errorSummary } from '../lib/apiErrors';
+import fieldTypes from '../lib/fieldTypes.json';
 
-const FIELD_TYPES = [
-    { value: 'string', label: 'String' },
-    { value: 'text', label: 'Text' },
-    { value: 'integer', label: 'Integer' },
-    { value: 'boolean', label: 'Boolean' },
-    { value: 'date', label: 'Date' },
-    { value: 'datetime', label: 'Datetime' },
-    { value: 'select', label: 'Select' },
-    { value: 'image', label: 'Image' },
-];
+// Which types exist is the backend's decision, so the values come from the
+// generated file rather than being listed again here. Labels are UI wording and
+// stay put; a type with no label shown gets its own name capitalised, so adding
+// one on the backend surfaces in this form without a second edit.
+const TYPE_LABELS = {
+    string: 'String',
+    text: 'Text',
+    integer: 'Integer',
+    boolean: 'Boolean',
+    date: 'Date',
+    datetime: 'Datetime',
+    select: 'Select',
+    image: 'Image',
+};
+
+const FIELD_TYPES = fieldTypes.supported.map((value) => ({
+    value,
+    label: TYPE_LABELS[value] ?? value.charAt(0).toUpperCase() + value.slice(1),
+}));
 
 // There is deliberately no slugify here. This component used to transliterate
 // the name itself and send the result, which meant the stored slug came from a

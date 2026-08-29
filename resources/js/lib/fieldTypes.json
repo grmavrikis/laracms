@@ -1,0 +1,19 @@
+{
+    "supported": [
+        "string",
+        "text",
+        "integer",
+        "boolean",
+        "date",
+        "datetime",
+        "select",
+        "image"
+    ],
+    "richText": [
+        "text"
+    ],
+    "legacyRichText": [
+        "richtext",
+        "textarea"
+    ]
+}
