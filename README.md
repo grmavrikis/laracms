@@ -81,4 +81,7 @@ php artisan storage:link
 ## Documentation
 
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — how the system is built (stack, data model, request flow, frontend).
-- [`docs/TASKS.md`](docs/TASKS.md) — what's left to reach an MVP, in priority order.
+- [`docs/TASKS.md`](docs/TASKS.md) — what's left, in priority order.
+- [`docs/CHANGELOG.md`](docs/CHANGELOG.md) — what has been done and *why*.
+  Read this before changing something that looks odd; most of it was a
+  decision, and the reasoning is what to argue with.

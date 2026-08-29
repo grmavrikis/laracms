@@ -4,7 +4,8 @@ Describes the **current** state of the system as it exists in the code.
 This is not a wishlist — if something here no longer matches reality, fix
 the doc, don't build on the assumption that it still holds.
 
-For what's left to fix/build: [`TASKS.md`](TASKS.md).
+What is left to do: [`TASKS.md`](TASKS.md). Why things ended up this way:
+[`CHANGELOG.md`](CHANGELOG.md).
 
 ## 1. High-level
 
@@ -44,7 +45,7 @@ User (1:N) Module (1:N) Entry
   holds `products` gets `products-2`, and can infer that someone else holds
   it. Modules are otherwise strictly per-owner via `ModulePolicy`, so this
   is the one place cross-tenant state is observable. Accepted while there
-  is a single user (TASKS.md #27). **Anyone adding a second account should
+  is a single user (CHANGELOG.md §12). **Anyone adding a second account should
   fix it first:** a composite unique on `(user_id, slug)` plus owner-scoped
   route binding, which is far cheaper before real accounts exist.
 
@@ -57,9 +58,8 @@ User (1:N) Module (1:N) Entry
   `^[a-z0-9]+(?:-[a-z0-9]+)*$` — the shape `Str::slug()` produces — because
   the slug is a single URL segment and something like `a/b` could never be
   routed to. And it must fit `modules.slug`, which is `varchar(255)`: since
-  `name` also allows 255 characters, `generateSlug()` shortens the base via
-  `fitToColumn()` to leave room for the suffix rather than overflowing the
-  column.
+  `name` also allows 255 characters, `generateSlug()` shortens the base up
+  front to leave room for the suffix rather than overflowing the column.
 
   **The backend is the only place that builds a slug.** `ModuleBuilder.jsx`
   deliberately has no `slugify`: it used to transliterate the name locally
@@ -72,7 +72,7 @@ User (1:N) Module (1:N) Entry
   `Entry → Module → User`.
 - **Language** — `id, name, code, is_default, is_active`.
 
-**Translation model (decided, see TASKS.md #1):** translatable content
+**Translation model** (decided; see CHANGELOG.md §3): translatable content
 lives *inside* `Entry.data.{field}.{lang}` — there is no per-entry
 translation record. `SchemaRuleBuilder`, `EntryController`, and
 `EntryForm.jsx`/`EntriesTable.jsx` already agree on this shape end to end.
@@ -80,7 +80,7 @@ translation record. `SchemaRuleBuilder`, `EntryController`, and
 There was once an `entry_translations` table and an `EntryTranslation`
 model — the other model, a per-language row joined to `Entry`. Nothing ever
 read or wrote them, and the table was empty, so both were removed
-(TASKS.md #18). The create migration is still there, followed by
+(CHANGELOG.md §10). The create migration is still there, followed by
 `2026_08_28_120000_drop_entry_translations_table`; the pair is the record
 of a path not taken.
 

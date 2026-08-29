@@ -1,0 +1,542 @@
+# What was done, and why
+
+A record of the work already completed, grouped by area rather than by date.
+Open work lives in [`TASKS.md`](TASKS.md); how the system is put together is
+in [`ARCHITECTURE.md`](ARCHITECTURE.md).
+
+This exists because most of these were **decisions**, not just fixes. When
+something here looks odd, the reason it is that way is written down — and if
+it needs revisiting, the reasoning is what to argue with.
+
+Each entry says what was wrong, what was decided, and how it was checked.
+
+---
+
+## 1. Getting it to run
+
+### Eight files had unresolved merge conflicts
+
+`Controller.php`, `bootstrap/app.php`, `routes/web.php`, `DatabaseSeeder.php`,
+`app.css`, `vite.config.js`, `package.json`, `composer.json`/`composer.lock`
+all still contained conflict markers. The app would not boot.
+
+Resolved each by hand. `bootstrap/app.php` mattered most: the `HEAD` side
+registered no `api:` routes at all.
+
+### `composer run dev` killed itself on Windows
+
+The script chained `php artisan pail`, which needs the `pcntl` extension.
+It crashed on startup and `--kill-others` took the server, queue worker and
+Vite down with it.
+
+Removed pail. Also removed `php artisan serve`: `.env` sets
+`SANCTUM_STATEFUL_DOMAINS` with no `:8000` entry, so a `localhost:8000`
+origin is not stateful and login fails with 401/419. Laragon's Apache serves
+the app at `mini-cms.test`, which matches `APP_URL`.
+
+---
+
+## 2. Authorization
+
+### Any user could read, change or delete any other user's entries
+
+`show`/`update`/`destroy` took `{moduleSlug}` from the route and ignored it,
+calling `Entry::findOrFail($id)` directly. `index`/`store` looked the module
+up without filtering by `user_id`. Both Entry FormRequests had `authorize()`
+returning `true`. Sanctum established identity; nothing checked ownership.
+
+Closed with two independent layers:
+
+- **Scoped route model binding** (`Route::scopeBindings()`) — `{entry}`
+  resolves *through* `$module->entries()`, so an entry in another module is a
+  404 before any controller code runs. Every `Entry::findOrFail($id)` is gone.
+- **`ModulePolicy`** — another user's module is a 403. Consulted from the
+  controller for reads and deletes, and from `authorize()` on both
+  FormRequests for writes, which runs *before* `rules()` so a module's schema
+  never leaks to someone who cannot write to it.
+
+Covered by `EntryAuthorizationTest`, including the exact original attack —
+your own module slug plus someone else's entry id — and a happy-path test
+proving the 403s are real policy denials rather than blanket auth failure.
+
+Fixed in the same pass: the `DEBUG_PAYLOAD` log that dumped whole request
+payloads; module lookup narrowed to slug-only (a live ambiguity — a module
+with slug `"2"` coexists with the module of `id=2`, and the old
+`orWhere('id', ...)` matched both); duplicate module lookups in the
+FormRequests; and the entry routes grouped together.
+
+### Unauthenticated `/api/*` answered 500 without a JSON header
+
+Laravel redirects guests to a route named `login`, which an API-only app
+never defines, so opening an API URL in a browser returned
+`Route [login] not defined`.
+
+The mechanism explains why the existing `shouldRenderJsonWhen(api/*)` did not
+cover it: `Authenticate::unauthenticated()` builds the redirect **as an
+argument** to the `AuthenticationException` constructor, so `route('login')`
+threw before an authentication failure existed for the handler to render.
+
+Fixed with `redirectGuestsTo(fn () => null)`, after checking the handler had
+no `?? route('login')` fallback that would reintroduce it. Verified live: 401
+with no Accept header, with `text/html`, and with `application/json`.
+
+---
+
+## 3. Rich text
+
+### Stored HTML was never sanitized
+
+The Tiptap editor produced HTML that was stored raw and rendered with
+`dangerouslySetInnerHTML`. The editor is not a security boundary — the API
+can be called directly.
+
+The first attempt purified the HTML with HTMLPurifier. It worked, but it
+meant accepting an open language and then trying to remove the dangerous
+parts. **Replaced with the stronger option: store the editor's document as
+JSON.** A document tree is a closed vocabulary — there is no `script` node
+type — so unsafe constructs cannot be expressed at all. HTMLPurifier was
+removed as a dependency and the app now contains no `dangerouslySetInnerHTML`
+anywhere; the admin table renders a plain-text excerpt.
+
+`RichTextDocument` rebuilds each incoming document from known node types,
+marks and validated attributes. A closed vocabulary does not cover attribute
+*values*, so those still get real checks: link `href` is parsed and
+restricted to `http`/`https`/`mailto`, `target`/`rel` are set server-side
+rather than taken from the payload, and depth and node count are capped.
+
+Existing HTML was converted by `php artisan entries:migrate-richtext`,
+verified with `--dry-run` first and idempotent on re-run.
+
+Verified live: a document containing a `script` node, a `javascript:` link
+mark and `textAlign: "evil"` stored only the paragraph with its `bold` mark
+intact.
+
+### `TrimStrings` ate the spaces around bold and italic text
+
+A regression from moving to documents. Laravel's `TrimStrings` trims every
+string in a request. While rich text was one HTML string that was harmless,
+but a mark splits a sentence into separate text nodes whose *edges* hold the
+spaces between words — `"Κάτι "`, `"έντονο"`, `" εδώ"` — so each node lost
+its own padding and the words glued together on save.
+
+`data.*` is excluded from trimming. Plain string fields are no longer
+auto-trimmed either, which is the right default for a CMS: content is stored
+as the author typed it.
+
+### The legacy type aliases became unreadable
+
+Collapsing `textarea` and `richtext` into `text` (see §4) broke any module
+already declaring one, in two ways at once: entry writes threw "unsupported
+type", and the rich-text migration selects fields through
+`isRichTextField()`, so legacy HTML could not even be converted out.
+
+The mistake was conflating two questions. What may be **created** is still
+the eight types in `SUPPORTED_TYPES`. What may be **read** now also covers
+`RichTextDocument::LEGACY_FIELD_TYPES`; the aliases only ever meant `text`,
+so the rule builder normalises them. The module form is untouched.
+
+---
+
+## 4. Schema and validation
+
+### An unrecognised field type silently became `string`
+
+`rulesForType()` ended in `default => ['string']`, so a typo passed unnoticed
+and the field was never really validated.
+
+The fallback was hiding a live defect: `datetime` was accepted by
+`ModuleController` but had no arm in the rule builder, so a datetime field
+validated as a plain string and accepted `"definitely-not-a-date"`.
+
+Introduced `SchemaRuleBuilder::SUPPORTED_TYPES` as the single list, which
+`ModuleController` validates against via `Rule::in()`, so the two cannot
+drift. `date` and `datetime` share an arm. An unrecognised type throws,
+naming the field and the type. Dropped the unreachable `number`/`email`/`url`
+arms.
+
+### A field with *no* type still fell back to `string`
+
+The half the previous item left: `$field['type'] ?? 'string'` never reached
+the throw. Unreachable through the API, which requires `schema.*.type`, but
+the seeder writes schemas with `DB::table` and a schema can be edited
+straight in the database.
+
+Dropped the default, after checking no existing module has a typeless field.
+A missing type and a misspelled one now read differently, because they are
+different mistakes: *"declares no type"* rather than
+*"unsupported type 'null'"*.
+
+### Custom validation rules could contradict the type
+
+The `validation` string was merged into the type's rules unchecked, and it
+went wrong two ways. **Impossible:** a `text` field validates as an `array`,
+so adding `string` produced a pair no value can satisfy — every entry
+rejected, with nothing saying why. **Quietly different:** `max:255` on that
+field is applied to an array as a *count*, limiting the document to 255
+**nodes** while reading as a character limit.
+
+`assertCustomRulesFit()` rejects a rule that asserts a data type (the field's
+`type` already decides that) and a size rule on rich text. `required` and
+`nullable` are untouched; `max:60` on a `string` still works.
+
+Checked at **module creation** rather than the first entry save, by having
+`ModuleController` build the entry rules and discard them: a schema that
+cannot produce rules is not a usable schema. Reusing the builder keeps one
+definition of "usable".
+
+### Unknown keys in a schema field were accepted silently
+
+Laravel validates the keys it has rules for and ignores the rest, so
+`requred: true` was stored and did nothing.
+
+**Decision: reject them.** The trade-off flagged when this was logged — that
+strictness would break a client sending extra metadata — turned out to be
+hypothetical: `ModuleBuilder` sends exactly the six keys the controller
+validates. A future key has to join the allowlist first, which makes the
+contract explicit rather than costing anything.
+
+Checked on `schema.*` rather than a named key, so the error points at the
+offending field (`schema.1`) and lists every unknown key rather than the
+first. Guards the API, not the database — a schema written with `DB::table`
+still bypasses it.
+
+### `required` was a dead key, and the box that worked was unused
+
+The `required` key was written into schemas and never read. The only
+mechanism that worked was typing the word into the free-text validation box —
+which **no field in the database had ever done**. The intuitive mechanism was
+dead and the working one unused.
+
+**Decision: make the flag real.** `SchemaRuleBuilder` reads it,
+`ModuleController` validates it as an optional boolean, and the module form
+has a **Req** checkbox beside **Lang**. The validation box keeps everything
+else, and writing `required` there still works. Setting both does not apply
+the rule twice.
+
+> ⚠ The seeded `projects.title` carries `required => true` and is now
+> genuinely required — posting to `projects` without a title returns 422
+> where it returned 201.
+>
+> **This does not work for rich-text fields.** See TASKS.md #36.
+
+### A translatable field could never be optional
+
+A translatable field produces two levels of rules — the map of language codes
+and each value inside it — but only the inner level was built from the
+field's configuration. The outer key was hardcoded `['required','array']`.
+
+Both levels now follow the field's configuration.
+
+> ⚠ Translatable fields with nothing configured were *accidentally*
+> mandatory and are now optional. Requiredness is opted into.
+
+### The frontend restated the type lists
+
+Three lists — `SUPPORTED_TYPES`, the rich-text types, and the module form's
+dropdown — were maintained by hand in two languages, and had already drifted:
+the API accepted `textarea` and `richtext` while the form offered neither.
+
+Two fixes, done together because the second removes the first:
+
+- **Collapsed to `text` as the single rich-text type.** All three names
+  behaved identically, and three dropdown entries doing one thing is worse
+  than one. Verified first that no module used either alias.
+- **The frontend no longer restates anything.**
+  `php artisan schema:sync-field-types` writes `fieldTypes.json` from the PHP
+  constants, and the JS imports it. Labels stay in JS, being wording; a type
+  with no label gets its own name capitalised, so adding a type on the
+  backend reaches the form without a second edit.
+
+The drift check is a file comparison rather than a regex over JS source. Both
+approaches rely on a test failing when things drift — the difference is only
+whether reformatting a literal can break it. It fails with
+*"fieldTypes.json is stale. Run: php artisan schema:sync-field-types"*.
+
+---
+
+## 5. Slugs
+
+### A generated slug bypassed the uniqueness check
+
+`Str::slug($name)` ran *after* validation, so the `unique:modules,slug` rule
+never saw it — posting the same name twice returned 201 then **500** on the
+database index.
+
+Split the two cases, which are genuinely different requests: an **explicit**
+slug that is taken stays a 422, because the client asked for that value; a
+**derived** slug means "pick one for me", so a free one is chosen. A
+punctuation-only name, which `Str::slug` reduces to `''`, falls back to
+`module` — an empty slug would make the module unreachable, since the slug is
+the route key.
+
+Known limit, noted in the code: check-then-insert, so concurrent requests
+could still race. The unique index stays the real guarantee.
+
+### Two different slug algorithms, and the wrong one won
+
+`ModuleBuilder.jsx` carried its own `greekToLatin`/`slugify` and *sent* the
+result, so the frontend's version was stored and `Str::slug` never ran.
+Measured against each other, they disagreed on 4 of 9 sample names:
+
+| name | frontend | backend |
+|---|---|---|
+| Νέα & Ανακοινώσεις | nea-anakoin**o**seis | nea-anakoin**w**seis |
+| Ψυχαγωγία | ps**ych**agogia | ps**ikhagh**oghia |
+| Ξενοδοχεία 2026 | **x**enodo**ch**eia-2026 | **ks**enodo**kh**ia-2026 |
+| Café Münchén | **caf-m-nch-n** | cafe-munchen |
+
+The last is the worst: the map covered only Greek, so accented Latin was
+stripped to hyphens.
+
+Removed the frontend implementation rather than keeping two in sync. The slug
+box is optional and blank by default. No live preview, because the only
+honest preview would come from the backend — showing a locally computed guess
+is what caused this.
+
+### Overflow, falsy `"0"`, and no format check
+
+Three defects found by review of the slug work:
+
+- **`generateSlug` could exceed `varchar(255)`.** A 255-character name gave a
+  255-character base, and a collision suffix made 257. The base is now
+  shortened once, with room kept up front.
+- **An explicit slug of `"0"` was silently discarded**, because `?:` treats
+  it as falsy. Compared against `null` now.
+- **No format validation.** `a/b` was accepted, and the slug is the route
+  key, which matches a single segment — so the module could never be
+  addressed. A regex now enforces the shape `Str::slug` produces. (Spaces and
+  Greek were also accepted and turn out to be *reachable* once URL-encoded,
+  so for those the rule enforces consistency rather than repairing breakage.)
+
+### Collision resolution took one query per candidate
+
+`products` taken, try `products-2`, taken, try `products-3` — the seventh
+module of a name cost seven selects.
+
+Now one: read the slugs sharing the base as a prefix and pick a free
+candidate in memory. That needed a change of shape, not just of query — the
+base used to be truncated *per candidate*, so candidates did not share a
+prefix and no single `LIKE` could have found them.
+
+---
+
+## 6. Languages
+
+### `/languages` was an inline closure
+
+Moved to `Api\LanguageController::index`, so every endpoint is reached the
+same way and the handler is somewhere a test can name.
+
+Checked for a functional reason first and did not find one: closures are
+often said to block `route:cache`, but it succeeded with the closure in
+place. This was the stylistic cleanup it was filed as.
+
+Added an explicit `orderBy('id')` — nothing observable changes, but the panel
+displays the *first* language it receives, and leaving that to an unordered
+query makes the default depend on the database.
+
+### `is_default` was set and never read
+
+The column was set — `en` is flagged — but the panel opened on whichever
+language came first by id.
+
+**Decision: honour the flag.** Done in the frontend rather than by ordering
+the endpoint, so ordering and defaulting stay separate concerns; a list
+sorted by name later should not silently move the default.
+
+`lib/languages.js` carries that logic and absorbed `getLangCode`, which was
+declared identically in two components.
+
+> To open on Greek instead, move the flag rather than changing code:
+> `UPDATE languages SET is_default = (code = 'gr')`.
+
+---
+
+## 7. The entries list
+
+### Pagination existed on the server and nowhere else
+
+`EntriesManager` read only `data` from the paginated response and discarded
+the other twelve fields, so the table counted the rows it held and called
+that the total, and nothing could reach past the first 15 entries.
+
+`lib/pagination.js` reduces the paginator envelope; `EntriesTable` shows the
+real total with Previous/Next and a "showing X to Y of Z" line. A page past
+the end falls back to the last page. Creating an entry returns to page 1,
+since the list is newest first; editing leaves the reader where they were.
+
+**Found while testing it:** the ordering was not a total order.
+`latest()` alone ties for entries saved in the same second, leaving the
+database free to order them as it likes — which is how a paginated list
+repeats or skips rows. Not hypothetical: 18 entries sharing a timestamp came
+back *oldest* first. Added an `id` tie-break, rather than logging it, because
+page controls over an unstable sort would be a feature shipped broken.
+
+### A `lang` param was sent and never read
+
+`index()` has no parameter for it — confirmed live, `lang=gr`, `lang=en` and
+`lang=NONSENSE` returned byte-identical responses.
+
+Removed rather than implemented. Language switching is deliberately
+client-side: an entry carries every translation and the table picks one,
+which is what makes switching instant. Filtering server-side would flatten
+`title: {en, el}` to a single value, changing the response shape and breaking
+both the switcher and the edit form, which needs every language at once.
+
+The dead param had a real cost: the language was a dependency of the fetch
+effect, so every tab switch refetched an identical response.
+
+---
+
+## 8. Errors the user can act on
+
+### Every save failure read "Failed to save."
+
+`EntryForm` collapsed everything into one `alert()`, discarding
+`response.data.errors` — so the 422 naming the offending field was invisible
+in the app and loud only for API clients.
+
+`lib/apiErrors.js` now serves all three forms. Messages go where they belong:
+those keyed to a field render beside that input (covering `data.title` and
+every `data.title.{lang}`), and messages belonging to no field — a
+schema-level complaint keyed under `data` alone — go to a banner, where they
+would otherwise be dropped entirely.
+
+The helper separates what the old code flattened: 401, 403, 404, 419, 5xx and
+an absent response each get their own wording, since "please try again" is
+useless advice for a 403.
+
+### Every sign-in failure read "Invalid credentials"
+
+The `catch` wrapped both the CSRF request and the login call, so a server
+that was down, a 500, or a CSRF mismatch all read the same — a user would
+keep retyping a correct password.
+
+Confirmed live first: a wrong password returns
+`401 {"message":"Invalid credentials"}`, a stale token returns
+`419 {"message":"CSRF token mismatch."}` — two unrelated causes rendered
+identically.
+
+This needed one addition: the helper's default 401 wording is "your session
+has ended", correct inside the app but wrong on the sign-in form, where a 401
+*is* bad credentials. `errorSummary` takes per-status overrides, with a check
+that the override does not leak into the other callers.
+
+### Two axios instances
+
+`Login.jsx` imported a bare `axios` alongside the configured client, purely
+to reach `/sanctum/csrf-cookie`. `lib/api.js` now exports `signIn()`.
+
+Three pieces of knowledge moved with it, none of which belong to a form: the
+cookie endpoint sits **outside** `/api`, it needs the `baseURL` overridden
+for that one call, and it must happen **before** the credentials are posted.
+Verified what the ordering is worth: posting to `/api/login` without the
+cookie returns **419**.
+
+---
+
+## 9. Editor appearance
+
+### Headings all looked identical
+
+Tailwind's preflight resets headings to `font-size: inherit`, and the `prose`
+class that would restore them was inert: `@tailwindcss/typography` was in
+`package.json` but never declared in the CSS, which Tailwind v4 requires.
+`.prose` appeared zero times in the built stylesheet.
+
+Purely visual — headings were always stored correctly as
+`{"type":"heading","attrs":{"level":N}}`.
+
+Enabling it then brought its article-reading rhythm along: line-height 1.75,
+a 1.25em margin on every block, 2em above every H2. Tiptap starts a new
+paragraph on each Enter, so that reads as huge gaps in a form field. Kept the
+type scale and list markers, tightened the spacing.
+
+---
+
+## 10. Dead code removed
+
+- **`App\Http\Controllers\EntryController`** — an empty resource stub beside
+  the real `Api\EntryController` that every route uses.
+- **`2026_07_14_191839_add_user_id_to_modules_table`** — a no-op duplicate of
+  the migration that actually added the column. Deleted rather than kept as
+  history, since it records none. Its row stays in the `migrations` table;
+  checked first that `Migrator::rollback` skips a missing file with a warning
+  rather than failing, and that `migrate:status` omits it.
+- **`entry_translations` and `EntryTranslation`** — the translation model
+  this CMS did not adopt. Row count checked first (**0**), since dropping a
+  populated table would be unrecoverable. The *create* migration is
+  deliberately kept: deleting a migration that has run elsewhere makes the
+  schema history unreproducible, and a create-then-drop pair states plainly
+  what happened.
+- **`resources/js/app.js`** — three bytes of comment, and a Vite entry point
+  emitting a 0-byte chunk on every build.
+
+---
+
+## 11. Tooling
+
+### There was no JS test runner
+
+Frontend changes were verified by `npm run build`, which proves the code
+compiles and nothing else, plus throwaway node scripts deleted as soon as
+they ran.
+
+Vitest runs with `npm test`. `vitest.config.js` is deliberately separate from
+`vite.config.js`, which Vitest would otherwise reuse — that one loads the
+Laravel, React and Tailwind plugins, and the Laravel plugin expects a serving
+application.
+
+Checked the suite can actually fail: removing a single `.trim()` from
+`docToText` turned 9 tests red.
+
+**Still uncovered:** the components themselves. Rendering `EntryForm` or
+`ModuleBuilder` needs jsdom, so the module form and the editor round-trip are
+still verified by running the app.
+
+### Dependency advisories
+
+- **12 Composer advisories** across `guzzlehttp/guzzle` (one high:
+  CVE-2026-69246) and `league/commonmark`. Cleared with a scoped update of
+  six packages, all within their major version; `laravel/framework` did not
+  move. Checked rather than assumed that nothing under `app/`, `routes/` or
+  `resources/js/` references Guzzle, the `Http` facade or CommonMark.
+- **2 npm advisories** in `postcss` and `nanoid`, pre-existing rather than
+  introduced by the Vitest install. The dry run was misleading — it printed
+  the *pre-fix* state after reporting a change — so the published versions
+  were checked directly. Since postcss is the CSS pipeline, the build output
+  was inspected rather than the build merely run: the `prose` rules,
+  `.tiptap-editor` overrides, `mark` highlight and preflight all survive.
+
+---
+
+## 12. Accepted, not fixed
+
+Recorded here rather than left in a task list, because the reasoning is the
+useful part.
+
+### Slugs are unique across the installation, not per owner
+
+A user naming a module `Products` while another account holds `products` gets
+`products-2`, and can infer the other exists. Modules are otherwise strictly
+per-owner, so this is the one place cross-tenant state is observable.
+
+**Accepted while there is one user** — there is nobody to leak to. Also
+recorded in `ARCHITECTURE.md`, because whoever adds a second account needs to
+see it: the fix is a composite unique on `(user_id, slug)` plus owner-scoped
+route binding, and it is far cheaper before real accounts exist.
+
+### The typography plugin ships to a page that does not use it
+
+Measured: **12.3 kB raw, about 1.5 kB gzipped** of a 15.11 kB stylesheet.
+`welcome.blade.php` loads it and does not use `prose`.
+
+Both remedies cost more than the problem. Splitting the stylesheet per page
+gives each its own bundle, but both need Tailwind's base, so visiting both
+pages downloads ~144 kB instead of ~78 kB — optimising the placeholder at the
+product's expense. Replacing `prose` with hand-written rules saves ~11 kB but
+trades a maintained plugin for bespoke CSS covering headings, list markers,
+blockquote and code, with real visual risk, for ~9% of one asset.
+
+The cleanest resolution is not a CSS one — see **Should `/` exist?** in
+`TASKS.md`.
