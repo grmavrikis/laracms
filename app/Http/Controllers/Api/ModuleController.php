@@ -44,6 +44,12 @@ class ModuleController extends Controller
             'slug.regex' => 'The slug may only contain lowercase letters, numbers and single hyphens.',
         ]);
 
+        // Build the entry rules now and throw them away: a schema that cannot
+        // produce rules is not a usable schema, and the author should hear that
+        // here rather than the first time somebody tries to save an entry.
+        // Reusing the builder keeps one definition of what "usable" means.
+        SchemaRuleBuilder::build($validated['schema']);
+
         // slug is nullable, so the key is simply absent when it is not sent -
         // reading it directly raised "Undefined array key" and returned a 500.
         //

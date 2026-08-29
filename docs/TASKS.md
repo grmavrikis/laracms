@@ -516,13 +516,33 @@ Format: `[ ]` open, `[x]` done. File references = `path:line`.
   > string, text, integer, boolean, date, datetime, select, image.
 
   2 tests, both confirmed returning 201 beforehand.
-- [ ] **26. Custom validation rules can contradict type rules.**
-  [`SchemaRuleBuilder.php:56`](../app/Services/SchemaRuleBuilder.php:56)
-  merges the schema's `validation` string with the type rules unchecked. A
-  `text` field with `max:255` yields `['array','max:255']`, where Laravel
-  reads `max` as a node count rather than characters; `validation: 'string'`
-  yields `['array','string']`, which can never pass. Both fail silently or
-  confusingly. Grew more likely once `text` became an array.
+- [x] **26. Custom validation rules could contradict type rules.** The
+  `validation` string was merged into the type's rules unchecked, and it
+  went wrong in two different ways:
+
+  - **Impossible.** A `text` field validates as an `array`, so adding
+    `string` produced `['array','string']` — a pair no value can satisfy.
+    Every entry would be rejected, with nothing saying why.
+  - **Quietly different.** `max:255` on that same field is applied to an
+    array as a *count*, so it limited the document to 255 **nodes** while
+    reading as a character limit.
+
+  `assertCustomRulesFit()` now rejects a rule that asserts a data type (the
+  field's `type` already decides that) and a size rule on a rich-text field
+  (it would measure the wrong thing). `required` and `nullable` are
+  untouched, and `max:60` on a `string` — what the box is for — still
+  works.
+
+  Checked at **module creation**, not at the first entry save, by having
+  `ModuleController` build the rules and discard them: a schema that cannot
+  produce rules is not a usable schema. Reusing the builder keeps one
+  definition of "usable" instead of a second copy that could drift, which
+  is what #9 was about.
+
+  7 tests, four confirmed returning 201 first. Verified live —
+
+  > Field 'body' has validation rule 'max', which would count the nodes of
+  > a rich-text document rather than its characters.
 - [x] **27. Generated slugs reveal other users' slugs.** *(Accepted, not
   fixed.)* `generateSlug()` checks uniqueness globally, so a user naming a
   module `Products` while another account holds `products` receives

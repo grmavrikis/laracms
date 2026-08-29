@@ -138,6 +138,16 @@ string also still works, for schemas that did it that way; setting both
 does not apply the rule twice. Everything else — `max:60`, `email` — stays
 in the validation string.
 
+That string is **checked against the type** rather than merged blindly. A
+rule asserting a data type (`string`, `integer`, `array`…) is rejected,
+since the field's `type` already decides that and the two can contradict:
+`text` resolves to `array`, and `array` plus `string` is unsatisfiable. So
+are size rules on rich text, which Laravel would apply to the document as a
+node count rather than a character limit. The check runs when the **module
+is created** — `ModuleController` builds the entry rules and discards them,
+so a schema that cannot produce rules is refused there rather than at the
+first attempt to save an entry.
+
 Languages: `is_default` decides which language the panel opens on, read by
 `lib/languages.js`. It is honoured in the frontend rather than by ordering
 `/api/languages`, so how the list is sorted and which entry is the default
