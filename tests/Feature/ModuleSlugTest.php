@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Module;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 /**
@@ -40,6 +41,37 @@ class ModuleSlugTest extends TestCase
         }
 
         return $payload;
+    }
+
+    /**
+     * Resolving a collision used to cost one query per candidate: `products`
+     * taken, try `products-2`, taken, try `products-3`... so the tenth module
+     * of a name ran ten selects before inserting.
+     */
+    public function test_resolving_a_slug_collision_takes_one_query(): void
+    {
+        foreach (range(1, 6) as $ignored)
+        {
+            $this->actingAs($this->owner)
+                ->postJson('/api/modules', $this->payload('Products'))
+                ->assertCreated();
+        }
+
+        DB::enableQueryLog();
+
+        $this->actingAs($this->owner)
+            ->postJson('/api/modules', $this->payload('Products'))
+            ->assertCreated();
+
+        $selects = collect(DB::getQueryLog())
+            ->filter(fn ($entry) => str_starts_with(strtolower(trim($entry['query'])), 'select')
+                && str_contains($entry['query'], 'modules'))
+            ->count();
+
+        DB::disableQueryLog();
+
+        $this->assertSame(1, $selects, 'Slug generation should read the taken slugs once.');
+        $this->assertSame('products-7', Module::latest('id')->first()->slug);
     }
 
     public function test_a_generated_slug_does_not_collide_with_an_existing_one(): void

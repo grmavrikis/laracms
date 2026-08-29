@@ -15,6 +15,9 @@ class ModuleController extends Controller
     /** Matches the modules.slug column, which is varchar(255). */
     private const SLUG_MAX_LENGTH = 255;
 
+    /** Characters held back from a derived slug for a '-N' collision suffix. */
+    private const SLUG_SUFFIX_BUDGET = 8;
+
     public function store(Request $request): JsonResponse
     {
         $validated = $request->validate([
@@ -93,32 +96,33 @@ class ModuleController extends Controller
         // make the Module unreachable, since the slug is its route key.
         $base = Str::slug($name) ?: 'module';
 
-        $slug = $this->fitToColumn($base, '');
-        $suffix = 2;
+        // Shortened once, keeping room for a suffix, rather than per candidate.
+        // `name` allows 255 characters and Str::slug can return as many, so a
+        // suffix would otherwise overflow the column. Doing it up front also
+        // means every candidate begins with this exact string, which is what
+        // lets a single query see all of them. Truncation can land on a hyphen,
+        // and a trailing one is not a shape Str::slug ever emits.
+        $base = rtrim(substr($base, 0, self::SLUG_MAX_LENGTH - self::SLUG_SUFFIX_BUDGET), '-') ?: 'module';
 
-        while (Module::where('slug', $slug)->exists())
+        // One read instead of one per candidate. Str::slug emits only
+        // [a-z0-9-], so the base cannot contain a LIKE wildcard.
+        $taken = array_flip(
+            Module::where('slug', 'like', $base . '%')->pluck('slug')->all()
+        );
+
+        if (!isset($taken[$base]))
         {
-            $slug = $this->fitToColumn($base, '-' . $suffix++);
+            return $base;
         }
 
-        return $slug;
-    }
+        $suffix = 2;
 
-    /**
-     * Join a base and a suffix so the result fits modules.slug.
-     *
-     * `name` allows 255 characters and Str::slug can return just as many, so
-     * appending a collision suffix would overflow the column and fail the
-     * insert. The base is shortened to make room instead. Str::slug output is
-     * ASCII, so byte-based trimming is safe here.
-     */
-    private function fitToColumn(string $base, string $suffix): string
-    {
-        $room = self::SLUG_MAX_LENGTH - strlen($suffix);
+        while (isset($taken[$base . '-' . $suffix]))
+        {
+            $suffix++;
+        }
 
-        // Truncation can land on a hyphen; leaving it would produce a slug
-        // shaped differently from anything Str::slug emits.
-        return rtrim(substr($base, 0, $room), '-') . $suffix;
+        return $base . '-' . $suffix;
     }
 
     public function index(Request $request): JsonResponse

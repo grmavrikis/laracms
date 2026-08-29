@@ -48,6 +48,11 @@ User (1:N) Module (1:N) Entry
   fix it first:** a composite unique on `(user_id, slug)` plus owner-scoped
   route binding, which is far cheaper before real accounts exist.
 
+  Deriving a slug is **one query**: the slugs sharing the base as a prefix
+  are read once and a free candidate chosen in memory. The base is
+  shortened up front rather than per candidate, so they all share that
+  prefix — which is what makes the single read correct.
+
   Two constraints apply to both paths. The value must match
   `^[a-z0-9]+(?:-[a-z0-9]+)*$` — the shape `Str::slug()` produces — because
   the slug is a single URL segment and something like `a/b` could never be

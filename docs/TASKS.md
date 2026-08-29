@@ -562,10 +562,27 @@ Format: `[ ]` open, `[x]` done. File references = `path:line`.
   strictly per-owner via `ModulePolicy`, making this the one observable
   cross-tenant detail. Follows from the global unique index, so fixing it
   means deciding whether slugs should be unique per user instead.
-- [ ] **28. Slug generation runs one query per collision.**
-  `generateSlug()` calls `exists()` for each candidate suffix. A single
-  `where('slug','like',$base.'%')` would resolve it in one round trip.
-  Negligible now, linear in the number of same-named modules.
+- [x] **28. Slug generation ran one query per collision.** `products`
+  taken, try `products-2`, taken, try `products-3` — the seventh module of
+  a name cost seven selects, measured at exactly that before the change.
+  Now one: read the slugs sharing the base as a prefix, pick a free one in
+  memory.
+
+  That needed a change of shape, not just of query. The base used to be
+  truncated *per candidate* to make room for the suffix, so a long name's
+  candidates did not all share a prefix and no single `LIKE` could have
+  found them. Truncating **once**, with room kept up front, makes every
+  candidate start with the same string. A 255-character name now yields a
+  247-character slug rather than 255 — no practical loss, and it is what
+  makes one query correct rather than merely fewer queries.
+
+  `Str::slug` emits only `[a-z0-9-]`, so the base can never carry a `LIKE`
+  wildcard. An unrelated slug caught by the prefix (`products-extra`) is
+  harmless: it never equals a `products-N` candidate.
+
+  Verified live: five modules named the same gave `zz-products` through
+  `zz-products-5`, and a 255-character name twice gave slugs of 247 and 249
+  characters. The query-count test failed at 7 first.
 - [ ] **29. `FieldTypeConsistencyTest` duplicates its own parser.**
   `jsStringArray()` was written to read a JS array literal, but
   `test_the_module_form_offers_exactly_the_types_the_backend_supports`
