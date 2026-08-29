@@ -497,13 +497,25 @@ Format: `[ ]` open, `[x]` done. File references = `path:line`.
   `ModuleBuilder` needs jsdom and a heavier setup, so the module form and
   the editor round-trip are still verified by running the app. That is a
   smaller gap than before but not nothing.
-- [ ] **25. A missing `type` key still falls back to `string`.**
-  [`SchemaRuleBuilder.php:80`](../app/Services/SchemaRuleBuilder.php:80)
-  `$field['type'] ?? 'string'` never reaches the throw added by #5, so a
-  field with no type is silently validated as a string — the exact silent
-  fallback that item set out to remove. Unreachable through the API, which
-  requires `schema.*.type`, but the seeder writes schemas with `DB::table`
-  and bypasses validation.
+- [x] **25. A missing `type` key still fell back to `string`.** `#5`
+  removed the silent fallback for an *unrecognised* type but left
+  `$field['type'] ?? 'string'` in place, so a field with **no** type
+  resolved to one and never reached the throw. The API cannot produce that
+  shape — `schema.*.type` is required — but the seeder writes schemas with
+  `DB::table`, and a schema can be edited straight in the database, which
+  is the one path the API does not guard.
+
+  Dropped the default. Checked first that no existing module has a typeless
+  field, since this turns silence into a 422.
+
+  A missing type and a misspelled one now read differently, because they
+  are different mistakes: *"declares no type"* rather than
+  *"unsupported type 'null'"*. Verified live —
+
+  > Module schema field 'mystery' declares no type. Supported types:
+  > string, text, integer, boolean, date, datetime, select, image.
+
+  2 tests, both confirmed returning 201 beforehand.
 - [ ] **26. Custom validation rules can contradict type rules.**
   [`SchemaRuleBuilder.php:56`](../app/Services/SchemaRuleBuilder.php:56)
   merges the schema's `validation` string with the type rules unchecked. A

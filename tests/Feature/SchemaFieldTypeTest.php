@@ -50,6 +50,39 @@ class SchemaFieldTypeTest extends TestCase
             ->assertStatus(422);
     }
 
+    /**
+     * A field with no `type` at all used to resolve to 'string' and never
+     * reach the throw, so the silent fallback that this whole item removed
+     * survived for the one case the API cannot catch: the API requires
+     * `schema.*.type`, but the seeder writes schemas with DB::table and a
+     * schema can be edited straight in the database.
+     */
+    public function test_a_field_with_no_type_fails_loudly(): void
+    {
+        $module = $this->moduleWith(['name' => 'mystery']);
+
+        $response = $this->actingAs($this->owner)
+            ->postJson("/api/modules/{$module->slug}/entries", [
+                'data' => ['mystery' => 'anything at all'],
+            ]);
+
+        $response->assertStatus(422);
+
+        // Naming the field is the difference between a usable error and the
+        // silence it replaced.
+        $this->assertStringContainsString('mystery', $response->getContent());
+        $this->assertDatabaseCount('entries', 0);
+    }
+
+    public function test_a_null_type_fails_loudly(): void
+    {
+        $module = $this->moduleWith(['name' => 'mystery', 'type' => null]);
+
+        $this->actingAs($this->owner)
+            ->postJson("/api/modules/{$module->slug}/entries", ['data' => ['mystery' => 'x']])
+            ->assertStatus(422);
+    }
+
     public function test_unknown_field_type_fails_loudly(): void
     {
         $module = $this->moduleWith(['name' => 'mystery', 'type' => 'bogus']);

@@ -149,7 +149,9 @@ the system understands: `string`, `text`, `integer`, `boolean`, `date`,
 schemas against that same constant, so a Module cannot declare a type the
 rule builder is unable to handle. An unrecognised type throws rather than
 falling back to `string` — the old fallback hid the fact that `datetime`
-had no arm at all and was being validated as a plain string.
+had no arm at all and was being validated as a plain string. A field with
+**no** type throws too, and says so in those words; the API cannot produce
+that shape, but a schema written straight to the database can.
 
 `text` is the one rich-text type. `richtext` and `textarea` were once
 accepted as aliases that behaved identically and are no longer creatable,

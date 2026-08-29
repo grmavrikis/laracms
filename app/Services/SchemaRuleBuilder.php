@@ -98,7 +98,11 @@ class SchemaRuleBuilder
 
     protected static function rulesForType(array $field): array
     {
-        $type = $field['type'] ?? 'string';
+        // No `?? 'string'` here. A field with no type used to resolve to one
+        // and skip the throw below, which left exactly the silent fallback
+        // this method exists to prevent - for the one case the API cannot
+        // catch, since a schema can also be written straight to the database.
+        $type = $field['type'] ?? null;
 
         // A schema written before the rich-text aliases were collapsed can
         // still say 'richtext' or 'textarea'. They only ever meant 'text', so
@@ -131,10 +135,16 @@ class SchemaRuleBuilder
     protected static function unsupportedType(array $field, mixed $type): ValidationException
     {
         $name = $field['name'] ?? '(unnamed)';
-        $type = is_scalar($type) ? (string) $type : get_debug_type($type);
+
+        // A missing type and a misspelled one are different mistakes, and
+        // "unsupported type 'null'" would describe the first one badly.
+        $problem = $type === null
+            ? 'declares no type'
+            : "declares unsupported type '"
+                . (is_scalar($type) ? (string) $type : get_debug_type($type)) . "'";
 
         return ValidationException::withMessages([
-            'data' => "Module schema field '{$name}' declares unsupported type '{$type}'."
+            'data' => "Module schema field '{$name}' {$problem}."
                 . ' Supported types: ' . implode(', ', self::SUPPORTED_TYPES) . '.',
         ]);
     }
