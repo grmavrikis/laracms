@@ -704,12 +704,48 @@ Format: `[ ]` open, `[x]` done. File references = `path:line`.
   since the cleanest resolution is that the page which does not need
   `prose` also does not need to exist.
 
-- [ ] **35. `welcome.blade.php` loads an empty JS bundle.** It pulls in
-  `resources/js/app.js`, which is three bytes — a single `//`. The file is
-  also a Vite entry point in `vite.config.js`, producing a 0.00 kB chunk in
-  every build. Removing all three is dead-code cleanup in the family of
-  #14/#15/#18; noticed while measuring #31 and left alone to keep that
-  measurement's conclusion separate from an unrelated change.
+- [x] **35. `welcome.blade.php` loaded an empty JS bundle.**
+  `resources/js/app.js` was three bytes — a single `//` — and a Vite entry
+  point, so every build emitted a genuinely 0-byte chunk. Removed the file,
+  the `@vite` reference and the entry point.
+
+  The manifest is now exactly the two entries the two pages need:
+  `resources/css/app.css` for `welcome`, `resources/js/app.jsx` for
+  `admin`. Verified live: both pages return 200, `/` no longer references
+  the removed bundle and still links the stylesheet.
+
+---
+
+## To discuss
+
+Not work items. These need a conversation before anyone can say whether
+there is anything to do — putting them in a checklist would imply a
+decision that has not been made.
+
+### Should `/` exist?
+
+`routes/web.php` serves the stock Laravel welcome page at `/`. It is a
+placeholder: the product is `/admin`, and nothing links to `/` from inside
+the app.
+
+It came up while measuring #31. The typography plugin ships to that page
+although only the editor uses `prose`, and every way of scoping the CSS
+turned out to cost more than the ~1.5 kB gzipped it would save. The
+cleanest resolution is not a CSS one — a page that does not need `prose`
+also does not need to exist.
+
+Three shapes it could take, and they are genuinely different products:
+
+- **Redirect `/` to `/admin`.** The CMS is an admin tool with no public
+  face. Simplest, and makes #31 moot.
+- **A real landing page.** If this is ever going to be something people
+  arrive at, the stock Laravel page is not it, and the question is what
+  should be.
+- **Serve public content.** The CMS stores entries; `/` could render them.
+  That is a different project, and would make the rich-text renderer a
+  requirement rather than the excerpt the admin table needs.
+
+Until that is settled, `welcome.blade.php` stays as it is.
 
 ---
 
