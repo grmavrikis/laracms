@@ -39,6 +39,15 @@ User (1:N) Module (1:N) Entry
   `Str::slug()` yields nothing, which it does for a punctuation-only name.
   An empty slug would make the module unreachable.
 
+  **Known limit — slugs are unique across the whole installation, not per
+  owner.** A user naming a module `Products` while another account already
+  holds `products` gets `products-2`, and can infer that someone else holds
+  it. Modules are otherwise strictly per-owner via `ModulePolicy`, so this
+  is the one place cross-tenant state is observable. Accepted while there
+  is a single user (TASKS.md #27). **Anyone adding a second account should
+  fix it first:** a composite unique on `(user_id, slug)` plus owner-scoped
+  route binding, which is far cheaper before real accounts exist.
+
   Two constraints apply to both paths. The value must match
   `^[a-z0-9]+(?:-[a-z0-9]+)*$` — the shape `Str::slug()` produces — because
   the slug is a single URL segment and something like `a/b` could never be
@@ -84,6 +93,12 @@ POST /api/login          → session
 authorization. That is handled separately by
 [`ModulePolicy`](../app/Policies/ModulePolicy.php).
 
+The CSRF cookie must be fetched **before** the credentials are posted —
+skipping it answers 419. That sequence lives in `signIn()` in
+`lib/api.js`, along with the fact that the cookie endpoint sits outside
+`/api` and needs its `baseURL` overridden, so there is one axios client
+rather than a second bare one in the login form.
+
 There is **no route named `login`**: signing in is an API call, and
 `/admin` is a public shell that decides what to show client-side. Laravel
 would otherwise redirect guests to that route name and fail, so
@@ -112,12 +127,21 @@ schema field into Laravel validation rules based on its `type` and its
 
 A **translatable** field yields two levels of rules, because its value is a
 map of language code to value: `data.{name}` governs the map and
-`data.{name}.*` governs each value. Both are built from the field's own
-`validation` string, so a field is required only when configured that way —
-the outer level was once hardcoded to `required`, which made every
-translatable field mandatory. Requiredness comes from `validation`
-containing `required`; the `required` key some schemas carry is not read
-(TASKS.md #32).
+`data.{name}.*` governs each value. Both follow the field's own
+configuration, so a field is required only when it says so — the outer
+level was once hardcoded to `required`, which made every translatable field
+mandatory.
+
+Requiredness comes from the field's **`required` flag** (the *Req* checkbox
+in the module form). Writing `required` into the free-text `validation`
+string also still works, for schemas that did it that way; setting both
+does not apply the rule twice. Everything else — `max:60`, `email` — stays
+in the validation string.
+
+Languages: `is_default` decides which language the panel opens on, read by
+`lib/languages.js`. It is honoured in the frontend rather than by ordering
+`/api/languages`, so how the list is sorted and which entry is the default
+stay independent.
 
 `SchemaRuleBuilder::SUPPORTED_TYPES` is the **single list** of field types
 the system understands: `string`, `text`, `integer`, `boolean`, `date`,

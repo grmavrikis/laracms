@@ -4,6 +4,7 @@ import api from '../lib/api';
 import RichTextEditor from './RichTextEditor';
 import { isRichTextField, emptyDoc } from '../lib/richText';
 import { validationErrors, errorSummary, messagesForField, messagesNotForFields } from '../lib/apiErrors';
+import { getLangCode, defaultLanguage } from '../lib/languages';
 
 const coerce = (type, raw) => {
     if (type === 'integer') return raw === '' || raw === null ? null : Number(raw);
@@ -25,7 +26,6 @@ const emptyValues = (fields) =>
 const isTranslatable = (f) =>
     f.translatable === true || f.translatable === 1 || f.translatable === '1' || f.translatable === 'true';
 
-const getLangCode = (l) => l.locale || l.code || l.short_code || (l.id === 1 ? 'en' : 'fr');
 
 export default function EntryForm({ moduleSlug, schema, languages, onSaved, onCancel, initialData = null }) {
     const isEdit = !!initialData;
@@ -59,7 +59,8 @@ export default function EntryForm({ moduleSlug, schema, languages, onSaved, onCa
         return state;
     });
 
-    const [activeLangId, setActiveLangId] = useState(languages[0]?.id ?? null);
+    // Opens on the language flagged is_default, matching the entries table.
+    const [activeLangId, setActiveLangId] = useState(defaultLanguage(languages)?.id ?? null);
     const [submitting, setSubmitting] = useState(false);
 
     // Field errors keyed by attribute path, plus the messages that belong to

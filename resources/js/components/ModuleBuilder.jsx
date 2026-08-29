@@ -20,7 +20,7 @@ const FIELD_TYPES = [
 // 'Ψυχαγωγία' became psychagogia instead of psikhaghoghia, and 'Café Münchén'
 // collapsed to caf-m-nch-n. The backend is the authority - leave the slug field
 // empty and it derives one from the name.
-const emptyField = () => ({ name: '', type: 'string', translatable: false, validation: '', options: '' });
+const emptyField = () => ({ name: '', type: 'string', translatable: false, required: false, validation: '', options: '' });
 
 export default function ModuleBuilder({ onCreated, onCancel }) {
     const [name, setName] = useState('');
@@ -176,7 +176,7 @@ export default function ModuleBuilder({ onCreated, onCancel }) {
                                         className="w-full rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-900 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 font-mono text-xs"
                                     />
                                 </div>
-                                <div className="sm:col-span-1 flex items-center justify-center sm:justify-start pt-2 sm:pt-0">
+                                <div className="sm:col-span-1 flex items-center justify-center sm:justify-start pt-2 sm:pt-0 gap-3">
                                     <label className="flex items-center gap-1.5 text-sm text-gray-700 cursor-pointer select-none">
                                         <input
                                             type="checkbox"
@@ -185,6 +185,17 @@ export default function ModuleBuilder({ onCreated, onCancel }) {
                                             className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
                                         />
                                         <span className="text-xs font-medium">Lang</span>
+                                    </label>
+                                    {/* Beats asking someone to type "required" into the
+                                        validation box, which no field ever did. */}
+                                    <label className="flex items-center gap-1.5 text-sm text-gray-700 cursor-pointer select-none">
+                                        <input
+                                            type="checkbox"
+                                            checked={field.required}
+                                            onChange={(e) => updateField(field._id, 'required', e.target.checked)}
+                                            className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                                        />
+                                        <span className="text-xs font-medium">Req</span>
                                     </label>
                                 </div>
                                 <div className="sm:col-span-1 flex justify-end">

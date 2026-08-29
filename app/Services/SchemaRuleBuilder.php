@@ -55,9 +55,22 @@ class SchemaRuleBuilder
             // Merge type rules with custom rules and remove duplicates
             $fieldRules = array_values(array_unique(array_merge($typeRules, $customRules)));
 
-            // Add nullable if required is not explicitly set
-            if (!in_array('required', $fieldRules) && !in_array('nullable', $fieldRules))
+            // `required` is a field of the schema in its own right. Saying it
+            // by typing the word into the free-text validation box still works,
+            // but nothing in the database ever did - the flag is the mechanism
+            // the module form offers.
+            $isRequired = filter_var($field['required'] ?? false, FILTER_VALIDATE_BOOLEAN);
+
+            if ($isRequired)
             {
+                // Removed first so a schema that sets the flag *and* writes
+                // `required` in the validation string does not carry it twice.
+                $fieldRules = array_values(array_diff($fieldRules, ['required']));
+                array_unshift($fieldRules, 'required');
+            }
+            elseif (!in_array('required', $fieldRules) && !in_array('nullable', $fieldRules))
+            {
+                // Optional unless something says otherwise.
                 array_unshift($fieldRules, 'nullable');
             }
 

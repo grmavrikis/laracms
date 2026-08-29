@@ -1,6 +1,5 @@
 import { isRichTextField, docToText } from '../lib/richText';
-
-const getLangCode = (l) => l.locale || l.code || l.short_code || (l.id === 1 ? 'en' : 'fr');
+import { getLangCode } from '../lib/languages';
 
 export default function EntriesTable({
     schema,

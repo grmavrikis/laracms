@@ -3,6 +3,7 @@ import api from '../lib/api';
 import EntryForm from './EntryForm';
 import EntriesTable from './EntriesTable';
 import { paginationFrom, rowsFrom, isPastLastPage } from '../lib/pagination';
+import { defaultLangCode } from '../lib/languages';
 
 export default function EntriesManager({ module, onBack }) {
     const [languages, setLanguages] = useState([]);
@@ -27,7 +28,9 @@ export default function EntriesManager({ module, onBack }) {
                 // `loading` belongs to the entries request alone. These used to
                 // clear it because entries were gated behind a language.
                 if (list.length > 0) {
-                    setViewLangCode(list[0].code);
+                    // The language flagged is_default, not merely the first one
+                    // the endpoint happened to return.
+                    setViewLangCode(defaultLangCode(list));
                 } else {
                     setLanguagesError('No active languages found in the database. Please add a language.');
                 }

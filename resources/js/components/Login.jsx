@@ -1,6 +1,5 @@
 import { useState } from 'react';
-import api from '../lib/api';
-import axios from 'axios'; // We need axios to get the CSRF cookie before login
+import { signIn } from '../lib/api';
 import { errorSummary } from '../lib/apiErrors';
 
 export default function Login({ onLogin }) {
@@ -13,12 +12,8 @@ export default function Login({ onLogin }) {
         setErrors([]);
 
         try {
-            // 1. Get CSRF Cookie (Required before login with Sanctum)
-            await axios.get('/sanctum/csrf-cookie', { baseURL: '/' });
-
-            // 2. Attempt Login
-            const { data } = await api.post('/login', { email, password });
-            onLogin(data.user);
+            // The CSRF-cookie-then-credentials dance lives in lib/api.js.
+            onLogin(await signIn(email, password));
         } catch (err) {
             console.error('Login Error:', err);
 

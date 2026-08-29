@@ -385,8 +385,25 @@ Format: `[ ]` open, `[x]` done. File references = `path:line`.
   identically. 25 node checks now cover the helper, including that a failed
   csrf-cookie request reads as a connection problem rather than a rejected
   password.
-- [ ] **13.** Two axios instances (raw `axios` for the csrf-cookie vs
-  the `api` client) — could become one centralized auth/api client.
+- [x] **13. Two axios instances.** `Login.jsx` imported a bare `axios`
+  alongside the configured client, purely to reach
+  `/sanctum/csrf-cookie`. There is one client now: `lib/api.js` exports
+  `signIn()`, and the form calls that.
+
+  Three pieces of knowledge moved with it, none of which belong to a form:
+  the cookie endpoint sits **outside** `/api`, it therefore needs the
+  `baseURL` overridden for that one call — the reason the second axios
+  existed — and it must happen **before** the credentials are posted.
+  Verified live what the ordering is worth: posting to `/api/login` without
+  fetching the cookie first returns **419**.
+
+  Errors still propagate to the caller, because Login has to distinguish
+  them (#12) — a failure of the *cookie* request must not read as bad
+  credentials.
+
+  6 tests in `api.test.js`, with `axios.create` stubbed. Reversing the two
+  calls turns 4 of them red, so the ordering is genuinely pinned rather
+  than merely described in a comment.
 - [x] **14. Dead `EntryController` stub.** `App\Http\Controllers\EntryController`
   was an empty resource-controller stub — five methods with `//` for a
   body — sitting next to the real `Api\EntryController`, which is the one
@@ -494,7 +511,19 @@ Format: `[ ]` open, `[x]` done. File references = `path:line`.
   reads `max` as a node count rather than characters; `validation: 'string'`
   yields `['array','string']`, which can never pass. Both fail silently or
   confusingly. Grew more likely once `text` became an array.
-- [ ] **27. Generated slugs reveal other users' slugs.**
+- [x] **27. Generated slugs reveal other users' slugs.** *(Accepted, not
+  fixed.)* `generateSlug()` checks uniqueness globally, so a user naming a
+  module `Products` while another account holds `products` receives
+  `products-2` and can infer the other exists. Modules are otherwise
+  strictly per-owner via `ModulePolicy`, making this the one observable
+  cross-tenant detail.
+
+  **Decision: accept for now.** There is one user, so there is nobody to
+  leak to. Recorded in [`ARCHITECTURE.md`](ARCHITECTURE.md) as a known
+  limit rather than left in a task list, because whoever adds the second
+  user needs to see it: the fix is a composite unique on
+  `(user_id, slug)` plus owner-scoped route binding, and it is cheaper
+  before real accounts exist than after.
   `ModuleController::generateSlug()` checks uniqueness globally, so a user
   naming a module `Products` while another account holds `products` gets
   `products-2` and can infer the other exists. Modules are otherwise
@@ -540,16 +569,48 @@ Format: `[ ]` open, `[x]` done. File references = `path:line`.
   65 PHP and 56 JS tests pass, and a live pass returned 200 for modules,
   entries, languages and `/admin`.
 
-- [ ] **33. `languages.is_default` is ignored.** The column exists and is
-  set — `en` is flagged default in the seeded data — but nothing reads it.
-  `EntriesManager` picks `list[0]`, which after #17's explicit ordering is
-  reliably the lowest id, so the panel opens on **Greek** while **English**
-  is the language marked default. Two candidate fixes, and the choice is a
-  product decision: order the endpoint by `is_default` first, or have the
-  frontend look for the flag. Same shape as #32 — a column that looks
-  authoritative and is not.
+- [x] **33. `languages.is_default` is ignored.** The column was set — `en`
+  is flagged — but nothing read it, so the panel opened on whichever
+  language came first by id, which is Greek.
 
-- [ ] **32. The schema's `required` key is dead data.**
+  **Decision: honour the flag as it stands.** The panel and the entry form
+  now both open on `en`. Done in the frontend rather than by ordering the
+  endpoint, so ordering and defaulting stay separate concerns — a list
+  sorted by name later should not silently change the default.
+
+  Added [`lib/languages.js`](../resources/js/lib/languages.js), which also
+  absorbed `getLangCode` — it was declared identically in `EntriesTable`
+  and `EntryForm`. 10 tests, including that the flag wins over position and
+  that an unflagged list still falls back to the first entry.
+
+  To open on Greek instead, move the flag rather than changing code:
+  `UPDATE languages SET is_default = (code = 'gr')`.
+
+- [x] **32. The schema's `required` key is dead data.** It was written into
+  schemas and never read; the only mechanism that worked was typing the
+  word `required` into the free-text validation box — which **no field in
+  the database had ever done**. The intuitive mechanism was dead and the
+  working one was unused.
+
+  **Decision: make the flag real.** `SchemaRuleBuilder` reads it,
+  `ModuleController` validates it as an optional boolean, and the module
+  form has a **Req** checkbox beside **Lang**. The validation box keeps its
+  job for everything else (`max:60`, `email`…), and writing `required`
+  there still works, so older schemas are unaffected. Setting both does not
+  produce the rule twice.
+
+  **Behaviour change:** the seeded `projects.title` carries
+  `required => true` and is now genuinely required — verified live, posting
+  to `projects` without a title returns 422 where it returned 201.
+
+  8 tests, four of which reproduced the old behaviour first.
+
+- [ ] **32b. Reject unknown keys in a module schema.** `ModuleController`
+  validates the keys it knows and ignores the rest, so a typo like
+  `requred: true` is accepted, stored, and silently does nothing — the same
+  class of quiet failure #5 removed from field *types*. Needs a decision on
+  strictness, since rejecting unknown keys would break any client sending
+  extra metadata.
   [`DatabaseSeeder`](../database/seeders/DatabaseSeeder.php) writes
   `'required' => true` into module schemas, but nothing reads it:
   `SchemaRuleBuilder` derives requiredness from the `validation` string,

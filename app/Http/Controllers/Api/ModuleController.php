@@ -35,6 +35,8 @@ class ModuleController extends Controller
             // turn these types into entry validation rules.
             'schema.*.type' => ['required', 'string', Rule::in(SchemaRuleBuilder::SUPPORTED_TYPES)],
             'schema.*.translatable' => 'required|boolean',
+            // Optional so a schema written before the flag existed still posts.
+            'schema.*.required' => 'nullable|boolean',
             'schema.*.validation' => 'nullable|string',
             'schema.*.options' => 'nullable|array',
             'schema.*.options.*' => 'string'
