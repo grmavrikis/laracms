@@ -18,6 +18,18 @@ class ModuleController extends Controller
     /** Characters held back from a derived slug for a '-N' collision suffix. */
     private const SLUG_SUFFIX_BUDGET = 8;
 
+    /**
+     * Everything a schema field may carry.
+     *
+     * Laravel validates the keys it is given rules for and ignores the rest, so
+     * `requred: true` used to be accepted and stored while doing nothing. The
+     * field stayed optional and the author was told nothing - the same silent
+     * acceptance removed from field types, one level up.
+     */
+    private const SCHEMA_FIELD_KEYS = [
+        'name', 'type', 'translatable', 'required', 'validation', 'options',
+    ];
+
     public function store(Request $request): JsonResponse
     {
         $validated = $request->validate([
@@ -33,6 +45,18 @@ class ModuleController extends Controller
                 'unique:modules,slug',
             ],
             'schema' => 'required|array',
+            // Reported against the field itself, so the message points at
+            // schema.1 rather than at a key that does not exist.
+            'schema.*' => [function (string $attribute, mixed $value, callable $fail): void
+            {
+                $unknown = array_diff(array_keys((array) $value), self::SCHEMA_FIELD_KEYS);
+
+                if ($unknown !== [])
+                {
+                    $fail('Unknown field key(s): ' . implode(', ', $unknown)
+                        . '. A field may have: ' . implode(', ', self::SCHEMA_FIELD_KEYS) . '.');
+                }
+            }],
             'schema.*.name' => 'required|string|alpha_dash',
             // Single source of truth, shared with the rule builder that has to
             // turn these types into entry validation rules.

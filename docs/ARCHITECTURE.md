@@ -143,6 +143,12 @@ string also still works, for schemas that did it that way; setting both
 does not apply the rule twice. Everything else — `max:60`, `email` — stays
 in the validation string.
 
+A schema field may carry only `name`, `type`, `translatable`, `required`,
+`validation` and `options`. Anything else is **rejected by name** rather
+than ignored, so a typo like `requred` cannot be stored while quietly doing
+nothing. Adding a key means adding it to that list first. The check is on
+the API; a schema written straight to the database still bypasses it.
+
 That string is **checked against the type** rather than merged blindly. A
 rule asserting a data type (`string`, `integer`, `array`…) is rejected,
 since the field's `type` already decides that and the two can contradict:

@@ -668,12 +668,32 @@ Format: `[ ]` open, `[x]` done. File references = `path:line`.
 
   8 tests, four of which reproduced the old behaviour first.
 
-- [ ] **32b. Reject unknown keys in a module schema.** `ModuleController`
-  validates the keys it knows and ignores the rest, so a typo like
-  `requred: true` is accepted, stored, and silently does nothing — the same
-  class of quiet failure #5 removed from field *types*. Needs a decision on
-  strictness, since rejecting unknown keys would break any client sending
-  extra metadata.
+- [x] **32b. Unknown keys in a module schema were accepted silently.**
+  Laravel validates the keys it has rules for and ignores the rest, so
+  `requred: true` was stored and did nothing: the field stayed optional and
+  the author was told nothing. The same quiet failure #5 and #25 removed
+  from field types, one level up.
+
+  **Decision: reject them.** The trade-off I had flagged — that strictness
+  would break a client sending extra metadata — turned out to be
+  hypothetical. `ModuleBuilder` sends exactly `name`, `type`,
+  `translatable`, `required`, `validation`, `options`, which is precisely
+  what the controller validates, so there is nothing to break. A future key
+  has to be added to the allowlist first, which is the contract being
+  explicit rather than a cost.
+
+  Checked on `schema.*` rather than a named key, so the error points at the
+  offending field (`schema.1`) instead of a key that does not exist, and
+  every unknown key is listed rather than only the first. Verified live —
+
+  > Unknown field key(s): requred. A field may have: name, type,
+  > translatable, required, validation, options.
+
+  5 tests, three confirmed returning 201 first.
+
+  Note: this guards the API, not the database. A schema written with
+  `DB::table`, as the seeder does, still bypasses it — the same boundary
+  as #25.
   [`DatabaseSeeder`](../database/seeders/DatabaseSeeder.php) writes
   `'required' => true` into module schemas, but nothing reads it:
   `SchemaRuleBuilder` derives requiredness from the `validation` string,
