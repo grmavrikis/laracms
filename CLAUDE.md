@@ -190,13 +190,20 @@ Worked through a prioritised list; every item is either done or recorded in
 `CHANGELOG.md` with its reasoning.
 
 - **88 PHP tests, 72 JS tests**, all passing. Build clean.
-- **No P0 open.** `docs/TASKS.md` holds #36–#46 from the latest review.
+- **No P0 open.** `docs/TASKS.md` holds #36–#53. #36–#46 came from a review of
+  the recent work; #47–#53 from a later review of the project as a whole, and
+  are gaps that predate all of it — a fatal in the seeder, no rate limiting on
+  login, and uploads that are never cleaned up among them.
 - **Next up: #36** — the **Req** checkbox does nothing on a rich-text field.
   `required` produces `['required','array']`, and the empty document the form
   always sends is a non-empty array, so it passes. Verified. It is a
   regression from making the `required` flag real, and needs a
   document-aware check.
 
-Two questions are waiting on the user, in `TASKS.md` → **To discuss**:
-whether `/` should exist at all, and how strict a module schema should be.
-Do not decide these unilaterally.
+Three questions are waiting on the user, in `TASKS.md` → **To discuss**:
+whether `/` should exist at all, how strict a module schema should be, and what
+editing a Module should mean for its existing Entries. Do not decide these
+unilaterally. The third is the largest thing open in the project — a Module
+currently cannot be edited or deleted at all, and the reason that is a
+conversation rather than a task is that `Entry.data` is keyed by field *name*,
+so every schema edit is a data-migration question first.
