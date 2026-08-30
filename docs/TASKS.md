@@ -45,9 +45,12 @@ thing being deferred.
 - [ ] #56 publication state, with a Publish action
 - [ ] #57 manual ordering
 - [ ] #58 per-language entry slugs
-- [ ] #59 public Blade routes, page cache cleared on publish
+- [ ] #59 public Blade routes, page cache cleared on publish, sitemap + hreflang
 - [ ] #60 `singleton` modules
 - [ ] #61 core/site boundary drawn
+- [ ] #68 gallery field — several images on one entry
+- [ ] #66 enquiries
+- [ ] #67 site settings
 - [ ] #65 booking hand-off form
 - [ ] #62 the demo site: live, two languages, bought theme
 
@@ -56,7 +59,30 @@ it occurs to you.** There is no client waiting, so nothing external will say
 when this is finished — which is exactly why the boundary is written down
 before the work starts rather than after.
 
-Roughly two to three weeks of focused work.
+Roughly two and a half to three and a half weeks of focused work.
+
+### Amendments
+
+The list is binding, which means it changes by a deliberate act that is written
+down, not by drift. Every amendment is recorded here with its reason.
+
+**2026-08-31 — added #68, #66, #67 (+2 days).**
+
+- **#68 gallery field** — a blocker found while scoping the accommodation
+  modules. `image` holds one URL and there is no repeatable field of any kind,
+  so a room cannot carry more than one photograph. For this market that is not
+  an inconvenience: the photographs *are* the product, and the "rooms" module
+  builds fine in the existing builder and comes out unusable. The demo cannot
+  be credible without it.
+- **#66 enquiries** — the public side can currently receive nothing at all, so
+  the demo is a brochure. It is also the first inbound path from an anonymous
+  visitor in the whole application, and that is worth designing once rather
+  than adding in a hurry for a client.
+- **#67 site settings** — without it the phone number lives in a template, so
+  the client cannot change their own phone number without calling. That
+  contradicts the single promise the product makes.
+
+Rejected for the MVP at the same time, with reasons, as #69, #70 and #71.
 
 ## Phases
 
@@ -64,10 +90,14 @@ Roughly two to three weeks of focused work.
 
 **#47, #48, #54.** Two are one line each.
 
-### Phase 1 — content reaches the public (4–6 days)
+### Phase 1 — content reaches the public (6–8 days)
 
-**#55, #56, #57, #58, #59, #60, #61.** This is the real gap: the CMS stores
-content today and has no way to show it to anybody.
+**#55, #56, #57, #58, #59, #60, #61, #68, #66, #67.** This is the real gap: the
+CMS stores content today, has no way to show it to anybody, and no way to
+receive anything back.
+
+Do **#68** early. It changes the field-type system, and every module built
+before it will have to be revisited afterwards.
 
 ### Phase 2 — the demo site, as client #0 (3–5 days)
 
@@ -77,10 +107,22 @@ so that client #1 is a copy with a different theme and different content rather
 than a fresh start. The demo is simultaneously the sales sample and the first
 template in the library.
 
+Note that **rooms, facilities and the home-page slider need no engineering at
+all**: they are modules built in the existing builder, and the slider gets its
+ordering free from #57 (one entry per slide). That is the schema-driven design
+working as intended — which is exactly why #68 has to land first, since without
+it the most important of those modules cannot hold its content.
+
 ### Phase 3 — the accommodation back office
 
-**#63 bookings, #64 invoicing.** These belong to the accommodation product and
-are what will justify charging more than a brochure site.
+**#63 bookings, #64 invoicing, then #72 support, #73 spreadsheet import, #74
+Beds24.** These belong to the accommodation product and are what will justify
+charging more than a brochure site.
+
+The order inside the phase matters: #73 and #74 solve the same problem — getting
+bookings in — for different clients. #73 is far cheaper and serves owners who
+have no channel manager, so it comes first. #74 is the largest single
+integration on this list and is deliberately last.
 
 **Sequenced after the demo on purpose.** A prospect browsing the demo never
 sees them, they are the largest single piece of work on this list, and they are
@@ -91,9 +133,13 @@ it is wrong, move them and nothing else changes.
 
 ### After the first paying client
 
-In this order, and not before: **menu editing**, **media library**, **module
-definitions as files** (pays off at installation #2), **user groups**, **core
-extracted as a Composer package**.
+**#69 redirects** and **#70 cookie consent** land with the first client that
+replaces an existing site — which will be most of them. Then **#71 relations
+between entries**, the next real gap in the type system after #68.
+
+After those, in this order and not before: **menu editing**, **media library**,
+**module definitions as files** (pays off at installation #2), **user groups**,
+**core extracted as a Composer package**.
 
 ## Decisions taken (2026-08-30)
 
@@ -169,7 +215,12 @@ back in unnoticed.
   available. See **To discuss**.
 - **Field rename and delete (#10 in To discuss).** The master admin is the only
   person who edits a schema, and with one site that is a hand-written migration.
-- **Media library.** Per-field upload works; client #1 survives without it.
+- **Media library.** Reuse of one image across entries. Distinct from #68,
+  which is several images *on one entry* and is in the MVP because a room
+  without photographs is not a room. Uploading per field still works, so
+  client #1 survives without reuse — but note that #68 makes #51 worse, since
+  removing an image from a gallery orphans a file exactly as deleting an entry
+  does.
 - **Menu editing.** One site's menu is ten minutes of hand-written Blade.
 - **Module grouping in the admin.** No problem to solve at six modules.
 - **User groups.** The MVP has one or two users.
@@ -178,7 +229,11 @@ back in unnoticed.
 
 ---
 
-# MVP work items
+# Product work items
+
+Listed by number, which is stable and does **not** imply sequence — the
+**Phases** section above gives the order. Anything outside the MVP carries a
+phase tag.
 
 ### 54. `ModuleController::index` hides every module but your own
 
@@ -259,6 +314,13 @@ finished HTML without a query.
 Also removes `welcome.blade.php`, whose inlined stylesheet costs ~36k tokens to
 read and which `/` no longer needs.
 
+**Includes `sitemap.xml` and `hreflang`**, both generated from the entries
+rather than maintained by hand. They are folded in here rather than given their
+own item because they are part of publishing a page at all. Without `hreflang`,
+Google does not understand that the Greek and English pages are the same
+content in two languages — which wastes the multilingual advantage that is the
+entire sales argument for this market.
+
 ### 60. `singleton` modules
 
 "About" is one entry; "Blog" is many. Today both are collections, so a client
@@ -332,6 +394,131 @@ the channel manager's from the first click — this side owns nothing.
 One form and a URL template per client. It is in the MVP because it is what
 makes the demo credible to an accommodation owner, and because it costs almost
 nothing.
+
+### 66. Enquiries — and the first inbound path in the application
+
+A contact / availability-request form whose submissions are **stored in the
+admin**, not merely emailed. Email is lost in spam folders, and an accommodation
+owner who loses an enquiry loses a booking and blames the website.
+
+This is more than a form. Every write endpoint today sits behind
+`auth:sanctum`, so **the public side of this application can currently receive
+nothing at all**. This is the first route an anonymous visitor may POST to, and
+it brings validation, rate limiting, spam handling and GDPR with it — worth
+designing once, deliberately, rather than adding in a hurry when a client asks.
+
+- Stored: name, email, phone, message, arrival/departure, guests, the language
+  and the page it came from
+- A **honeypot**, not a captcha. At this volume a captcha costs conversions and
+  buys nothing.
+- Rate limited — covered by the `throttleApi()` that #48 introduces
+- Email notification to the owner
+- Admin list is **read and delete only, never edit**: an enquiry is a record of
+  what somebody sent, not a document to revise
+- GDPR: a consent checkbox and a stated retention period
+
+Feeds #63 — an enquiry becomes a booking in one action.
+
+### 67. Site settings
+
+A singleton (#60) holding phone, email, address, map coordinates, social links,
+logo, opening hours, and the channel-manager URL that #65 links out to.
+
+Without it these values live inside templates, which means **the client cannot
+change their own phone number without calling you.** That contradicts the one
+promise the product makes, and it is the kind of call that arrives on a Sunday.
+Half a day, and it removes a category of support permanently.
+
+### 68. Several images on one entry — a gallery field *(blocking)*
+
+`SchemaRuleBuilder::SUPPORTED_TYPES` offers `image`, which holds a single URL,
+and there is no repeatable field of any kind. An entry therefore cannot carry a
+set of images.
+
+For tourist accommodation this is fatal rather than awkward. A room needs 8–15
+photographs because **the photographs are the product** — nobody books an
+apartment from one picture. The "rooms" module builds without a line of code in
+the existing builder and comes out unusable.
+
+Needs a `gallery` type; an ordered list of images as its value; rules for it in
+`SchemaRuleBuilder`; an editor in `EntryForm` that uploads several files,
+reorders and removes them; and `php artisan schema:sync-field-types` re-run
+afterwards, which `FieldTypeConsistencyTest` will insist on.
+
+Two decisions to take while building it:
+
+- **Alt text per language.** Selling multilingual SEO while shipping images
+  whose alt text cannot be translated contradicts the pitch.
+- It is **not** the media library. A gallery is several images on one entry;
+  the library is reuse of one image across entries, and stays deferred.
+
+### 69. Redirects *(first real client)*
+
+When a client's existing website is replaced, its old URLs must redirect to the
+new ones. Otherwise they answer 404 on the day of delivery and Google drops the
+rankings the client already had — caused by your delivery, and they will say so.
+
+A table of `old_path → new_path` with a status code, and one middleware. Half a
+day. Outside the MVP only because the demo has no predecessor; needed by the
+first client who does, which will be most of them.
+
+### 70. Cookie consent *(first real client)*
+
+Analytics will be added, and in the EU the script may not run before consent.
+Small, and far cheaper to have ready than to retrofit inside a client's
+deadline.
+
+### 71. Relations between entries *(after the first client)*
+
+No field type expresses a link from one entry to another, so none of these can
+be modelled: amenities ↔ rooms, categories ↔ articles, related items.
+
+Amenities are the case that arrives first. Without relations they are free text
+repeated inside every room — which cannot be filtered, cannot carry an icon,
+and will be spelled three different ways across six rooms.
+
+A text list per room is enough for the demo. This is the next real gap in the
+type system after #68.
+
+### 72. Support requests, client → agency *(Phase 3)*
+
+**Design against the obvious version.** A ticket system living inside a
+per-site installation means one inbox per installation: at fifteen clients that
+is fifteen places to check. That is worse than the email it replaces, and it
+fails at precisely the thing it exists to fix — you not seeing the request.
+
+Version one is therefore deliberately small: a form that **emails the agency**,
+plus a local copy the client can see so they know it was sent. No status
+workflow, no assignment, no replies in the panel, because none of those work
+without somewhere central to hold them.
+
+A real support system belongs to a central agency service, alongside update
+distribution, and that is its own product.
+
+### 73. Bulk booking import from a spreadsheet *(Phase 3)*
+
+Owners export their bookings from Booking.com, Airbnb and others. Ship presets
+for the common formats — there are real templates on hand from previous clients
+to build them from — plus a mapping screen where a user matches the columns of
+their own file to ours.
+
+**The work is not the parsing.** It is deduplication: the same export will be
+uploaded again next month and must not double every booking. That needs an
+identifying key per source (the platform's own reservation code) and a preview
+— *"12 will be created, 3 updated, 40 unchanged"* — shown before anything is
+written.
+
+Serves owners with no channel manager, which is why it comes before #74.
+
+### 74. Channel manager integration, Beds24 first *(last)*
+
+Bookings synchronise automatically instead of arriving by hand or by
+spreadsheet.
+
+The largest single integration on the list, and last on purpose: #65 already
+sends visitors to the channel manager for availability and payment, and #73
+already gets existing bookings in. This replaces manual entry with sync, which
+is an improvement on a working system rather than a prerequisite for one.
 
 ---
 

@@ -203,8 +203,11 @@ Worked through a prioritised list; every item is either done or recorded in
 - **Next up: Phase 0** — #47 (the seeder is fatally broken and is step one of
   the README), #48 (no rate limiting on login), #54 (`ModuleController::index`
   hides every module from anyone but its creator). Half a day for all three.
-  Then Phase 1, which is the real gap: **the CMS stores content and has no way
-  to show it to anybody.**
+  Then Phase 1, which is the real gap: **the CMS stores content, has no way to
+  show it to anybody, and no way to receive anything back.** Start Phase 1 with
+  **#68** — an entry cannot hold more than one image today, which makes the
+  first market's central module unusable, and it changes the field-type system,
+  so anything built before it must be revisited.
 - **#36 is no longer next**, and neither is most of #36–#53. They are recorded,
   real, and deliberately not being worked on. Grinding through them before the
   MVP ships is the most plausible way to spend three months and reach no client.
