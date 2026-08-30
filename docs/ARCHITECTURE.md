@@ -40,14 +40,14 @@ User (1:N) Module (1:N) Entry
   `Str::slug()` yields nothing, which it does for a punctuation-only name.
   An empty slug would make the module unreachable.
 
-  **Known limit — slugs are unique across the whole installation, not per
-  owner.** A user naming a module `Products` while another account already
-  holds `products` gets `products-2`, and can infer that someone else holds
-  it. Modules are otherwise strictly per-owner via `ModulePolicy`, so this
-  is the one place cross-tenant state is observable. Accepted while there
-  is a single user (CHANGELOG.md §12). **Anyone adding a second account should
-  fix it first:** a composite unique on `(user_id, slug)` plus owner-scoped
-  route binding, which is far cheaper before real accounts exist.
+  **Slugs are unique across the whole installation, not per owner — and that
+  is correct.** This used to be recorded here as a known limit, with advice to
+  make them unique per `(user_id, slug)` before a second account was added.
+  **Do not follow that advice.** The product was since decided to be
+  single-tenant: one installation per client site, several users, one shared
+  content space (`TASKS.md` → Decisions, 2026-08-30). A second account shares
+  the modules rather than partitioning them, so per-owner slugs would permit
+  two `products` modules on the same site — which is the bug, not the fix.
 
   Deriving a slug is **one query**: the slugs sharing the base as a prefix
   are read once and a free candidate chosen in memory. The base is
@@ -116,6 +116,14 @@ to *does this user own this Module?*. The policy is consulted from the
 controller (read/delete) and from `authorize()` on both Entry FormRequests
 (write) — the latter runs before validation, so a Module's schema is never
 exposed to someone who can't write to it.
+
+**Ownership is on its way out as the axis** (`TASKS.md` #54). Under the
+single-tenant model, modules are created only by the master admin, so
+`Module.user_id` cannot tell two users apart — and `ModuleController::index`
+would show the client's own staff nothing at all. The replacement is group ×
+module, collapsing for now to "any signed-in user reaches every module". The
+paragraph above still describes the code as it stands; the funnel it describes
+is what makes the change small, since there is exactly one place to change.
 
 ## 4. Module schema → validation
 

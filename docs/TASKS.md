@@ -4,17 +4,353 @@ What is left to do. Completed work and the reasoning behind it is in
 [`CHANGELOG.md`](CHANGELOG.md); how the system is put together is in
 [`ARCHITECTURE.md`](ARCHITECTURE.md).
 
-**Priorities.** **P1** is behaviour that is wrong now. **P2** is correctness
-with small blast radius. **P3** is tidying. There is no P0 open.
+**Read the MVP section first.** As of 2026-08-30 this project has a stated
+commercial goal, and that goal — not the size of a finding — decides what is
+worked on. Most of the numbered findings further down are deliberately **not**
+in the MVP. Three of them are.
 
-Items **#36–#46** came from a review of the work in `CHANGELOG.md`, so most of
-them are the cost of recent changes rather than old debt — noted per item where
-that is the case. Items **#47 and up** came from a later review of the project
-as a whole, and are largely the opposite: gaps that have been there from the
-beginning and that no single change is responsible for.
+Numbering is continuous and stable so commits and comments can cite it. It does
+not imply order or priority.
 
-Numbering continues from the completed list; it is stable so commits and
-comments can cite it.
+---
+
+# The MVP
+
+## What this is for
+
+A multilingual CMS that feeds client websites, owned outright rather than
+assembled from someone else's platform. The business it serves is a web agency:
+**one installation per client site**, sites built by one developer, content
+written by the client.
+
+**First market: tourist accommodation** — apartments, small hotels, Airbnb
+villas. Chosen because this CMS is multilingual at the level of its data model,
+and that market cannot function in one language. Multilingual is the one thing
+it already does better than a cheap WordPress build, and it is precisely that
+market's pain. Retail was the alternative and was rejected: a retail
+presentation site asks for a shopping cart within months, which is the one
+thing being deferred.
+
+**Budget: about €5/month** (a small EU VPS, staging as a subdomain on it) plus
+€20–60 once per bought theme. Nothing else is paid for until there is revenue.
+
+## Definition of done — binding
+
+> The MVP is finished when a public site runs on a real server in two
+> languages, filled by somebody through the admin without touching code, and
+> pressing **Publish** changes the page a visitor sees.
+
+- [ ] #47, #48, #54 fixed — and nothing else from the findings list
+- [ ] #55 rich-text renderer, Tiptap document → HTML
+- [ ] #56 publication state, with a Publish action
+- [ ] #57 manual ordering
+- [ ] #58 per-language entry slugs
+- [ ] #59 public Blade routes, page cache cleared on publish
+- [ ] #60 `singleton` modules
+- [ ] #61 core/site boundary drawn
+- [ ] #65 booking hand-off form
+- [ ] #62 the demo site: live, two languages, bought theme
+
+**Nothing outside this list goes in, however reasonable it looks at the moment
+it occurs to you.** There is no client waiting, so nothing external will say
+when this is finished — which is exactly why the boundary is written down
+before the work starts rather than after.
+
+Roughly two to three weeks of focused work.
+
+## Phases
+
+### Phase 0 — blocks everything (half a day)
+
+**#47, #48, #54.** Two are one line each.
+
+### Phase 1 — content reaches the public (4–6 days)
+
+**#55, #56, #57, #58, #59, #60, #61.** This is the real gap: the CMS stores
+content today and has no way to show it to anybody.
+
+### Phase 2 — the demo site, as client #0 (3–5 days)
+
+**#62, #65.** Built exactly the way a paying client would be built — same
+directory layout, same way of binding a module to a template, same deployment —
+so that client #1 is a copy with a different theme and different content rather
+than a fresh start. The demo is simultaneously the sales sample and the first
+template in the library.
+
+### Phase 3 — the accommodation back office
+
+**#63 bookings, #64 invoicing.** These belong to the accommodation product and
+are what will justify charging more than a brochure site.
+
+**Sequenced after the demo on purpose.** A prospect browsing the demo never
+sees them, they are the largest single piece of work on this list, and they are
+the part most likely to grow while being built. Doing them before a paying
+client exists spends the scarcest resource — time before revenue — on work that
+is invisible to the sale. This is a sequencing judgement, not a scope cut: if
+it is wrong, move them and nothing else changes.
+
+### After the first paying client
+
+In this order, and not before: **menu editing**, **media library**, **module
+definitions as files** (pays off at installation #2), **user groups**, **core
+extracted as a Composer package**.
+
+## Decisions taken (2026-08-30)
+
+Reached in discussion and recorded because re-deciding them is pure cost.
+
+**Blade, not React/Next, for public pages.** The public site is server-rendered
+from this same Laravel application. Publish invalidates a page cache and the
+visitor gets finished HTML — there is nothing lighter. This removes the entire
+public read API from scope: no controller, no per-language resources, no CORS,
+no API caching. It also matches the plan to buy HTML themes, which drop into
+Blade almost as-is and would need reworking for React. The admin stays a React
+SPA; the two coexist without friction.
+
+**Single tenant.** One installation per client site, several users, one shared
+content space. The half-finished multi-tenancy is resolved by *removing* it,
+not by completing it. There is no `Site` entity and no registration.
+
+> **Consequence — globally unique module slugs are correct.** The warning in
+> `ARCHITECTURE.md` that anyone adding a second account should first make slugs
+> unique per owner is **wrong under this model** and must not be followed: a
+> second account shares the content space, it does not partition it. Acting on
+> that warning would allow two `products` modules on one site.
+
+**Ownership is not the authorization axis.** Modules are created only by the
+master admin, so `Module.user_id` cannot distinguish anybody. The real question
+is group × module. For the MVP that collapses to: every signed-in user reaches
+every module and may do anything to the entries inside it (#54), with a master
+flag covering everything else. Groups can arrive later without a rewrite,
+because every authorization question already passes through one 30-line policy.
+
+**Structural fields leave the JSON.** `status`, `published_at`, `sort_order`
+and the per-language slug become real indexed columns and rows. They are
+identical for every module and they are what routing, filtering and ordering
+actually run on. Content fields stay in `data`. This answers the indexing half
+of the storage complaint without touching the storage model.
+
+**A "Module" is a menu entry with a screen behind it, not a data schema.** What
+sits behind one varies: a schema-driven content store (what exists today), a
+hand-written domain (bookings, invoices), or an external integration with no
+local storage at all (a statistics panel). Bookings and invoices are therefore
+**written by hand as real tables with real rules** — they are not generated
+from a JSON schema, and bending the schema builder to express them is how this
+design would break.
+
+**Core and site are separated by a line, not yet by tooling.** Core code and
+per-client code — theme, custom modules, site routes — live in separate
+directories from now on. Extraction into a private Composer package happens at
+client #2, when it starts paying for itself. Drawing the line now is what makes
+that extraction mechanical rather than a merge nightmare, and a per-client fork
+of the whole repo is explicitly rejected: that is how agencies built on old
+platforms ended up maintaining ten diverging copies.
+
+**Versioning is git, never zips.** Tags for releases, a beta branch for the
+test site, a pinned version per client install.
+
+**Online booking is a hand-off, not an engine.** The public page collects dates
+and guest count and links out to the channel manager, which owns availability
+and payment from the first click onward. This is the market norm for small
+accommodation and costs one form (#65).
+
+**`/` serves the client site's home page.** This closes the open question of
+whether `/` should exist: with Blade public pages it is the site itself.
+`welcome.blade.php` — the stock Laravel placeholder with the inlined stylesheet
+— goes away as part of #59.
+
+## Deferred deliberately
+
+Not dropped. Decided against *for now*, with the reason, so they cannot creep
+back in unnoticed.
+
+- **Table per module.** The JSON `data` column stays. A content site with a few
+  hundred entries does not need it, and it is the single largest piece of work
+  available. See **To discuss**.
+- **Field rename and delete (#10 in To discuss).** The master admin is the only
+  person who edits a schema, and with one site that is a hand-written migration.
+- **Media library.** Per-field upload works; client #1 survives without it.
+- **Menu editing.** One site's menu is ten minutes of hand-written Blade.
+- **Module grouping in the admin.** No problem to solve at six modules.
+- **User groups.** The MVP has one or two users.
+- **Install automation (`cms:install`).** Pays off at installation #2.
+- **Commerce.** See **To discuss**.
+
+---
+
+# MVP work items
+
+### 54. `ModuleController::index` hides every module but your own
+
+`ModuleController:154` filters with `where('user_id', $request->user()->id)`.
+Under the single-tenant model the master admin creates every module, so the
+client's own users would open the panel and see **nothing at all**.
+
+Invisible today only because there is one user. Part of Phase 0 because the
+second user account makes it immediate.
+
+The MVP shape: any signed-in user sees every module, and `ModulePolicy` answers
+on that basis rather than on ownership. `Module.user_id` stays as a record of
+who created the row; it stops being an authorization input.
+
+### 55. Rich-text renderer: Tiptap document → HTML, in PHP
+
+Entries store a Tiptap JSON document. Nothing in the codebase turns one into
+HTML — `docToText()` produces a plain-text excerpt for the admin table and
+that is all. Without this, no rich text can appear on a public page at all.
+
+It is the natural counterpart to
+[`RichTextDocument`](../app/Services/RichTextDocument.php): normalize on write,
+render on read, **from the same closed vocabulary**. Because the vocabulary is
+closed, the renderer is total and safe by construction — there is no unknown
+node that could reach the output, so nothing needs escaping after the fact.
+Mirror `NODES`, `MARKS` and the attribute rules; anything the normalizer would
+have dropped cannot be present.
+
+Around 150 lines. Also the more flexible of the two possible investments: with
+a PHP renderer, finished HTML can later be served through an API too, whereas
+rendering in JavaScript would have closed off Blade entirely.
+
+### 56. Publication state on entries
+
+Every entry is public the moment it is saved. There is no draft, no publication
+date, no Publish action — so a half-written text is live, which is the first
+call an unhappy client makes.
+
+Add `status` and `published_at` columns to `entries`, real and indexed. The
+admin gets a Publish action; the public side reads published rows only.
+
+Decided as MVP rather than phase two, because the client seeing their own edits
+appear on the site is the core of the promise, and that only works safely if
+they choose when.
+
+### 57. Manual ordering
+
+Only `created_at` ordering exists. "These four rooms, in this order, on the
+home page" cannot be expressed at all.
+
+A `sort_order` column on `entries`, indexed, with reordering in the admin list.
+Deliberately a real column, not a schema field: it applies to every module and
+it is sorted on. The seeder already invents a `sort_order` field, which is the
+same need noticed and never built.
+
+### 58. Per-language entry slugs
+
+URLs are `/el/blog/kati-kati`, with a different slug per language (#14). That
+means every public request resolves an entry **by a translated value**, so it
+must be indexed — inside `data` it would be an unindexed scan on every page
+view of every page.
+
+```
+entry_slugs: entry_id, language_code, slug
+             unique (language_code, slug)
+```
+
+This is the storage complaint's valid core in miniature: the rule is not
+"everything in tables", it is **"whatever you search by goes in a table"**.
+
+### 59. Public rendering in Blade, with a cache cleared on publish
+
+Public routes and templates in the per-client layer, reading entries through
+Eloquent — there is no API in between (see Decisions). Pages are cached; the
+Publish action of #56 invalidates what it affects, so a visitor is served
+finished HTML without a query.
+
+Also removes `welcome.blade.php`, whose inlined stylesheet costs ~36k tokens to
+read and which `/` no longer needs.
+
+### 60. `singleton` modules
+
+"About" is one entry; "Blog" is many. Today both are collections, so a client
+opening About finds a list and a "new entry" button that must never be pressed.
+
+A `singleton` flag on the module: the admin opens straight into the single
+entry, with no list and no create button. Small, and much cheaper before five
+sites exist than after.
+
+### 61. Draw the core/site boundary
+
+Core code and per-client code go into separate directories now — theme,
+per-client modules and site routes on one side, everything shipped on the other.
+
+No packaging, no Composer work, no tooling: only the line. The line is what
+makes the eventual extraction (client #2) mechanical, and it costs almost
+nothing today.
+
+### 62. The demo site — client #0
+
+A complete accommodation site: an invented but believable business with a name,
+a location and a character. **Never lorem ipsum** — a prospect has to see
+themselves in it.
+
+- Modules: Σχετικά (singleton), Δωμάτια/Καταλύματα, Gallery, Blog, Επικοινωνία
+  (singleton)
+- **Both languages filled completely.** Half-finished English demonstrates the
+  exact opposite of what is being sold.
+- Bought theme (€20–60), converted to Blade partials; menu hand-written
+- Live on a domain, with staging on a subdomain of the same VPS
+- Photography from Unsplash/Pexels, free for commercial use
+
+Built as a paying client would be, so it doubles as the first template.
+
+### 63. Bookings module *(Phase 3)*
+
+A **register**, not an availability engine: real bookings arrive through the
+channel manager, and the owner records them here so they can be invoiced and
+counted.
+
+Hand-written domain with real columns — guest, contact, property, arrival,
+departure, guest count, price, deposit, source (direct / Booking.com / Airbnb),
+status, notes. Dates and money are columns, never JSON: they are compared,
+summed and sorted.
+
+Explicitly **not** produced by the schema builder (see Decisions).
+
+Open when this is started: does it need overlap detection across bookings for
+the same property, or is a register that trusts the owner enough for the first
+version?
+
+### 64. Invoicing, issued from a booking *(Phase 3)*
+
+Turn a booking into a document: line items, VAT, totals, numbering. Amounts in
+decimal columns, never floats and never JSON. An issued document's lines must
+be **immutable** — it records the price at the time it was issued, not today's.
+
+**The decision this task opens: myDATA.** In Greece the electronic transmission
+of documents to AADE is a legal obligation, not a feature. Before building,
+settle whether this module issues real documents (transmission required, and it
+is a substantial integration on its own) or produces an internal document while
+the client's accountant handles the filing. The two are very different pieces
+of work, and the answer changes what "done" means here.
+
+### 65. Booking hand-off form
+
+On the public page: dates and number of guests, then a link out to the channel
+manager with those values as parameters. Availability, pricing and payment are
+the channel manager's from the first click — this side owns nothing.
+
+One form and a URL template per client. It is in the MVP because it is what
+makes the demo credible to an accommodation owner, and because it costs almost
+nothing.
+
+---
+
+# Code-review findings
+
+Numbered **#36–#53**, from two reviews. **Only #47 and #48 are in the MVP**
+(with #54 above). The rest are real, stay recorded, and are not being worked
+on — grinding through them before the MVP ships is the most plausible way to
+spend three months and reach no client.
+
+The priority labels rank these *against each other*, not against the MVP.
+**P1** is behaviour that is wrong now, **P2** is correctness with small blast
+radius, **P3** is tidying. There is no P0 open.
+
+Items **#36–#46** came from a review of the work in `CHANGELOG.md`, so most are
+the cost of recent changes rather than old debt — noted per item where that is
+so. Items **#47–#53** came from a review of the project as a whole and are
+largely the opposite: gaps present from the beginning that no single change is
+responsible for.
 
 ---
 
@@ -273,36 +609,28 @@ Nothing here is insecure — every path does check, and that was confirmed befor
 filing this. The cost is that confirming it means reading four spellings
 individually, and that the next endpoint has four precedents to copy from.
 
+Related to #54, which changes what the policy *asks* rather than where it is
+asked from. Doing #54 first is right: there is no point tidying four call sites
+into one spelling of a question that is about to be replaced.
+
 ---
 
-## To discuss
+# To discuss
 
-Not work items. These need a conversation before anyone can say whether there
-is anything to do — putting them in a checklist would imply a decision that
-has not been made.
+Not work items, and not confined to the findings above. These need a
+conversation before anyone can say whether there is anything to do — putting
+them in a checklist would imply a decision that has not been made.
 
-### Should `/` exist?
+### ~~Should `/` exist?~~ — settled 2026-08-30
 
-`routes/web.php` serves the stock Laravel welcome page at `/`. It is a
-placeholder: the product is `/admin`, and nothing links to `/` from inside
-the app.
+**`/` serves the client site's home page.** Of the three shapes this question
+offered, the third was chosen: the CMS renders its own content publicly, in
+Blade. `welcome.blade.php` is removed as part of #59.
 
-It came up while measuring the typography plugin (CHANGELOG §12). Every way
-of scoping the CSS cost more than the ~1.5 kB gzipped it would save, and the
-cleanest resolution is not a CSS one — a page that does not need `prose` also
-does not need to exist.
-
-Three shapes, and they are genuinely different products:
-
-- **Redirect `/` to `/admin`.** The CMS is an admin tool with no public face.
-  Simplest, and settles the CSS question.
-- **A real landing page.** If people are ever meant to arrive here, the stock
-  Laravel page is not it, and the question is what should be.
-- **Serve public content.** The CMS stores entries; `/` could render them.
-  That is a different project, and would make a full rich-text renderer a
-  requirement rather than the excerpt the admin table needs.
-
-Until that is settled, `welcome.blade.php` stays as it is.
+Worth noting that this question predicted its own cost correctly — it said that
+serving public content "would make a full rich-text renderer a requirement
+rather than the excerpt the admin table needs". That renderer is #55, and it is
+the largest item in Phase 1.
 
 ### How strict should a module schema be?
 
@@ -354,6 +682,63 @@ recoverable afterwards.
 
 Until this is settled, adding the endpoints would ship the easy half and let the
 hard half surface as silent data loss. That is why this is here and not in P1.
+
+**Status after 2026-08-30: deferred, and less urgent than it looks.** Only the
+master admin — a developer — edits a schema, and with one installation per site
+a rename is a hand-written migration against one database. It becomes pressing
+again the moment module definitions move into files, because a schema edit then
+ships to every installation at once.
+
+### How does this become an eshop platform?
+
+The stated position: commerce is where the real money is, and building on
+WooCommerce or Shopify is not wanted — the platform must be owned code. That is
+a legitimate agency model, and several were built exactly that way on older
+platforms. But it is a **second product, larger than this CMS**, and it is
+deliberately not started before content sites produce revenue.
+
+What is actually inside it, so the size is never underestimated again:
+
+- **Products with variants** — size × colour, each combination with its own
+  stock and price. A model, not a field.
+- **Stock under concurrency** — two buyers, one last item. Needs locking.
+- **Orders as a state machine**, with **immutable lines**: an order records the
+  price at the moment it was placed, not today's.
+- **Money** — VAT per category, discounts, coupons, shipping, rounding. Decimal
+  columns, never floats and never JSON.
+- **Payments** — Viva, Stripe, bank gateways: one integration each, plus
+  webhooks and reconciliation.
+- **myDATA** — a legal obligation in Greece, not a feature. Also the subject of
+  #64, which arrives first and at far smaller scale.
+- **Couriers** — ACS, Speedex, BOX NOW: vouchers and tracking, one integration
+  each.
+- **GDPR on customer data**, colliding with the legal retention period for tax
+  documents.
+
+Three things to settle before any of it starts:
+
+- **Build or adopt?** The agencies this model is drawn from *adopted* an
+  existing codebase and accumulated their own automation on top. The asset was
+  the automation and the mastery of one codebase, not the authorship — and the
+  ones who owned everything also owned security and PHP upgrades forever.
+- **Which "eshop"?** Full checkout with payments and invoicing, or a catalogue
+  with an order/quote form? The second is roughly a tenth of the work and
+  covers a real number of clients.
+- **Must the storage model change first?** Table-per-module belongs to this
+  question, not to the CMS. Note that #63 and #64 already establish the pattern
+  that may answer it: **domain modules are hand-written tables; only content
+  modules are schema-driven.** If that holds for bookings and invoices, it holds
+  for products and orders, and the JSON column never has to become something it
+  is not.
+
+The complaint that started this — no indexes on content fields — is already
+half answered by #56, #57 and #58 moving the queried fields into real columns.
+What remains is filtering and sorting by *content* fields at scale, and that
+only bites at eshop sizes.
+
+---
+
+# Backlog
 
 Deliberately out of scope for MVP.
 

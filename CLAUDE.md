@@ -19,7 +19,7 @@ to answer one precise question about framework behaviour.
 | File | What you get |
 |---|---|
 | `docs/ARCHITECTURE.md` | How the system works **now**. Domain model, auth, schema→validation, rich text, slugs, pagination. Start here. |
-| `docs/TASKS.md` | What is open. Currently #36–#46 from a code review, plus two things awaiting a product decision. |
+| `docs/TASKS.md` | What is open. **Read its MVP section first** — it holds the definition of done, the phases, and the product decisions that govern everything else. The numbered code-review findings further down are mostly *not* being worked on. |
 
 That is enough to take instructions. Read the third when you need the *why*:
 
@@ -190,20 +190,35 @@ Worked through a prioritised list; every item is either done or recorded in
 `CHANGELOG.md` with its reasoning.
 
 - **88 PHP tests, 72 JS tests**, all passing. Build clean.
-- **No P0 open.** `docs/TASKS.md` holds #36–#53. #36–#46 came from a review of
-  the recent work; #47–#53 from a later review of the project as a whole, and
-  are gaps that predate all of it — a fatal in the seeder, no rate limiting on
-  login, and uploads that are never cleaned up among them.
-- **Next up: #36** — the **Req** checkbox does nothing on a rich-text field.
-  `required` produces `['required','array']`, and the empty document the form
-  always sends is a non-empty array, so it passes. Verified. It is a
-  regression from making the `required` flag real, and needs a
-  document-aware check.
+- **The project has a commercial goal as of 2026-08-30**, and it now decides
+  what gets worked on. A multilingual CMS that feeds client sites, owned
+  outright, for a one-person web agency: **one installation per client site**,
+  first market **tourist accommodation** (apartments, small hotels, villas),
+  budget about **€5/month**. Multilingual-by-data-model is the thing it already
+  does better than a cheap WordPress build, and that market cannot work in one
+  language.
+- **`docs/TASKS.md` → The MVP is the governing section.** It carries a binding
+  definition of done, four phases, and the decisions taken. Read it before
+  proposing any work.
+- **Next up: Phase 0** — #47 (the seeder is fatally broken and is step one of
+  the README), #48 (no rate limiting on login), #54 (`ModuleController::index`
+  hides every module from anyone but its creator). Half a day for all three.
+  Then Phase 1, which is the real gap: **the CMS stores content and has no way
+  to show it to anybody.**
+- **#36 is no longer next**, and neither is most of #36–#53. They are recorded,
+  real, and deliberately not being worked on. Grinding through them before the
+  MVP ships is the most plausible way to spend three months and reach no client.
 
-Three questions are waiting on the user, in `TASKS.md` → **To discuss**:
-whether `/` should exist at all, how strict a module schema should be, and what
-editing a Module should mean for its existing Entries. Do not decide these
-unilaterally. The third is the largest thing open in the project — a Module
-currently cannot be edited or deleted at all, and the reason that is a
-conversation rather than a task is that `Entry.data` is keyed by field *name*,
-so every schema edit is a data-migration question first.
+**Decisions you must not re-open or contradict** (all in `TASKS.md` →
+Decisions, with reasoning): Blade rather than React for public pages; single
+tenant, so globally unique module slugs are *correct*; ownership is not the
+authorization axis; structural fields (`status`, `published_at`, `sort_order`,
+per-language slug) leave the JSON and become indexed columns; a "Module" is a
+menu entry with a screen behind it, so bookings and invoices are hand-written
+tables and **not** generated from a JSON schema; core and site are separated by
+a directory line but not yet by packaging.
+
+Two questions remain genuinely open, in `TASKS.md` → **To discuss**: how strict
+a module schema should be, and how this becomes an eshop platform. Do not
+decide them unilaterally. Commerce is the one thing that could consume a year
+without revenue — it stays deferred until content sites are earning.
