@@ -211,8 +211,12 @@ Worked through a prioritised list; every item is either done or recorded in
   monthly), €800 + €30 after, one day per site from the fifth onward. The
   freelancer registration is already active, so the incremental cost is ~€6/month
   plus ~€300/year — **the first client makes it profitable.** The build fee is
-  nearly a loss-leader; the €25/month annuity is the actual business, and the
-  ceiling on it is **support minutes per client**, not sales.
+  nearly a loss-leader; the €25/month annuity is the actual business, billed
+  yearly in advance, and the ceiling on it is **support minutes per client**,
+  not sales. The introductory price ends at the tenth deposit or 31 March 2027.
+- **The selling season is November–March.** Greek accommodation owners work
+  through the summer and buy in the off-season, so a month lost in autumn costs
+  a season, not a month.
 - **Next up: Phase 0** — #47 (the seeder is fatally broken and is step one of
   the README), #48 (no rate limiting on login), #54 (`ModuleController::index`
   hides every module from anyone but its creator). Half a day for all three.

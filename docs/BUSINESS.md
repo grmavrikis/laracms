@@ -87,6 +87,44 @@ them. Two guards make it safe rather than reckless:
 All figures are gross. Tax on the additional profit is the accountant's
 department, but do not read these numbers as take-home.
 
+### When the introductory price ends
+
+> **At the tenth signed client with the deposit received — or 31 March 2027,
+> whichever comes first.**
+
+A signature with money against it, not a verbal yes: the count has to mean
+something.
+
+**The date is not decoration.** A count-only trigger has no time bound, so if
+the tenth client takes two years then €290 is the price for two years and €800
+never arrives. An introductory price exists to buy early adopters *quickly*;
+the deadline is what makes it introductory rather than permanent.
+
+March is chosen to fall at the end of the first selling season (§6), so the
+increase coincides with a new one — which is also the easiest version to say
+out loud.
+
+### Payment terms
+
+| | |
+|---|---|
+| Build | **50% deposit at signature**, balance on delivery |
+| Monthly | **Billed annually in advance** — €300, or €270 prepaid |
+
+**Bill the recurring fee yearly, not monthly.** Three reasons, and they
+compound:
+
+- **Administration.** Forty clients billed monthly is 480 invoices a year
+  against 40. That time comes out of the same budget as support, which is the
+  ceiling on the whole business (§5).
+- **Invoice count.** The annual levy is understood to vary with earnings and
+  the number of invoices issued — confirm with the accountant, but the
+  administrative argument stands on its own.
+- **Cash and churn.** Forty clients prepaying is €12,000 in hand rather than a
+  trickle, and a client decides to stay once a year instead of twelve times.
+
+The €270 prepaid rate is a 10% discount that buys all three. Most will take it.
+
 ---
 
 ## 4. What it costs to run
@@ -227,6 +265,22 @@ system"*. Nobody buys a CMS.
 **The demo is the sales tool** — which is why `TASKS.md` Phase 2 is the last
 step of the MVP rather than a nice-to-have.
 
+### The selling season is the off-season
+
+Greek tourist accommodation runs roughly **May to October**. During it, owners
+are working and will not sit down to discuss a website. They think about next
+season, have cash from the last one, and have time to talk **between November
+and March**.
+
+Two consequences:
+
+- **The MVP finishing in autumn lands at the start of the buying window.** That
+  is fortunate rather than planned, and it is a reason not to let the build
+  drift: a month lost in autumn is not a month, it is a season.
+- Approaching owners in July is not persistence, it is wasted effort. If the
+  demo slips past spring, the sensible move is to keep selling into the tail of
+  the season and accept a slower start rather than force it in August.
+
 **Decision on record:** no client is being sought until the demo exists. The
 cost of that decision is known and accepted — the first few conversations would
 probably have changed what gets built, most likely by making it smaller.
@@ -272,6 +326,9 @@ verdict — and one variable at a time, or the result cannot be read.
   guards in §3.
 - **A full site is the minimum sellable unit.** There is no smaller product to
   sell first.
+- **The introductory price ends at the tenth deposit or 31 March 2027**,
+  whichever comes first (§3). The date was added because a count alone has no
+  time bound.
 
 ### Open
 
@@ -285,7 +342,7 @@ verdict — and one variable at a time, or the result cannot be read.
 3. **Does €290 attract the wrong client?** The risk named in §3. Price-sensitive
    buyers consume the most support, and support is the ceiling. Watch it in the
    first three and raise the price early if the pattern appears.
-4. **What actually ends the introductory price?** "First ten clients" needs a
-   real trigger — the tenth signature, a date, or a count of reference sites —
-   or €290 quietly becomes the permanent price and €800 never happens. Decide
-   the trigger before the first sale, not after the ninth.
+4. **Will they accept annual billing?** The €270 prepaid rate assumes yes, and
+   the whole administrative case for it (§3) collapses if most insist on paying
+   monthly. Test it on the first three; if they resist, the discount is too
+   small rather than the idea wrong.
