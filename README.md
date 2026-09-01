@@ -1,8 +1,14 @@
 # Mini CMS
 
-A lightweight headless-ish CMS: Laravel API backend + React (SPA) admin
-panel. Lets you define dynamic "Modules" (content types) with their own
-field schema, and manage multilingual "Entries" on top of them.
+A multilingual CMS: Laravel backend + React (SPA) admin panel. Lets you define
+dynamic "Modules" (content types) with their own field schema, and manage
+multilingual "Entries" on top of them.
+
+It is built to feed client websites for a one-person web agency — **one
+installation per client site**, with the public pages rendered server-side in
+Blade from this same application. It is therefore **not headless**: the site and
+the admin panel ship together. See [`docs/TASKS.md`](docs/TASKS.md) → **The
+MVP** for the goal and the definition of done.
 
 ## Stack
 
@@ -63,6 +69,11 @@ php artisan migrate --seed
 php artisan storage:link
 ```
 
+> **`--seed` currently fails.** `DatabaseSeeder` uses `User` without importing
+> it, so seeding dies with a class-not-found error before writing anything.
+> That is `TASKS.md` #47 and the fix is one `use` statement. Until it lands,
+> run `php artisan migrate` and create the account by hand.
+
 ### Gotchas
 
 - **Use `http://mini-cms.test`, not `localhost:8000`.** `.env` sets
@@ -81,7 +92,10 @@ php artisan storage:link
 ## Documentation
 
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — how the system is built (stack, data model, request flow, frontend).
-- [`docs/TASKS.md`](docs/TASKS.md) — what's left, in priority order.
+- [`docs/TASKS.md`](docs/TASKS.md) — what's left. **Read its MVP section
+  first**: it carries the definition of done and the product decisions that
+  govern everything else. The numbered findings below it are mostly recorded
+  rather than scheduled.
 - [`docs/CHANGELOG.md`](docs/CHANGELOG.md) — what has been done and *why*.
   Read this before changing something that looks odd; most of it was a
   decision, and the reasoning is what to argue with.

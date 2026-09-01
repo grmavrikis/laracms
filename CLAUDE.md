@@ -3,6 +3,11 @@
 A Laravel + React mini-CMS. Users define **Modules** (content types with a
 JSON field schema) and manage multilingual **Entries** against them.
 
+It has a commercial purpose, and that purpose decides what gets worked on: it
+feeds client websites for a one-person web agency, one installation per site,
+first market tourist accommodation. See **Where we are** at the bottom, and
+`docs/TASKS.md` → **The MVP**.
+
 You are reading this because it loads automatically. It exists so a fresh
 session can be useful in ten minutes without reading the repo.
 
@@ -221,7 +226,12 @@ menu entry with a screen behind it, so bookings and invoices are hand-written
 tables and **not** generated from a JSON schema; core and site are separated by
 a directory line but not yet by packaging.
 
-Two questions remain genuinely open, in `TASKS.md` → **To discuss**: how strict
-a module schema should be, and how this becomes an eshop platform. Do not
-decide them unilaterally. Commerce is the one thing that could consume a year
-without revenue — it stays deferred until content sites are earning.
+`TASKS.md` → **To discuss** holds three open questions and one settled: how
+strict a module schema should be, what editing a Module means for its existing
+Entries (deferred — only the master admin edits schemas, so it is a
+hand-written migration for now), and how this becomes an eshop platform.
+Whether `/` should exist is **settled**: it serves the site's home page.
+
+Do not decide the open ones unilaterally. Commerce is the one thing that could
+consume a year without producing revenue — it stays deferred until content
+sites are earning.

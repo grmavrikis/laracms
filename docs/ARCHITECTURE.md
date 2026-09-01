@@ -4,6 +4,12 @@ Describes the **current** state of the system as it exists in the code.
 This is not a wishlist — if something here no longer matches reality, fix
 the doc, don't build on the assumption that it still holds.
 
+Some paragraphs carry a note citing a `TASKS.md` number. Those mark the places
+where the behaviour described is **known to be wrong, misleading, or already
+decided to change** — they are corrections, not plans, and they exist so nobody
+builds on a paragraph that is about to stop being true. Everything without such
+a note describes the code as it stands.
+
 What is left to do: [`TASKS.md`](TASKS.md). Why things ended up this way:
 [`CHANGELOG.md`](CHANGELOG.md).
 
@@ -172,6 +178,11 @@ Languages: `is_default` decides which language the panel opens on, read by
 `/api/languages`, so how the list is sorted and which entry is the default
 stay independent.
 
+**Nothing writes that flag**, though — not the seeder, not any endpoint. On a
+fresh install no language carries it and `defaultLanguage()` falls back to the
+first in the list, so the behaviour described above only appears on a database
+somebody edited by hand (`TASKS.md` #49).
+
 `SchemaRuleBuilder::SUPPORTED_TYPES` is the **single list** of field types
 the system understands: `string`, `text`, `integer`, `boolean`, `date`,
 `datetime`, `select`, `image`. `ModuleController` validates incoming
@@ -240,6 +251,18 @@ shape, and the edit form needs every language at once anyway.
 `image|mimes:jpeg,png,jpg,webp,svg|max:2048` → stores to
 `storage/app/public/uploads` → returns a public URL. Called independently
 from the Entry create/update request (2 separate requests).
+
+**`svg` in that list is dead**, and should stay that way. Laravel 13's `image`
+rule accepts only `jpg, jpeg, png, gif, bmp, webp` unless written
+`image:allow_svg`, so an SVG is rejected one rule earlier and the uploader is
+told "must be an image". Do not close the inconsistency by adding `allow_svg`:
+SVG is an open language that can carry `<script>`, and these files are served
+from the panel's own origin — exactly what `RichTextDocument` exists to prevent
+for rich text (`TASKS.md` #50).
+
+An upload is not linked to the Entry that references it and is never deleted
+(`TASKS.md` #51). A field holds **one** image; there is no repeatable or
+gallery type (#68).
 
 ## 7. Rich text
 

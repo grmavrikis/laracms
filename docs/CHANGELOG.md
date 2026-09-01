@@ -350,6 +350,14 @@ declared identically in two components.
 > To open on Greek instead, move the flag rather than changing code:
 > `UPDATE languages SET is_default = (code = 'gr')`.
 
+> **Correction (2026-08-31).** "The column was set" described *this*
+> development database, where the flag had been set by hand. **No code path
+> writes it** — not the seeder, not an endpoint, not a migration beyond
+> `->default(false)`. So on a fresh install nothing is flagged,
+> `defaultLanguage()` falls through to the first language, and the decision
+> above has no visible effect. Recorded as `TASKS.md` #49; the writer that
+> fixes it belongs with #52.
+
 ---
 
 ## 7. The entries list
@@ -526,6 +534,15 @@ recorded in `ARCHITECTURE.md`, because whoever adds a second account needs to
 see it: the fix is a composite unique on `(user_id, slug)` plus owner-scoped
 route binding, and it is far cheaper before real accounts exist.
 
+> **Superseded (2026-08-30) — do not apply the fix described above.** The
+> product was decided to be single-tenant: one installation per client site,
+> several users, one shared content space (`TASKS.md` → Decisions). A second
+> account therefore *shares* the modules rather than partitioning them, which
+> makes installation-wide uniqueness **correct** rather than a compromise. A
+> composite unique on `(user_id, slug)` would allow two `products` modules on
+> one site — the bug, not the fix. There is no cross-tenant leak because there
+> are no tenants.
+
 ### The typography plugin ships to a page that does not use it
 
 Measured: **12.3 kB raw, about 1.5 kB gzipped** of a 15.11 kB stylesheet.
@@ -540,3 +557,10 @@ blockquote and code, with real visual risk, for ~9% of one asset.
 
 The cleanest resolution is not a CSS one — see **Should `/` exist?** in
 `TASKS.md`.
+
+> **Settled (2026-08-30), and it reverses this entry's premise.** `/` now
+> serves the client site's home page, rendered in Blade, and
+> `welcome.blade.php` is removed by `TASKS.md` #59. So the plugin stops
+> shipping to a page that does not use it — the public pages render rich text
+> (#55), and `prose` is precisely what they need. The measurement stands; the
+> problem it measured disappears along with the placeholder.

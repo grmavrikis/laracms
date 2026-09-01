@@ -213,7 +213,8 @@ back in unnoticed.
 - **Table per module.** The JSON `data` column stays. A content site with a few
   hundred entries does not need it, and it is the single largest piece of work
   available. See **To discuss**.
-- **Field rename and delete (#10 in To discuss).** The master admin is the only
+- **Field rename and delete** — see *What does editing a Module mean for its
+  Entries?* under **To discuss**. The master admin is the only
   person who edits a schema, and with one site that is a hand-written migration.
 - **Media library.** Reuse of one image across entries. Distinct from #68,
   which is several images *on one entry* and is in the MVP because a room
@@ -291,7 +292,8 @@ same need noticed and never built.
 
 ### 58. Per-language entry slugs
 
-URLs are `/el/blog/kati-kati`, with a different slug per language (#14). That
+URLs are `/el/blog/kati-kati`, with a **different slug per language** — decided
+so, because languages are a paid feature and each one needs its own URLs. That
 means every public request resolves an entry **by a translated value**, so it
 must be indexed — inside `data` it would be an unindexed scan on every page
 view of every page.
