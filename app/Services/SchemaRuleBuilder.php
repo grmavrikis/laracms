@@ -71,7 +71,7 @@ class SchemaRuleBuilder
      * of about fifty characters, so this only ever catches something that did
      * not come from it.
      */
-    protected const GALLERY_URL_MAX_LENGTH = 2048;
+    public const GALLERY_URL_MAX_LENGTH = 2048;
 
     /**
      * @param string $attribute the request field these rules are being built
@@ -197,7 +197,11 @@ class SchemaRuleBuilder
 
         foreach ($schema as $field)
         {
-            $name = is_array($field) ? ($field['name'] ?? null) : null;
+            // No is_array() guard, matching build()'s own loop: `??` uses isset
+            // semantics, and a string or number offset by a non-numeric key is
+            // simply not set - so a schema element that is not an array reads
+            // as nameless and is skipped rather than raising.
+            $name = $field['name'] ?? null;
 
             if (!$name)
             {

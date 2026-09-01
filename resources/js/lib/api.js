@@ -53,6 +53,14 @@ export const uploadImage = async (file) => {
         headers: { 'Content-Type': 'multipart/form-data' },
     });
 
+    // A 200 carrying no URL is not a successful upload: it would become an
+    // image nothing can display, and two of them would share the same
+    // undefined key in the gallery list. Rejecting here means every caller
+    // reports it where it already reports the refusals.
+    if (typeof data?.url !== 'string' || data.url === '') {
+        throw new Error('The upload succeeded but returned no URL.');
+    }
+
     return data.url;
 };
 

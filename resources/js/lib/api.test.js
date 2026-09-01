@@ -28,8 +28,15 @@ describe('uploadImage', () => {
     });
 
     it('sends the file under the field name the endpoint expects', async () => {
-        // No mockResolvedValueOnce here: that replaces the implementation, so
-        // the shared `calls` array this asserts on would never be written to.
+        // mockImplementationOnce rather than mockResolvedValueOnce: the latter
+        // replaces the implementation, so the shared `calls` array this
+        // asserts on would never be written to - and the default one resolves
+        // without a `url`, which uploadImage now rejects.
+        instance.post.mockImplementationOnce((url, body) => {
+            calls.push({ method: 'post', url, body });
+            return Promise.resolve({ data: { url: '/storage/uploads/sea.jpg' } });
+        });
+
         await uploadImage(new File(['x'], 'sea.jpg', { type: 'image/jpeg' }));
 
         expect(calls[0].url).toBe('/upload');
@@ -42,6 +49,21 @@ describe('uploadImage', () => {
 
         await expect(uploadImage(new File(['x'], 'sea.jpg')))
             .resolves.toBe('/storage/uploads/sea.jpg');
+    });
+
+    it('rejects a 200 that carried no URL', async () => {
+        // Otherwise it becomes an image nothing can display, and two of them
+        // share the same undefined key in the gallery list. Failing here means
+        // every caller reports it where it already reports the others.
+        instance.post.mockResolvedValueOnce({ data: {} });
+
+        await expect(uploadImage(new File(['x'], 'sea.jpg'))).rejects.toThrow(/no URL/i);
+    });
+
+    it('rejects a URL that is an empty string', async () => {
+        instance.post.mockResolvedValueOnce({ data: { url: '' } });
+
+        await expect(uploadImage(new File(['x'], 'sea.jpg'))).rejects.toThrow(/no URL/i);
     });
 
     it('lets a rejection propagate, so callers can word it themselves', async () => {

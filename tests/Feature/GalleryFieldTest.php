@@ -220,83 +220,14 @@ class GalleryFieldTest extends TestCase
             ->assertCreated();
     }
 
-    /**
-     * The default ceiling must not override a stricter one the schema asked
-     * for - it is a backstop, not a policy.
-     */
-    public function test_the_schemas_own_limit_still_applies_under_the_default(): void
-    {
-        $module = $this->moduleWith(['validation' => 'max:2']);
-
-        $this->postEntry($module, [
-            ['url' => '/storage/uploads/a.jpg'],
-            ['url' => '/storage/uploads/b.jpg'],
-            ['url' => '/storage/uploads/c.jpg'],
-        ])->assertStatus(422);
-    }
-
-    /**
-     * The ceiling stood down for *any* size rule, and `min` is one - so
-     * writing "at least one photo", the most natural thing to put on a room's
-     * gallery, quietly removed the upper bound the constant exists to impose.
-     */
-    public function test_a_lower_bound_does_not_remove_the_ceiling(): void
-    {
-        $module = $this->moduleWith(['validation' => 'min:1']);
-
-        $tooMany = array_map(
-            fn($i) => ['url' => "/storage/uploads/{$i}.jpg"],
-            range(1, SchemaRuleBuilder::GALLERY_MAX_IMAGES + 1)
-        );
-
-        $this->postEntry($module, $tooMany)->assertStatus(422);
-
-        // And the lower bound it did ask for still bites.
-        $this->postEntry($module, [])->assertStatus(422);
-    }
-
-    /**
-     * An upper bound the schema states itself is an explicit choice and wins,
-     * in either direction - that is what makes the default a backstop.
-     */
-    public function test_an_upper_bound_in_the_schema_replaces_the_default(): void
-    {
-        $module = $this->moduleWith(['validation' => 'max:' . (SchemaRuleBuilder::GALLERY_MAX_IMAGES + 5)]);
-
-        $justOverTheDefault = array_map(
-            fn($i) => ['url' => "/storage/uploads/{$i}.jpg"],
-            range(1, SchemaRuleBuilder::GALLERY_MAX_IMAGES + 3)
-        );
-
-        $this->postEntry($module, $justOverTheDefault)->assertCreated();
-    }
-
-    /**
-     * The editor keys its list on the URL, and two rows sharing a key make
-     * React reuse the wrong node - so removing one image hits the other.
-     * Nothing enforced that uniqueness; the comment there asserted it.
-     */
-    public function test_two_images_cannot_share_a_url(): void
-    {
-        $module = $this->moduleWith();
-
-        $this->postEntry($module, [
-            ['url' => '/storage/uploads/sea.jpg'],
-            ['url' => '/storage/uploads/sea.jpg'],
-        ])->assertStatus(422);
-
-        $this->postEntry($module, [
-            ['url' => '/storage/uploads/sea.jpg'],
-            ['url' => '/storage/uploads/garden.jpg'],
-        ])->assertCreated();
-    }
-
     public function test_a_url_longer_than_the_column_can_sensibly_hold_is_rejected(): void
     {
         $module = $this->moduleWith();
 
-        $this->postEntry($module, [['url' => str_repeat('a', 3000)]])
-            ->assertStatus(422);
+        $this->postEntry(
+            $module,
+            [['url' => str_repeat('a', SchemaRuleBuilder::GALLERY_URL_MAX_LENGTH + 1)]]
+        )->assertStatus(422);
     }
 
     /**

@@ -1010,3 +1010,47 @@ Also folded in: the rule-name parsing that `hasUpperBound()` and
 is where the comment about `explode`'s limit of 2 belongs.
 
 **130 → 134 PHP tests.**
+
+### And the eight the same review left
+
+None user-visible; the first two were the only ones that could go wrong again
+quietly.
+
+**The #39 fix was held in place for one throw out of three.** `build()` has
+five ways to refuse a schema, and the attribute-keying change touched all of
+them, but only the gallery one had a test - `SchemaValidationRulesTest` asserts
+`422` and never a key. Either of the other two could have been reverted to its
+old hardcoded string with a green suite. `SchemaErrorKeyTest` now walks every
+refusal `build()` can raise under both callers; mutating one throw back to
+`'schema'` fails it with *"Reported against the wrong field when the caller
+sent 'data'"*.
+
+**A test was an exact duplicate of another.** Same module, same three images,
+same assertion, a hundred lines apart - while its docblock claimed to cover
+the interaction with the default ceiling, which it never touched. The two
+tests written for the `min:1` fix cover that properly, so the duplicate is
+gone.
+
+The rest:
+
+- **An upload that returned no URL was treated as a success**, becoming an
+  image nothing can display and a list row keyed `undefined`. `uploadImage()`
+  now rejects it, so both callers report it where they already report a
+  refusal - one place, and testable, which the same check inside the editor
+  would not have been.
+- **`files.map(uploadImage)`** passed the index and the array as extra
+  arguments. Harmless while the signature takes one, a silent wrong-argument
+  bug the day it takes two. Wrapped in an arrow.
+- **`api.js` had no trailing newline**, which is half of #45 and was free to
+  fix while the file was open.
+- **`GALLERY_URL_MAX_LENGTH` was protected** while its sibling was public, for
+  no reason beyond which one a test happened to reference - and that test
+  hardcoded 3000 rather than the constant. Both public, and the test uses it.
+- **`assertNamesAreUnique()` guarded `is_array()`** where `build()`'s own loop
+  does not. The guard bought nothing (`??` uses isset semantics, so a string
+  offset by a non-numeric key is simply not set); removed, with the reason
+  written down instead.
+- **The findings list had an unexplained gap** where #39 had been. It now says
+  which three numbers have left and why.
+
+**134 → 142 PHP tests, 104 → 106 JS tests.**

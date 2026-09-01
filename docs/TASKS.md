@@ -511,8 +511,10 @@ is an improvement on a working system rather than a prerequisite for one.
 
 # Code-review findings
 
-Numbered **#36–#53**, from two reviews. The two that were in the MVP, #47 and
-#48, are done and gone from here. **Nothing else on this list is scheduled** —
+Numbered **#36–#53**, from two reviews. Three have left: **#47** and **#48**,
+which were in the MVP, and **#39**, which was fixed while the code it described
+was being changed for another reason (CHANGELOG §14). The numbers are not
+reused, so the gaps in the sequence are those three and nothing is missing. **Nothing else on this list is scheduled** —
 the rest are real, stay recorded, and are not being worked on. Grinding through
 them before the MVP ships is the most plausible way to spend three months and
 reach no client.

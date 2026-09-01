@@ -40,7 +40,10 @@ export default function GalleryEditor({ value, onChange, languages = [], onError
         // allSettled, not all: one rejected upload would otherwise discard
         // every file that did succeed alongside it. The successes are kept and
         // the failures reported.
-        const results = await Promise.allSettled(files.map(uploadImage));
+        // Wrapped rather than passed by reference: `map` hands its callback
+        // the index and the whole array too, so the day uploadImage takes a
+        // second argument every call here would quietly supply the index.
+        const results = await Promise.allSettled(files.map((file) => uploadImage(file)));
 
         const uploaded = results
             .filter((r) => r.status === 'fulfilled')

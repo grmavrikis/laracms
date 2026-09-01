@@ -76,15 +76,17 @@ on one entry, alt text per language), `RichTextEditor.jsx` (Tiptap),
 
 ### 4. Tests — read one before writing one
 
-`tests/Feature/` has 17 files, each named for what it pins — the suite is the
+`tests/Feature/` has 18 files, each named for what it pins — the suite is the
 best description of intended behaviour. Read `EntryAuthorizationTest.php`
 first: it documents the security model by attacking it. `ExampleTest.php` is
 the Laravel default and covers nothing.
 
-The schema rules are spread over four files that are easy to confuse:
+The schema rules are spread over six files that are easy to confuse:
 `SchemaFieldTypeTest` (which types exist), `SchemaFieldKeysTest` (which keys
 a field may carry), `SchemaValidationRulesTest` (the `validation` string vs
-the type), `RequiredFieldTest` (the `required` flag).
+the type), `RequiredFieldTest` (the `required` flag), `SchemaFieldNamesTest`
+(names must be unique) and `SchemaErrorKeyTest` (which request field a
+complaint is reported against).
 
 JS tests sit **beside** their source as `resources/js/lib/*.test.js`.
 
@@ -130,8 +132,8 @@ JS tests sit **beside** their source as `resources/js/lib/*.test.js`.
 ## Commands
 
 ```bash
-php artisan test                    # 134 tests
-npm test                            # 104 tests
+php artisan test                    # 142 tests
+npm test                            # 106 tests
 npm run build
 php artisan schema:sync-field-types # after changing field type constants
 ```
@@ -198,7 +200,7 @@ Started from a repo that would not boot (eight files of merge conflicts).
 Worked through a prioritised list; every item is either done or recorded in
 `CHANGELOG.md` with its reasoning.
 
-- **134 PHP tests, 104 JS tests**, all passing. Build clean.
+- **142 PHP tests, 106 JS tests**, all passing. Build clean.
 - **The project has a commercial goal as of 2026-08-30**, and it now decides
   what gets worked on. A multilingual CMS that feeds client sites, owned
   outright, for a one-person web agency: **one installation per client site**,
