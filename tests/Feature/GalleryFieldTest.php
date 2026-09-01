@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Module;
 use App\Models\User;
+use App\Services\SchemaRuleBuilder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -197,6 +198,129 @@ class GalleryFieldTest extends TestCase
 
         $this->assertArrayNotHasKey('caption', $stored);
         $this->assertSame('/storage/uploads/sea.jpg', $stored['url']);
+    }
+
+    /**
+     * A gallery is the first field type that repeats, so before it every field
+     * held one scalar and the request bounded itself. Without a ceiling, "how
+     * many" had no answer and one row could carry an unbounded payload.
+     */
+    public function test_the_number_of_images_is_capped_by_default(): void
+    {
+        $module = $this->moduleWith();
+
+        $tooMany = array_map(
+            fn($i) => ['url' => "/storage/uploads/{$i}.jpg"],
+            range(1, SchemaRuleBuilder::GALLERY_MAX_IMAGES + 1)
+        );
+
+        $this->postEntry($module, $tooMany)->assertStatus(422);
+
+        $this->postEntry($module, array_slice($tooMany, 0, SchemaRuleBuilder::GALLERY_MAX_IMAGES))
+            ->assertCreated();
+    }
+
+    /**
+     * The default ceiling must not override a stricter one the schema asked
+     * for - it is a backstop, not a policy.
+     */
+    public function test_the_schemas_own_limit_still_applies_under_the_default(): void
+    {
+        $module = $this->moduleWith(['validation' => 'max:2']);
+
+        $this->postEntry($module, [
+            ['url' => '/storage/uploads/a.jpg'],
+            ['url' => '/storage/uploads/b.jpg'],
+            ['url' => '/storage/uploads/c.jpg'],
+        ])->assertStatus(422);
+    }
+
+    public function test_a_url_longer_than_the_column_can_sensibly_hold_is_rejected(): void
+    {
+        $module = $this->moduleWith();
+
+        $this->postEntry($module, [['url' => str_repeat('a', 3000)]])
+            ->assertStatus(422);
+    }
+
+    /**
+     * The gallery was only ever exercised through POST. An update carries a
+     * list that came *out* of the database back through the same rules.
+     */
+    public function test_an_update_keeps_the_gallery(): void
+    {
+        $module = $this->moduleWith();
+
+        $this->postEntry($module, [
+            ['url' => '/storage/uploads/a.jpg', 'alt' => ['el' => 'Ένα']],
+            ['url' => '/storage/uploads/b.jpg'],
+        ])->assertCreated();
+
+        $entry = $module->entries()->sole();
+
+        $this->actingAs($this->owner)
+            ->putJson("/api/modules/{$module->slug}/entries/{$entry->id}", [
+                'data' => ['photos' => $entry->data['photos']],
+            ])
+            ->assertOk();
+
+        $this->assertSame(
+            ['/storage/uploads/a.jpg', '/storage/uploads/b.jpg'],
+            array_column($entry->fresh()->data['photos'], 'url')
+        );
+        $this->assertSame('Ένα', $entry->fresh()->data['photos'][0]['alt']['el']);
+    }
+
+    public function test_an_update_can_reorder_and_extend_the_gallery(): void
+    {
+        $module = $this->moduleWith();
+
+        $this->postEntry($module, [
+            ['url' => '/storage/uploads/a.jpg'],
+            ['url' => '/storage/uploads/b.jpg'],
+        ])->assertCreated();
+
+        $entry = $module->entries()->sole();
+
+        $this->actingAs($this->owner)
+            ->putJson("/api/modules/{$module->slug}/entries/{$entry->id}", [
+                'data' => ['photos' => [
+                    ['url' => '/storage/uploads/b.jpg'],
+                    ['url' => '/storage/uploads/c.jpg'],
+                    ['url' => '/storage/uploads/a.jpg'],
+                ]],
+            ])
+            ->assertOk();
+
+        $this->assertSame(
+            ['/storage/uploads/b.jpg', '/storage/uploads/c.jpg', '/storage/uploads/a.jpg'],
+            array_column($entry->fresh()->data['photos'], 'url')
+        );
+    }
+
+    /**
+     * `build()` serves module creation and entry validation, and the two carry
+     * different fields. An error keyed `schema` on an entry request names a
+     * field that request does not have - TASKS.md #39.
+     */
+    public function test_a_schema_error_is_keyed_to_a_field_the_request_actually_has(): void
+    {
+        $this->actingAs($this->owner)
+            ->postJson('/api/modules', [
+                'name' => 'Rooms',
+                'schema' => [['name' => 'photos', 'type' => 'gallery', 'translatable' => true]],
+            ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('schema');
+
+        // Written straight to the database, which is the only way this schema
+        // can exist - and the case the throw is there for.
+        $module = $this->moduleWith(['translatable' => true]);
+
+        $this->postEntry($module, [['url' => '/storage/uploads/a.jpg']])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('data')
+            ->assertJsonMissingValidationErrors('schema');
     }
 
     /**

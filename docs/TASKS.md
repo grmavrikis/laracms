@@ -587,21 +587,6 @@ the process accumulates queries in memory, and any other query-count
 assertion would see entries from earlier tests — reporting the failure in the
 wrong test. `try`/`finally`, or disabling before asserting, decouples them.
 
-### 39. Schema errors are keyed to fields the request does not have
-
-`SchemaRuleBuilder` now serves two different requests, and its exception keys
-suit only one each:
-
-- `unsupportedType()` throws keyed **`data`**, but `ModuleController::store`
-  calls `build()`, and a module-creation request has no `data` field.
-  Unreachable today only because `Rule::in` and the `required` rule catch bad
-  and missing types first — adding a type to `SUPPORTED_TYPES` without a
-  match arm would expose it.
-- `assertCustomRulesFit()` throws keyed **`schema`**, and is also reached
-  from entry validation, where no `schema` field exists. It lands in the
-  banner via `messagesNotForFields`, which happens to be right, but by
-  accident rather than design.
-
 ### 40. `currentLangCode` default is dead
 
 `EntriesTable:9` declares `currentLangCode = 'en'`, but `EntriesManager`

@@ -25,6 +25,8 @@ class UpdateEntryRequest extends FormRequest
     {
         // Taken from the Module in the URL, not from a global Entry lookup:
         // the scoped binding guarantees the Entry belongs to this Module.
-        return SchemaRuleBuilder::build($this->route('module')->schema);
+        //
+        // Keyed `data`, the field this request carries - see StoreEntryRequest.
+        return SchemaRuleBuilder::build($this->route('module')->schema, 'data');
     }
 }

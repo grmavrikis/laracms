@@ -31,4 +31,29 @@ export const signIn = async (email, password) => {
     return data.user;
 };
 
+/**
+ * Send one image to the upload endpoint and return the URL it was stored at.
+ *
+ * The endpoint takes a single file per request, so a gallery calls this once
+ * per file. The path, the field name the controller reads, and the multipart
+ * header belong here rather than at each call site: two copies existed, and
+ * the upload contract has changes queued against it — #50 drops `svg` from the
+ * accepted list, #51 makes an upload owned so it can be cleaned up — each of
+ * which would otherwise have to be made twice.
+ *
+ * Rejections propagate. The endpoint refuses by type and by size, and those
+ * reasons are worth showing rather than being replaced with "failed", so
+ * wording is left to the caller and `errorSummary`.
+ */
+export const uploadImage = async (file) => {
+    const body = new FormData();
+    body.append('image', file);
+
+    const { data } = await api.post('/upload', body, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+    });
+
+    return data.url;
+};
+
 export default api;

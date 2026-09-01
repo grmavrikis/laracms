@@ -877,3 +877,87 @@ images in order, Greek alt text surviving the round trip, and 422 for an empty
 required gallery, an image with no URL, and a translatable gallery.
 
 **120 PHP tests, 92 JS tests.**
+
+### What the review of it found
+
+Eleven findings, all fixed. Three were visible to a user, and the worst was
+not in the editor at all.
+
+#### The entries table showed `[object Object]`
+
+`EntriesTable` had branches for rich text and for booleans, and a gallery fell
+past both into `String(value)` on an array of objects. Every row of the first
+market's central module read
+`"[object Object],[object Object],[object Obj..."` in the photos column - the
+only place a saved gallery appears outside the edit form.
+
+**Decision: a `galleryPreview()` helper, and a count rather than thumbnails.**
+The table renders it the way it renders `docToText()` for rich text. No
+derivative images exist, so the stored file is the full upload: fifteen rows of
+those would be tens of megabytes to draw a list. Thumbnails belong with the
+media library, where the derivatives will.
+
+#### Uploads discarded whatever was done while they ran
+
+`handleFiles` closed over the list as it was when the handler was created, so
+appending after the await overwrote anything changed meanwhile - a removed
+image came back, typed alt text vanished. Uploading fifteen photos over a slow
+connection is the intended use, so the window was wide.
+
+Fixed by passing a function rather than a value, with `setStaticField`
+applying it to the list as it stands. The synchronous handlers still pass
+values; those are computed inside the event and cannot be stale.
+
+#### A field changed from `image` showed empty, then failed to save
+
+`toGallery()` defended what was drawn but not what was submitted, so an entry
+saved before the type change showed "No images yet" over a photograph that was
+still there, and saving returned a 422 that nothing on screen explained.
+
+`fromStored()` now normalises on the way *into* the form and **carries a bare
+URL over as the first image** rather than filtering it away - the photograph
+survives the type change instead of being dropped and then overwritten.
+
+#### Two fields could share a name, and nothing said so
+
+Not a gallery problem, found through one. A name is the key its value is stored
+under, so two fields sharing one fight over the same value: the later field's
+rules replaced `data.{name}` while the earlier one's sub-rules stayed behind.
+With a gallery first and a string second, the wildcards then expanded against a
+string, matched nothing, and **the entry saved with the gallery rules doing
+nothing at all**.
+
+Refused now in `build()`, which is the one gate both module creation and entry
+validation pass through. Checked first that no stored module has duplicates.
+
+#### `build()` now knows which field to complain about — closing #39
+
+Its three throws were keyed `schema` or `data` by guesswork, and `build()`
+serves two requests that carry different fields. `TASKS.md` #39 recorded it;
+the gallery added a fourth instance before it was fixed.
+
+`build()` takes the attribute to report against: `schema` when a Module is
+being created, `data` from the Entry FormRequests. #39 is resolved and removed.
+
+#### The rest
+
+- **A gallery was unbounded** - the first repeating type, so "how many" had no
+  answer. A backstop of 100 images, applied only when the schema sets no
+  stricter limit of its own, and 2048 characters on a URL that in practice is
+  about fifty.
+- **The upload contract had two copies.** `uploadImage()` in `lib/api.js` now
+  owns the path, the field name and the multipart header, beside `signIn()`
+  which owns the sign-in ordering for the same reason. #50 and #51 both change
+  that contract, and the second copy is the one that gets missed.
+- **The list key carried the index**, so moving an image re-keyed every one
+  below it and React rebuilt those rows instead of moving them, losing focus in
+  an alt box mid-edit. Keyed by URL alone; each upload is stored under its own
+  generated name.
+- **Gallery was only ever tested through POST.** An update carries a list that
+  came back out of the database through the same rules; two tests now cover it.
+- Field-kind predicates sit in two classes, and the rule is now written down
+  rather than inferred: a predicate lives beside the constant that lists its
+  types, which is why rich text's is on `RichTextDocument` - that class owns
+  the readable-versus-creatable distinction and does the normalising.
+
+**130 PHP tests, 104 JS tests.**

@@ -1,6 +1,6 @@
 // resources/js/components/EntryForm.jsx
 import { useState } from 'react';
-import api from '../lib/api';
+import api, { uploadImage } from '../lib/api';
 import RichTextEditor from './RichTextEditor';
 import GalleryEditor from './GalleryEditor';
 import { isRichTextField, emptyDoc } from '../lib/richText';
@@ -231,15 +231,10 @@ export default function EntryForm({ moduleSlug, schema, languages, onSaved, onCa
                 const file = e.target.files[0];
                 if (!file) return;
 
-                const formData = new FormData();
-                formData.append('image', file);
-
                 try {
-                    // Upload file asynchronously and get back the public URL/path
-                    const res = await api.post('/upload', formData, {
-                        headers: { 'Content-Type': 'multipart/form-data' }
-                    });
-                    onChange(res.data.url);
+                    // The endpoint, its field name and the multipart header
+                    // live in lib/api.js, shared with the gallery editor.
+                    onChange(await uploadImage(file));
                 } catch (err) {
                     console.error('Upload Error:', err);
                     // The upload endpoint rejects by type and size, and those

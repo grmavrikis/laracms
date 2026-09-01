@@ -24,6 +24,10 @@ class StoreEntryRequest extends FormRequest
     public function rules(): array
     {
         // Already resolved by route model binding - no second lookup.
-        return SchemaRuleBuilder::build($this->route('module')->schema);
+        //
+        // `data` is what this request carries, so a complaint about the schema
+        // is reported against a field it actually has. Keyed `schema` it named
+        // one that only exists when a Module is being created.
+        return SchemaRuleBuilder::build($this->route('module')->schema, 'data');
     }
 }

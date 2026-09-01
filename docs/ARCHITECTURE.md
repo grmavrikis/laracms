@@ -229,6 +229,18 @@ appears anywhere but at `data.{field}.{lang}` — deliberate, and the reason is
 in CHANGELOG.md §14. Only `url` and `alt` have rules, so nothing else in the
 request reaches the column.
 
+Being the one type that repeats, a gallery is also the one with a **default
+ceiling**: at most `SchemaRuleBuilder::GALLERY_MAX_IMAGES` images and 2048
+characters of URL, applied only where the schema sets no stricter limit itself.
+Every other field holds one scalar, so a request bounds itself.
+
+**Two fields may not share a name.** The name is the key the value is stored
+under, so a duplicate is two fields writing to one place — refused in `build()`,
+which both module creation and entry validation pass through.
+`SchemaRuleBuilder::build()` takes the request attribute to report against
+(`schema` when a Module is created, `data` from the Entry FormRequests) so a
+complaint always names a field the request actually has.
+
 `text` is the one rich-text type. `richtext` and `textarea` were once
 accepted as aliases that behaved identically and are no longer creatable,
 but they remain *readable*: `RichTextDocument::LEGACY_FIELD_TYPES` lists

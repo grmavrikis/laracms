@@ -11,7 +11,7 @@ first market tourist accommodation. See **Where we are** at the bottom, and
 You are reading this because it loads automatically. It exists so a fresh
 session can be useful in ten minutes without reading the repo.
 
-**117 tracked files. About 25 are worth reading.** `vendor/` and
+**127 tracked files. About 25 are worth reading.** `vendor/` and
 `node_modules/` are 179 directories of noise — never grep or read them except
 to answer one precise question about framework behaviour.
 
@@ -64,17 +64,19 @@ The `lib/` helpers are pure functions and carry the interesting decisions:
 | `resources/js/lib/apiErrors.js` | Turns an axios rejection into wording. Used by all three forms. |
 | `resources/js/lib/pagination.js` | Reduces Laravel's paginator envelope. |
 | `resources/js/lib/languages.js` | `getLangCode` + which language is the default. |
-| `resources/js/lib/api.js` | One axios client. `signIn()` owns the CSRF-then-credentials ordering. |
+| `resources/js/lib/api.js` | One axios client. `signIn()` owns the CSRF-then-credentials ordering; `uploadImage()` owns the upload contract, shared by both editors. |
 | `resources/js/lib/fieldTypes.json` | **Generated** by `php artisan schema:sync-field-types`. Never edit by hand. |
 
 Components, in order of how much they will surprise you:
 `EntryForm.jsx` (largest — dynamic fields, translations, error display),
 `EntriesManager.jsx` (fetching, pagination, language state),
-`ModuleBuilder.jsx`, `EntriesTable.jsx`, `Login.jsx`, `app.jsx`.
+`ModuleBuilder.jsx`, `EntriesTable.jsx`, `GalleryEditor.jsx` (several images
+on one entry, alt text per language), `RichTextEditor.jsx` (Tiptap),
+`Login.jsx`, `app.jsx`.
 
 ### 4. Tests — read one before writing one
 
-`tests/Feature/` has 16 files, each named for what it pins — the suite is the
+`tests/Feature/` has 17 files, each named for what it pins — the suite is the
 best description of intended behaviour. Read `EntryAuthorizationTest.php`
 first: it documents the security model by attacking it. `ExampleTest.php` is
 the Laravel default and covers nothing.
@@ -128,8 +130,8 @@ JS tests sit **beside** their source as `resources/js/lib/*.test.js`.
 ## Commands
 
 ```bash
-php artisan test                    # 120 tests
-npm test                            # 92 tests
+php artisan test                    # 130 tests
+npm test                            # 104 tests
 npm run build
 php artisan schema:sync-field-types # after changing field type constants
 ```
@@ -196,7 +198,7 @@ Started from a repo that would not boot (eight files of merge conflicts).
 Worked through a prioritised list; every item is either done or recorded in
 `CHANGELOG.md` with its reasoning.
 
-- **120 PHP tests, 92 JS tests**, all passing. Build clean.
+- **130 PHP tests, 104 JS tests**, all passing. Build clean.
 - **The project has a commercial goal as of 2026-08-30**, and it now decides
   what gets worked on. A multilingual CMS that feeds client sites, owned
   outright, for a one-person web agency: **one installation per client site**,

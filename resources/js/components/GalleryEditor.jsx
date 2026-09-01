@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import api from '../lib/api';
+import { uploadImage } from '../lib/api';
 import { errorSummary } from '../lib/apiErrors';
 import { getLangCode } from '../lib/languages';
 import {
@@ -40,20 +40,11 @@ export default function GalleryEditor({ value, onChange, languages = [], onError
         // allSettled, not all: one rejected upload would otherwise discard
         // every file that did succeed alongside it. The successes are kept and
         // the failures reported.
-        const results = await Promise.allSettled(
-            files.map((file) => {
-                const body = new FormData();
-                body.append('image', file);
-
-                return api.post('/upload', body, {
-                    headers: { 'Content-Type': 'multipart/form-data' },
-                });
-            })
-        );
+        const results = await Promise.allSettled(files.map(uploadImage));
 
         const uploaded = results
             .filter((r) => r.status === 'fulfilled')
-            .map((r) => galleryItem(r.value.data.url));
+            .map((r) => galleryItem(r.value));
 
         if (uploaded.length > 0) {
             // Appended to the list *as it stands*, not to `items`, which was
@@ -105,7 +96,14 @@ export default function GalleryEditor({ value, onChange, languages = [], onError
                 <ul className="space-y-3">
                     {items.map((item, index) => (
                         <li
-                            key={`${item.url}-${index}`}
+                            // Keyed by URL alone. With the index in the key,
+                            // moving an image changed the key of every one
+                            // below it, so React discarded and rebuilt those
+                            // rows - losing focus in an alt box mid-edit -
+                            // instead of moving them. Each upload is stored
+                            // under its own generated name, so two images in
+                            // one gallery cannot share a URL.
+                            key={item.url}
                             className="flex gap-4 rounded-lg border border-gray-200 bg-gray-50/50 p-3"
                         >
                             <div className="h-20 w-20 shrink-0 overflow-hidden rounded-md border border-gray-200 bg-white">

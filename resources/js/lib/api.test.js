@@ -19,7 +19,41 @@ vi.mock('axios', () => ({
     default: { create: vi.fn(() => instance) },
 }));
 
-const { signIn } = await import('./api');
+const { signIn, uploadImage } = await import('./api');
+
+describe('uploadImage', () => {
+    beforeEach(() => {
+        calls.length = 0;
+        instance.post.mockClear();
+    });
+
+    it('sends the file under the field name the endpoint expects', async () => {
+        // No mockResolvedValueOnce here: that replaces the implementation, so
+        // the shared `calls` array this asserts on would never be written to.
+        await uploadImage(new File(['x'], 'sea.jpg', { type: 'image/jpeg' }));
+
+        expect(calls[0].url).toBe('/upload');
+        expect(calls[0].body).toBeInstanceOf(FormData);
+        expect(calls[0].body.get('image')).toBeInstanceOf(File);
+    });
+
+    it('returns the stored URL rather than the response', async () => {
+        instance.post.mockResolvedValueOnce({ data: { url: '/storage/uploads/sea.jpg' } });
+
+        await expect(uploadImage(new File(['x'], 'sea.jpg')))
+            .resolves.toBe('/storage/uploads/sea.jpg');
+    });
+
+    it('lets a rejection propagate, so callers can word it themselves', async () => {
+        // The endpoint refuses by type and by size, and those reasons are
+        // worth showing rather than being replaced with "failed".
+        instance.post.mockRejectedValueOnce(Object.assign(new Error('Unprocessable'), {
+            response: { status: 422, data: { errors: { image: ['The image must be an image.'] } } },
+        }));
+
+        await expect(uploadImage(new File(['x'], 'notes.txt'))).rejects.toThrow('Unprocessable');
+    });
+});
 
 describe('signIn', () => {
     beforeEach(() => {
