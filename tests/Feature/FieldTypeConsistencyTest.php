@@ -39,6 +39,35 @@ class FieldTypeConsistencyTest extends TestCase
         $this->assertSame(SchemaRuleBuilder::SUPPORTED_TYPES, $generated['supported']);
         $this->assertSame(RichTextDocument::FIELD_TYPES, $generated['richText']);
         $this->assertSame(RichTextDocument::LEGACY_FIELD_TYPES, $generated['legacyRichText']);
+        $this->assertSame(SchemaRuleBuilder::GALLERY_FIELD_TYPES, $generated['gallery']);
+    }
+
+    /**
+     * The form renders a gallery editor for these, so offering one the schema
+     * cannot accept would put an editor in front of a field that never saves.
+     */
+    public function test_every_gallery_type_is_a_supported_type(): void
+    {
+        foreach (SchemaRuleBuilder::GALLERY_FIELD_TYPES as $type)
+        {
+            $this->assertContains(
+                $type,
+                SchemaRuleBuilder::SUPPORTED_TYPES,
+                "Gallery type '{$type}' is not a creatable field type."
+            );
+        }
+    }
+
+    /**
+     * A field cannot be both, and the two editors would fight over the value:
+     * one expects a document object, the other a list of images.
+     */
+    public function test_no_type_is_both_rich_text_and_a_gallery(): void
+    {
+        $this->assertSame(
+            [],
+            array_intersect(RichTextDocument::FIELD_TYPES, SchemaRuleBuilder::GALLERY_FIELD_TYPES)
+        );
     }
 
     public function test_every_rich_text_type_is_a_supported_type(): void

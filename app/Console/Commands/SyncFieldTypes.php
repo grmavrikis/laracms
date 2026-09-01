@@ -36,6 +36,7 @@ class SyncFieldTypes extends Command
             'supported' => SchemaRuleBuilder::SUPPORTED_TYPES,
             'richText' => RichTextDocument::FIELD_TYPES,
             'legacyRichText' => RichTextDocument::LEGACY_FIELD_TYPES,
+            'gallery' => SchemaRuleBuilder::GALLERY_FIELD_TYPES,
         ];
     }
 

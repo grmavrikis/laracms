@@ -7,7 +7,8 @@
         "date",
         "datetime",
         "select",
-        "image"
+        "image",
+        "gallery"
     ],
     "richText": [
         "text"
@@ -15,5 +16,8 @@
     "legacyRichText": [
         "richtext",
         "textarea"
+    ],
+    "gallery": [
+        "gallery"
     ]
 }

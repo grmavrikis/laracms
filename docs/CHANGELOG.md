@@ -797,3 +797,83 @@ that row — it would have passed with the seeder writing no language at all.
   will ask about when it replaces the constant.
 
 **102 → 106 tests.**
+
+---
+
+## 14. Several images on one entry
+
+The first item of Phase 1, and a blocker rather than a feature: `image` holds
+one URL and no field type repeated, so an entry could carry a single
+photograph. For tourist accommodation that is the product missing — a room
+needs eight to fifteen, and nobody books an apartment from one picture. The
+"rooms" module built without a line of code in the existing builder and came
+out unusable.
+
+### The shape, and why it nests
+
+```
+data.photos = [ { url: '…', alt: { el: '…', en: '…' } }, … ]
+```
+
+**A gallery is never translatable, and refuses the flag.** Translations
+otherwise live at `data.{field}.{lang}`, and a translatable gallery would
+therefore store *a different set of photographs per language* — which nobody
+wants. The photographs are one set; only their description differs.
+
+So the translation sits one level down, on each image. This is the single place
+in the schema where a per-language map appears anywhere but at
+`data.{field}.{lang}`, and it is deliberate. Alt text had to be translatable:
+selling multilingual SEO while shipping images whose alt text cannot be
+translated would contradict the pitch.
+
+Ticking **Lang** on a gallery is refused when the Module is created — where the
+author is watching — rather than ignored. Silent acceptance is what this schema
+has had removed from it repeatedly. The module form disables the checkbox too,
+and clears it when a field's type is changed to gallery, so the form cannot
+assemble a schema the API will reject.
+
+### What the rules describe
+
+```
+data.photos       the list, from the field's own rules
+data.photos.*     one image, an object rather than a bare URL
+data.photos.*.url required
+data.photos.*.alt optional, keyed by language code
+```
+
+Only these keys have rules, and Laravel keeps only what was validated — so a
+key nobody declared cannot ride along into the JSON column. Verified live: a
+smuggled `caption` did not survive the round trip.
+
+Two things fall out of the shape rather than needing code:
+
+- **`required` bites here**, unlike on a rich-text field (#36), because an
+  empty gallery really is an empty array rather than a non-empty document.
+- **Size rules mean what they say.** `max:5` counts images, which is what an
+  author writing it intends — unlike rich text, where it would count document
+  nodes and is refused for exactly that reason.
+
+### The rest of it
+
+`GALLERY_FIELD_TYPES` sits next to `SUPPORTED_TYPES` so there is one place to
+look for what a type is, and `schema:sync-field-types` carries it to the
+frontend like the others — `FieldTypeConsistencyTest` gained a check that every
+gallery type is creatable, and that no type is both rich text and a gallery,
+since the two editors would fight over the value.
+
+The editor is its own component rather than more of `EntryForm`, which is
+already the largest file in the app. It uploads several files at once through
+the existing single-image endpoint, and does so with **`allSettled` rather than
+`all`**: one rejected upload would otherwise discard every file that succeeded
+alongside it. Reordering is up/down buttons — drag-and-drop is a great deal
+more work for a list of ten.
+
+`toGallery()` filters what it is given rather than trusting it. A schema can be
+edited straight in the database, so a field that used to be an `image` still
+holds a bare string, and spreading that would render one thumbnail per letter.
+
+Verified live on MySQL: a module with a gallery field, an entry with three
+images in order, Greek alt text surviving the round trip, and 422 for an empty
+required gallery, an image with no URL, and a translatable gallery.
+
+**120 PHP tests, 92 JS tests.**

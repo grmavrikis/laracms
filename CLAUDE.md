@@ -31,7 +31,7 @@ That is enough to take instructions. Read the fourth when you need the *why*:
 
 | File | What you get |
 |---|---|
-| `docs/CHANGELOG.md` | Why the code looks the way it does — 13 themed sections, each: what was wrong, what was decided, how it was checked. **Most entries are decisions, not fixes.** Skim the headings; read a section before changing what it describes. |
+| `docs/CHANGELOG.md` | Why the code looks the way it does — 14 themed sections, each: what was wrong, what was decided, how it was checked. **Most entries are decisions, not fixes.** Skim the headings; read a section before changing what it describes. |
 
 `README.md` is for a human running the app. Read it only if you need setup.
 
@@ -60,6 +60,7 @@ The `lib/` helpers are pure functions and carry the interesting decisions:
 | File | Why |
 |---|---|
 | `resources/js/lib/richText.js` | Document helpers + which field types are rich text. |
+| `resources/js/lib/gallery.js` | List helpers for the `gallery` type. Pure; the editor holds no logic. |
 | `resources/js/lib/apiErrors.js` | Turns an axios rejection into wording. Used by all three forms. |
 | `resources/js/lib/pagination.js` | Reduces Laravel's paginator envelope. |
 | `resources/js/lib/languages.js` | `getLangCode` + which language is the default. |
@@ -73,7 +74,7 @@ Components, in order of how much they will surprise you:
 
 ### 4. Tests — read one before writing one
 
-`tests/Feature/` has 15 files, each named for what it pins — the suite is the
+`tests/Feature/` has 16 files, each named for what it pins — the suite is the
 best description of intended behaviour. Read `EntryAuthorizationTest.php`
 first: it documents the security model by attacking it. `ExampleTest.php` is
 the Laravel default and covers nothing.
@@ -127,8 +128,8 @@ JS tests sit **beside** their source as `resources/js/lib/*.test.js`.
 ## Commands
 
 ```bash
-php artisan test                    # 106 tests
-npm test                            # 72 tests
+php artisan test                    # 120 tests
+npm test                            # 92 tests
 npm run build
 php artisan schema:sync-field-types # after changing field type constants
 ```
@@ -195,7 +196,7 @@ Started from a repo that would not boot (eight files of merge conflicts).
 Worked through a prioritised list; every item is either done or recorded in
 `CHANGELOG.md` with its reasoning.
 
-- **106 PHP tests, 72 JS tests**, all passing. Build clean.
+- **120 PHP tests, 92 JS tests**, all passing. Build clean.
 - **The project has a commercial goal as of 2026-08-30**, and it now decides
   what gets worked on. A multilingual CMS that feeds client sites, owned
   outright, for a one-person web agency: **one installation per client site**,
@@ -223,9 +224,13 @@ Worked through a prioritised list; every item is either done or recorded in
   wrong one answered 401.
 - **Next up: Phase 1**, which is the real gap: **the CMS stores content, has no
   way to show it to anybody, and no way to receive anything back.** Start with
-  **#68** — an entry cannot hold more than one image today, which makes the
-  first market's central module unusable, and it changes the field-type system,
-  so anything built before it must be revisited.
+  **#55**, the Tiptap-to-HTML renderer: nothing turns a stored document into
+  markup, so no rich text can appear on a public page at all. #56, #57 and #58
+  are one piece of work after it — `status`, `sort_order` and per-language
+  slugs as indexed columns — and #59 needs all four.
+- **#68 is done** (CHANGELOG §14). An entry can hold an ordered list of images,
+  each with alt text per language; a gallery refuses the translatable flag,
+  because one set of photographs per language is not a thing anybody wants.
 - **#36 is no longer next**, and neither is most of #36–#53. They are recorded,
   real, and deliberately not being worked on. Grinding through them before the
   MVP ships is the most plausible way to spend three months and reach no client.

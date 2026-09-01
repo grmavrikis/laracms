@@ -59,7 +59,7 @@ profitability.
 - [ ] #59 public Blade routes, page cache cleared on publish, sitemap + hreflang
 - [ ] #60 `singleton` modules
 - [ ] #61 core/site boundary drawn
-- [ ] #68 gallery field — several images on one entry
+- [x] #68 gallery field — several images on one entry *(done — CHANGELOG §14)*
 - [ ] #66 enquiries
 - [ ] #67 site settings
 - [ ] #65 booking hand-off form
@@ -110,12 +110,14 @@ behind would have shipped the change half-done.
 
 ### Phase 1 — content reaches the public (6–8 days)
 
-**#55, #56, #57, #58, #59, #60, #61, #68, #66, #67.** This is the real gap: the
+**#68 done.** Remaining: **#55, #56, #57, #58, #59, #60, #61, #66, #67.** This is the real gap: the
 CMS stores content today, has no way to show it to anybody, and no way to
 receive anything back.
 
-Do **#68** early. It changes the field-type system, and every module built
-before it will have to be revisited afterwards.
+**#68 was done first** because it changed the field-type system, and anything
+built before it would have had to be revisited. Of what is left, #56, #57 and
+#58 are one piece of work - three indexed columns and a table - and #59 needs
+all of them plus #55.
 
 ### Phase 2 — the demo site, as client #0 (3–5 days)
 
@@ -128,8 +130,8 @@ template in the library.
 Note that **rooms, facilities and the home-page slider need no engineering at
 all**: they are modules built in the existing builder, and the slider gets its
 ordering free from #57 (one entry per slide). That is the schema-driven design
-working as intended — which is exactly why #68 has to land first, since without
-it the most important of those modules cannot hold its content.
+working as intended — and the reason #68 came first is that without it the
+most important of those modules could not hold its content.
 
 ### Phase 3 — the accommodation back office
 
@@ -436,29 +438,6 @@ Without it these values live inside templates, which means **the client cannot
 change their own phone number without calling you.** That contradicts the one
 promise the product makes, and it is the kind of call that arrives on a Sunday.
 Half a day, and it removes a category of support permanently.
-
-### 68. Several images on one entry — a gallery field *(blocking)*
-
-`SchemaRuleBuilder::SUPPORTED_TYPES` offers `image`, which holds a single URL,
-and there is no repeatable field of any kind. An entry therefore cannot carry a
-set of images.
-
-For tourist accommodation this is fatal rather than awkward. A room needs 8–15
-photographs because **the photographs are the product** — nobody books an
-apartment from one picture. The "rooms" module builds without a line of code in
-the existing builder and comes out unusable.
-
-Needs a `gallery` type; an ordered list of images as its value; rules for it in
-`SchemaRuleBuilder`; an editor in `EntryForm` that uploads several files,
-reorders and removes them; and `php artisan schema:sync-field-types` re-run
-afterwards, which `FieldTypeConsistencyTest` will insist on.
-
-Two decisions to take while building it:
-
-- **Alt text per language.** Selling multilingual SEO while shipping images
-  whose alt text cannot be translated contradicts the pitch.
-- It is **not** the media library. A gallery is several images on one entry;
-  the library is reuse of one image across entries, and stays deferred.
 
 ### 69. Redirects *(first real client)*
 

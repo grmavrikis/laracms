@@ -2,7 +2,9 @@
 import { useState } from 'react';
 import api from '../lib/api';
 import RichTextEditor from './RichTextEditor';
+import GalleryEditor from './GalleryEditor';
 import { isRichTextField, emptyDoc } from '../lib/richText';
+import { isGalleryField, emptyGallery } from '../lib/gallery';
 import { validationErrors, errorSummary, messagesForField, messagesNotForFields } from '../lib/apiErrors';
 import { getLangCode, defaultLanguage } from '../lib/languages';
 
@@ -12,11 +14,12 @@ const coerce = (type, raw) => {
     return raw;
 };
 
-// Rich-text fields hold a document object, not a string, so they start as an
-// empty document rather than ''.
+// Rich-text fields hold a document object and gallery fields a list, not a
+// string, so neither starts as ''.
 const emptyValueFor = (field) => {
     if (field.type === 'boolean') return false;
     if (isRichTextField(field)) return emptyDoc();
+    if (isGalleryField(field)) return emptyGallery();
     return '';
 };
 
@@ -147,6 +150,17 @@ export default function EntryForm({ moduleSlug, schema, languages, onSaved, onCa
                         onChange={(content) => onChange(content)}
                     />
                 </div>
+            );
+        }
+
+        if (isGalleryField(field)) {
+            return (
+                <GalleryEditor
+                    value={value}
+                    onChange={onChange}
+                    languages={languages}
+                    onError={setSummary}
+                />
             );
         }
 

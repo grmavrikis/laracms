@@ -23,7 +23,23 @@ class SchemaRuleBuilder
         'datetime',
         'select',
         'image',
+        'gallery',
     ];
+
+    /**
+     * Field types whose value is an ordered list of images.
+     *
+     * `image` holds one URL, and until this existed no field type repeated at
+     * all - so a room could carry a single photograph, which for tourist
+     * accommodation is the whole product missing. Kept as a list, next to
+     * SUPPORTED_TYPES, so there is one place to look for what a type is.
+     */
+    public const GALLERY_FIELD_TYPES = ['gallery'];
+
+    public static function isGalleryField(array $field): bool
+    {
+        return in_array($field['type'] ?? null, self::GALLERY_FIELD_TYPES, true);
+    }
 
     public static function build(array $schema): array
     {
@@ -41,6 +57,11 @@ class SchemaRuleBuilder
             }
 
             $isTranslatable = filter_var($field['translatable'] ?? false, FILTER_VALIDATE_BOOLEAN);
+
+            if ($isTranslatable && self::isGalleryField($field))
+            {
+                throw self::galleryCannotBeTranslatable($field);
+            }
 
             // Get base rules for the field type
             $typeRules = self::rulesForType($field);
@@ -93,9 +114,56 @@ class SchemaRuleBuilder
             {
                 $rules["data.{$name}"] = $fieldRules;
             }
+
+            if (self::isGalleryField($field))
+            {
+                $rules += self::galleryItemRules($name);
+            }
         }
 
         return $rules;
+    }
+
+    /**
+     * The shape of one image inside a gallery.
+     *
+     *     data.photos       => the list itself, from the field's own rules
+     *     data.photos.*     => one image, an object rather than a bare URL
+     *     data.photos.*.url => where the upload endpoint put the file
+     *     data.photos.*.alt => alt text, keyed by language code
+     *
+     * `alt` is a per-language map *inside* a field that is not translatable,
+     * which is the one place this schema nests translations anywhere but at
+     * `data.{field}.{lang}`. Deliberate: a translatable gallery would mean a
+     * different set of photographs per language, when the photographs are one
+     * set and only their description differs. A gallery therefore refuses the
+     * translatable flag outright, and carries the translation one level down.
+     *
+     * Only these keys have rules, and Laravel's validated payload keeps only
+     * what was validated - so nothing else riding along in the request reaches
+     * the JSON column.
+     *
+     * @return array<string, array<int, string>>
+     */
+    protected static function galleryItemRules(string $name): array
+    {
+        return [
+            "data.{$name}.*" => ['array'],
+            "data.{$name}.*.url" => ['required', 'string'],
+            "data.{$name}.*.alt" => ['nullable', 'array'],
+            "data.{$name}.*.alt.*" => ['nullable', 'string'],
+        ];
+    }
+
+    protected static function galleryCannotBeTranslatable(array $field): ValidationException
+    {
+        $name = $field['name'] ?? '(unnamed)';
+
+        return ValidationException::withMessages([
+            'schema' => "Field '{$name}' is a gallery and cannot be translatable: that would store a"
+                . ' different set of images for each language. The images are one set - it is their'
+                . ' alt text that is translated, and each image carries its own.',
+        ]);
     }
 
     protected static function rulesForType(array $field): array
@@ -122,6 +190,12 @@ class SchemaRuleBuilder
             'boolean' => ['boolean'],
             'date', 'datetime' => ['date'],
             'select' => self::buildSelectRules($field),
+            // An ordered list of images. Laravel checks the outer shape here;
+            // galleryItemRules() describes what one image looks like. A size
+            // rule counts the images, which is what "at most 5" should mean -
+            // unlike rich text, where it would count document nodes and is
+            // refused for exactly that reason.
+            'gallery' => ['array'],
             // Rich text is stored as an editor document (JSON tree), not HTML.
             // Laravel only checks the outer shape here; the tree itself is
             // validated node by node by RichTextDocument, since a recursive

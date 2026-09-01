@@ -3,6 +3,7 @@ import { useState, useRef } from 'react';
 import api from '../lib/api';
 import { errorSummary } from '../lib/apiErrors';
 import fieldTypes from '../lib/fieldTypes.json';
+import { isGalleryField } from '../lib/gallery';
 
 // Which types exist is the backend's decision, so the values come from the
 // generated file rather than being listed again here. Labels are UI wording and
@@ -17,6 +18,7 @@ const TYPE_LABELS = {
     datetime: 'Datetime',
     select: 'Select',
     image: 'Image',
+    gallery: 'Gallery',
 };
 
 const FIELD_TYPES = fieldTypes.supported.map((value) => ({
@@ -47,7 +49,20 @@ export default function ModuleBuilder({ onCreated, onCancel }) {
         setFields((prev) => prev.filter((f) => f._id !== id));
 
     const updateField = (id, key, value) =>
-        setFields((prev) => prev.map((f) => (f._id === id ? { ...f, [key]: value } : f)));
+        setFields((prev) => prev.map((f) => {
+            if (f._id !== id) return f;
+
+            const next = { ...f, [key]: value };
+
+            // A gallery cannot be translatable: that would store a different
+            // set of photographs for each language, when the photographs are
+            // one set and only their alt text differs. SchemaRuleBuilder
+            // refuses the combination, so the flag is cleared here rather than
+            // letting the form assemble a schema the API will reject.
+            if (key === 'type' && isGalleryField(next)) next.translatable = false;
+
+            return next;
+        }));
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -187,12 +202,21 @@ export default function ModuleBuilder({ onCreated, onCancel }) {
                                     />
                                 </div>
                                 <div className="sm:col-span-1 flex items-center justify-center sm:justify-start pt-2 sm:pt-0 gap-3">
-                                    <label className="flex items-center gap-1.5 text-sm text-gray-700 cursor-pointer select-none">
+                                    <label
+                                        className={`flex items-center gap-1.5 text-sm select-none ${isGalleryField(field)
+                                            ? 'text-gray-400 cursor-not-allowed'
+                                            : 'text-gray-700 cursor-pointer'
+                                            }`}
+                                        title={isGalleryField(field)
+                                            ? 'A gallery is one set of images for every language; only the alt text is translated.'
+                                            : undefined}
+                                    >
                                         <input
                                             type="checkbox"
                                             checked={field.translatable}
+                                            disabled={isGalleryField(field)}
                                             onChange={(e) => updateField(field._id, 'translatable', e.target.checked)}
-                                            className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                                            className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 disabled:opacity-40"
                                         />
                                         <span className="text-xs font-medium">Lang</span>
                                     </label>

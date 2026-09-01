@@ -205,13 +205,29 @@ comes first (`TASKS.md` #49, waiting on #52).
 
 `SchemaRuleBuilder::SUPPORTED_TYPES` is the **single list** of field types
 the system understands: `string`, `text`, `integer`, `boolean`, `date`,
-`datetime`, `select`, `image`. `ModuleController` validates incoming
+`datetime`, `select`, `image`, `gallery`. `ModuleController` validates incoming
 schemas against that same constant, so a Module cannot declare a type the
 rule builder is unable to handle. An unrecognised type throws rather than
 falling back to `string` — the old fallback hid the fact that `datetime`
 had no arm at all and was being validated as a plain string. A field with
 **no** type throws too, and says so in those words; the API cannot produce
 that shape, but a schema written straight to the database can.
+
+`gallery` is the one repeating type — an ordered list of images, each an object
+rather than a bare URL:
+
+```
+data.photos = [ { url: '…', alt: { el: '…', en: '…' } }, … ]
+```
+
+**A gallery is never translatable and refuses the flag** (`SchemaRuleBuilder`
+throws when the Module is created). A translatable one would store a different
+set of photographs per language; the photographs are one set and only their
+description differs, so the translation sits one level down on each image.
+That makes `alt` the single place in this schema where a per-language map
+appears anywhere but at `data.{field}.{lang}` — deliberate, and the reason is
+in CHANGELOG.md §14. Only `url` and `alt` have rules, so nothing else in the
+request reaches the column.
 
 `text` is the one rich-text type. `richtext` and `textarea` were once
 accepted as aliases that behaved identically and are no longer creatable,
@@ -281,8 +297,12 @@ from the panel's own origin — exactly what `RichTextDocument` exists to preven
 for rich text (`TASKS.md` #50).
 
 An upload is not linked to the Entry that references it and is never deleted
-(`TASKS.md` #51). A field holds **one** image; there is no repeatable or
-gallery type (#68).
+(`TASKS.md` #51) — which a `gallery` field makes worse, since removing an image
+from a list orphans a file exactly as deleting an entry does.
+
+A `gallery` field uploads several files through this same single-image
+endpoint, one request each, sent together and collected with `allSettled` so a
+single rejection does not discard the uploads beside it.
 
 ## 7. Rich text
 
