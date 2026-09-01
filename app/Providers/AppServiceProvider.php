@@ -11,6 +11,22 @@ use Illuminate\Support\Str;
 class AppServiceProvider extends ServiceProvider
 {
     /**
+     * Requests a minute on the API as a whole.
+     *
+     * This number and `SchemaRuleBuilder::GALLERY_MAX_IMAGES` were set
+     * independently, and a gallery upload is **one request per image**: at 120
+     * against 100 allowed images there were about fifteen requests of headroom
+     * for the panel's own traffic and the entry save that follows, so a second
+     * batch inside the same minute began answering 429 - which reaches the
+     * author as images that "could not be uploaded", reading as a problem with
+     * the files.
+     *
+     * `LoginRateLimitTest` asserts the relationship rather than this value, so
+     * raising either one without looking at the other fails there.
+     */
+    private const API_PER_MINUTE = 300;
+
+    /**
      * Register any application services.
      */
     public function register(): void
@@ -38,15 +54,14 @@ class AppServiceProvider extends ServiceProvider
     {
         // The broad limit, applied to every /api route by throttleApi().
         // Deliberately generous - it exists to stop a runaway client, not to
-        // police ordinary use of the panel, where saving one entry can be
-        // several requests in a row.
+        // police ordinary use of the panel.
         //
         // `??`, not `?:`: a falsy identifier would silently key by address
         // instead, merging that account's quota with every anonymous request
         // from the same place. ModuleController records the same decision for
         // the same reason - "0" is falsy in PHP and a falsy test discards a
         // value the client actually supplied.
-        RateLimiter::for('api', fn (Request $request) => Limit::perMinute(120)
+        RateLimiter::for('api', fn (Request $request) => Limit::perMinute(self::API_PER_MINUTE)
             ->by($request->user()?->id ?? $request->ip()));
 
         // Signing in gets its own, far tighter limit, declared on the route.

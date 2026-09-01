@@ -52,11 +52,17 @@ class SchemaRuleBuilder
 
     /**
      * Backstop on how many images one gallery may hold, applied only when the
-     * schema does not set a stricter limit of its own.
+     * schema states an upper bound of its own.
      *
      * A gallery is the first field type that repeats. Before it every field
      * held one scalar, so a request bounded itself; without a ceiling, one row
      * could carry an unbounded payload into the JSON column.
+     *
+     * "An upper bound", not "a stricter limit": the check used to stand down
+     * for any size rule at all, and `min` is one - so writing "at least one
+     * photo" removed the ceiling entirely. A schema naming its own `max` is an
+     * explicit decision and wins in either direction; a `min` says nothing
+     * about how many are too many.
      */
     public const GALLERY_MAX_IMAGES = 100;
 
@@ -112,10 +118,12 @@ class SchemaRuleBuilder
             // Merge type rules with custom rules and remove duplicates
             $fieldRules = array_values(array_unique(array_merge($typeRules, $customRules)));
 
-            // The ceiling is a backstop, not a policy: a schema asking for
-            // fewer keeps its own answer, and both rules applying would only
-            // ever agree on the stricter one anyway.
-            if (self::isGalleryField($field) && !self::hasSizeRule($fieldRules))
+            // A backstop, not a policy: a schema that names its own upper
+            // bound has made the decision and keeps it. A `min` has not - it
+            // says nothing about how many are too many, and treating it as an
+            // answer removed the ceiling from any gallery asking for "at
+            // least one photo".
+            if (self::isGalleryField($field) && !self::hasUpperBound($fieldRules))
             {
                 $fieldRules[] = 'max:' . self::GALLERY_MAX_IMAGES;
             }
@@ -213,25 +221,35 @@ class SchemaRuleBuilder
     }
 
     /**
-     * Whether the rules already measure size, in which case a default ceiling
-     * would be second-guessing the schema's own answer.
+     * Whether the rules already cap how many, in which case a default ceiling
+     * would be second-guessing a decision the schema has made.
+     *
+     * Deliberately narrower than SIZE_RULES: `min` measures size but says
+     * nothing about an upper bound, and treating it as one let a gallery
+     * asking for "at least one photo" accept any number at all.
      */
-    protected static function hasSizeRule(array $rules): bool
+    protected static function hasUpperBound(array $rules): bool
     {
         foreach ($rules as $rule)
         {
-            if (!is_string($rule))
-            {
-                continue;
-            }
-
-            if (in_array(strtolower(explode(':', trim($rule), 2)[0]), self::SIZE_RULES, true))
+            if (is_string($rule) && in_array(self::ruleName($rule), self::UPPER_BOUND_RULES, true))
             {
                 return true;
             }
         }
 
         return false;
+    }
+
+    /**
+     * The name of a rule, without its arguments: `max:255` is `max`.
+     *
+     * The limit of 2 on the explode matters - a rule's arguments may contain
+     * a colon of their own, and only the first one separates the name.
+     */
+    protected static function ruleName(string $rule): string
+    {
+        return strtolower(explode(':', trim($rule), 2)[0]);
     }
 
     /**
@@ -259,7 +277,14 @@ class SchemaRuleBuilder
     {
         return [
             "data.{$name}.*" => ['array'],
-            "data.{$name}.*.url" => ['required', 'string', 'max:' . self::GALLERY_URL_MAX_LENGTH],
+            // `distinct` because the editor keys its list on the URL: two rows
+            // sharing a key make React reuse the wrong node, so removing one
+            // image hits the other. That uniqueness was asserted in a comment
+            // and enforced by nothing - each upload gets its own generated
+            // name, but a hand-written payload was free to repeat one.
+            "data.{$name}.*.url" => [
+                'required', 'string', 'max:' . self::GALLERY_URL_MAX_LENGTH, 'distinct',
+            ],
             "data.{$name}.*.alt" => ['nullable', 'array'],
             "data.{$name}.*.alt.*" => ['nullable', 'string'],
         ];
@@ -338,6 +363,12 @@ class SchemaRuleBuilder
     protected const SIZE_RULES = ['max', 'min', 'size', 'between'];
 
     /**
+     * The subset of those that cap how many. `min` is a floor, not a ceiling,
+     * which is the distinction hasUpperBound() exists to draw.
+     */
+    protected const UPPER_BOUND_RULES = ['max', 'size', 'between'];
+
+    /**
      * Reject a custom rule that cannot coexist with the field's type.
      *
      * These were merged in unchecked, so the two ways of getting it wrong both
@@ -358,7 +389,7 @@ class SchemaRuleBuilder
             }
 
             // `max:255` and `between:1,5` carry arguments; only the name matters.
-            $ruleName = strtolower(explode(':', trim($rule), 2)[0]);
+            $ruleName = self::ruleName($rule);
 
             if (in_array($ruleName, self::TYPE_ASSERTING_RULES, true))
             {

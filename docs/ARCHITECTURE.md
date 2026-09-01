@@ -231,8 +231,17 @@ request reaches the column.
 
 Being the one type that repeats, a gallery is also the one with a **default
 ceiling**: at most `SchemaRuleBuilder::GALLERY_MAX_IMAGES` images and 2048
-characters of URL, applied only where the schema sets no stricter limit itself.
-Every other field holds one scalar, so a request bounds itself.
+characters of URL. Every other field holds one scalar, so a request bounds
+itself.
+
+The ceiling stands down only when the schema states an **upper** bound of its
+own — `max`, `size` or `between`. A `min` is a floor and says nothing about how
+many are too many, so it leaves the default in place. And image URLs are
+`distinct` within one gallery, because the editor keys its list on the URL.
+
+That ceiling and the `api` rate limit are related: a gallery upload is **one
+request per image**, so `AppServiceProvider::API_PER_MINUTE` has to leave room
+for a full one. `LoginRateLimitTest` asserts the relationship, not the numbers.
 
 **Two fields may not share a name.** The name is the key the value is stored
 under, so a duplicate is two fields writing to one place — refused in `build()`,

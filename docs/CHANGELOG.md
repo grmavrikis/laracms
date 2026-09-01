@@ -961,3 +961,52 @@ being created, `data` from the Entry FormRequests. #39 is resolved and removed.
   the readable-versus-creatable distinction and does the normalising.
 
 **130 PHP tests, 104 JS tests.**
+
+### Three more the next review found
+
+The first two are in the fixes above, which is the point of running it again.
+
+#### `min:1` removed the ceiling it was meant to sit under
+
+`GALLERY_MAX_IMAGES` stood down whenever the schema carried a size rule, and
+`SIZE_RULES` contains `min`. So writing *"at least one photo"* - the most
+natural thing to put on a room's gallery - silently removed the upper bound.
+Verified by building the rules: no validation gave
+`[nullable, array, max:100]`, `min:1` gave `[nullable, array, min:1]`.
+
+**Decision: ask for an upper bound, not for any size rule.**
+`UPPER_BOUND_RULES` is `max`, `size`, `between` - a `min` is a floor and says
+nothing about how many are too many. A schema naming its own `max` is an
+explicit decision and still wins in either direction, which is what makes the
+default a backstop rather than a policy. The docblock said "stricter" and the
+code never checked that; both now say the same thing.
+
+#### The editor's list key rested on an invariant nothing enforced
+
+`key={item.url}` came with a comment asserting that two images in one gallery
+cannot share a URL. True of anything the upload endpoint produces, and not
+enforced anywhere - a hand-written payload was free to repeat one, and two rows
+with the same key make React reuse the wrong node, so removing one image hits
+the other.
+
+`distinct` on `data.{name}.*.url` makes the comment true. One word.
+
+#### A full gallery upload could exhaust the API rate limit
+
+`GALLERY_MAX_IMAGES` (100) and the `api` limiter (120/minute) were set in
+different pieces of work and never checked against each other, and **an upload
+is one request per image**. That left about fifteen requests of headroom for
+the panel's own traffic and the entry save that follows, so a second batch
+inside the same minute began answering 429 - which reaches the author as images
+that "could not be uploaded", reading as a problem with the files.
+
+Raised to 300. Not chunked on the client: browsers already cap concurrent
+requests per origin, so the count per minute was the constraint, not the
+parallelism. `LoginRateLimitTest` now asserts the *relationship* rather than
+the number, so raising either one without looking at the other fails there.
+
+Also folded in: the rule-name parsing that `hasUpperBound()` and
+`assertCustomRulesFit()` each did by hand is now one `ruleName()` helper, which
+is where the comment about `explode`'s limit of 2 belongs.
+
+**130 → 134 PHP tests.**

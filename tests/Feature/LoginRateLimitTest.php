@@ -3,7 +3,10 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Services\SchemaRuleBuilder;
+use Illuminate\Cache\RateLimiter;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Request;
 use Tests\TestCase;
 
 /**
@@ -133,6 +136,28 @@ class LoginRateLimitTest extends TestCase
             ->getJson('/api/modules')
             ->assertOk()
             ->assertHeader('X-RateLimit-Limit');
+    }
+
+    /**
+     * The api limit and the gallery ceiling were set independently, and a
+     * gallery upload is one request per image: at 120 a minute against 100
+     * allowed images there were about fifteen requests of headroom for
+     * everything else, so a second batch in the same minute started answering
+     * 429 - reported to the author as images that "could not be uploaded".
+     *
+     * Asserted as a relationship rather than a number, so that raising either
+     * one without looking at the other fails here.
+     */
+    public function test_the_api_limit_leaves_room_for_a_full_gallery_upload(): void
+    {
+        $limit = app(RateLimiter::class)
+            ->limiter('api')(Request::create('/api/upload', 'POST'));
+
+        $this->assertGreaterThan(
+            SchemaRuleBuilder::GALLERY_MAX_IMAGES * 2,
+            $limit->maxAttempts,
+            'One request per image: the api limit has to fit a full gallery upload and the panel traffic around it.'
+        );
     }
 
     /**
