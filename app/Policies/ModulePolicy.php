@@ -28,11 +28,25 @@ use App\Models\User;
 class ModulePolicy
 {
     /**
+     * The current answer to every question below.
+     *
+     * Named rather than written as a bare `true` in three method bodies, which
+     * reads as a stub somebody forgot to finish. Reaching a policy method at
+     * all means the route group already established that the request is
+     * signed in, and that is the whole rule for now.
+     *
+     * When groups arrive this constant goes and each method asks the user's
+     * group about `$module` instead - which is why both parameters stay,
+     * unused, rather than being dropped from the signatures.
+     */
+    private const ANY_SIGNED_IN_USER = true;
+
+    /**
      * Read the Module and list/read the Entries inside it.
      */
     public function view(User $user, Module $module): bool
     {
-        return true;
+        return self::ANY_SIGNED_IN_USER;
     }
 
     /**
@@ -40,11 +54,11 @@ class ModulePolicy
      */
     public function update(User $user, Module $module): bool
     {
-        return true;
+        return self::ANY_SIGNED_IN_USER;
     }
 
     public function delete(User $user, Module $module): bool
     {
-        return true;
+        return self::ANY_SIGNED_IN_USER;
     }
 }

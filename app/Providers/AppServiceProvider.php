@@ -40,8 +40,14 @@ class AppServiceProvider extends ServiceProvider
         // Deliberately generous - it exists to stop a runaway client, not to
         // police ordinary use of the panel, where saving one entry can be
         // several requests in a row.
+        //
+        // `??`, not `?:`: a falsy identifier would silently key by address
+        // instead, merging that account's quota with every anonymous request
+        // from the same place. ModuleController records the same decision for
+        // the same reason - "0" is falsy in PHP and a falsy test discards a
+        // value the client actually supplied.
         RateLimiter::for('api', fn (Request $request) => Limit::perMinute(120)
-            ->by($request->user()?->id ?: $request->ip()));
+            ->by($request->user()?->id ?? $request->ip()));
 
         // Signing in gets its own, far tighter limit, declared on the route.
         RateLimiter::for('login', function (Request $request)

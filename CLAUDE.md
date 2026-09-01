@@ -127,7 +127,7 @@ JS tests sit **beside** their source as `resources/js/lib/*.test.js`.
 ## Commands
 
 ```bash
-php artisan test                    # 102 tests
+php artisan test                    # 106 tests
 npm test                            # 72 tests
 npm run build
 php artisan schema:sync-field-types # after changing field type constants
@@ -195,7 +195,7 @@ Started from a repo that would not boot (eight files of merge conflicts).
 Worked through a prioritised list; every item is either done or recorded in
 `CHANGELOG.md` with its reasoning.
 
-- **102 PHP tests, 72 JS tests**, all passing. Build clean.
+- **106 PHP tests, 72 JS tests**, all passing. Build clean.
 - **The project has a commercial goal as of 2026-08-30**, and it now decides
   what gets worked on. A multilingual CMS that feeds client sites, owned
   outright, for a one-person web agency: **one installation per client site**,

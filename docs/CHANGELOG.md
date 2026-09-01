@@ -726,3 +726,74 @@ could not have caught this — `RefreshDatabase` always starts from an empty
 table, the one case where setting the flag unconditionally is safe.
 
 **99 → 102 tests.**
+
+### The rest of the same review
+
+Eight more findings, none of them breaking anything today. Grouped because
+they share one cause: this section's work moved a decision without moving what
+guarded it.
+
+#### Re-seeding overwrote content somebody had edited
+
+`updateOrCreate` passes its second argument as *update* values, so every
+re-seed reset the module's `name` and `schema` and switched a deliberately
+disabled language back on. Resetting a schema is not cosmetic: any value
+already stored under a field somebody added stays in `data` under a key the
+schema no longer mentions, which is exactly the orphaning `TASKS.md` warns
+about for renames.
+
+`test_it_is_idempotent` counts rows, so it passed throughout.
+
+**Decision: `firstOrCreate` everywhere.** These rows are a starting point, and
+once an install exists they belong to whoever has been editing them. The seeder
+now never overwrites; delete a row to have it seeded afresh.
+
+#### Three guards that nothing would have missed
+
+Each of these could have been deleted with a green suite:
+
+- **`$this->authorize(...)` in `EntryController`.** The policy answers "yes" to
+  everything, so no assertion against the real one can tell a route that
+  consults it from a route that does not — and the seam group permissions will
+  land on could have been tidied away as dead code before it was ever used.
+  Now covered by swapping in a policy that refuses everything and asserting 403
+  on all five entry routes.
+- **`throttleApi()`.** Every rate-limit test passed on the route-level
+  `throttle:login` regardless, so removing the call would have left everything
+  except the login endpoint unlimited again. Now covered by asserting the
+  `X-RateLimit-Limit` header is present — presence, not value, so the number
+  stays free to change.
+- **The `orderByDesc('id')` tie-break in `ModuleController::index`.** The only
+  test listing several modules sorted the slugs before comparing, discarding
+  the very thing the tie-break exists for. Now asserted in the returned order.
+
+**All three passed the moment they were written, which proves nothing**, so
+each was mutated to check it bites: removing the `authorize` call gave 200
+instead of 403, commenting out `throttleApi()` dropped the header, and dropping
+the tie-break flipped the listing to insertion order.
+
+A fourth assertion was removed rather than fixed: `assertDatabaseMissing` for
+language `gr` held on any empty table, since nothing in the codebase creates
+that row — it would have passed with the seeder writing no language at all.
+
+#### Three that only a reader would have noticed
+
+- **`?:` where the repo had already decided on `??`.** `ModuleController`
+  carries the reasoning in a comment — `"0"` is falsy in PHP, and a falsy test
+  discards a value the client actually supplied. The rate limiter had
+  reintroduced the pattern; a falsy identifier would key by address and merge
+  that account's quota with every anonymous request from the same place.
+- **A comment claiming more than its change delivered.** The `hasSession()`
+  guard was justified by saying a 500-versus-401 difference is readable off the
+  status code — but afterwards it is 200-versus-401, which is just as readable,
+  and true of every login endpoint ever written. What the guard actually fixes
+  is that the endpoint stops erroring; **the rate limit is what holds off brute
+  force**, and the comment now says so.
+- **`return true` three times in `ModulePolicy`.** Correct, deliberate, and
+  indistinguishable from a stub somebody forgot to finish — which invites a
+  "fix" that silently changes who can reach what. A named
+  `ANY_SIGNED_IN_USER` constant carries the decision at the point of return,
+  and records why both parameters stay unused: they are what the group check
+  will ask about when it replaces the constant.
+
+**102 → 106 tests.**

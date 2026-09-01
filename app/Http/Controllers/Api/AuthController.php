@@ -17,15 +17,20 @@ class AuthController extends Controller
 
         if (Auth::attempt($credentials))
         {
-            // Regenerating the id is what defeats session fixation, so it stays
-            // - but it is guarded, because a request that is not stateful has
-            // no session to regenerate and session() threw on it.
+            // Regenerating the id is what defeats session fixation, so it
+            // stays - but it is guarded, because a request that is not
+            // stateful has no session to regenerate and session() threw on it.
             //
-            // Sanctum only starts a session for an origin listed in
-            // SANCTUM_STATEFUL_DOMAINS. Anything else - curl, another site,
-            // the test suite - got a 500 for the *correct* password and a 401
-            // for a wrong one, which is a difference an attacker can read
-            // straight off the status code without ever holding a session.
+            // Sanctum starts a session only for an origin listed in
+            // SANCTUM_STATEFUL_DOMAINS, so from anywhere else - curl, another
+            // site, the test suite - this endpoint answered 500 to a correct
+            // password and 401 to a wrong one. What the guard fixes is that:
+            // the endpoint stops erroring on a request it should simply serve.
+            //
+            // It does *not* close the difference itself. A correct password
+            // now answers 200 and a wrong one 401, which is just as readable -
+            // as it is for every login endpoint ever written. Brute force is
+            // held off by the rate limit on this route, not by this guard.
             if ($request->hasSession())
             {
                 $request->session()->regenerate();

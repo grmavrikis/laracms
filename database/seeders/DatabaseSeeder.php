@@ -17,10 +17,18 @@ class DatabaseSeeder extends Seeder
      * `created_at` - the column `latest()` orders by, which left them sorting
      * unpredictably against anything created afterwards. The models also cast
      * `schema`, so it no longer has to be hand-encoded.
+     *
+     * And `firstOrCreate`, never `updateOrCreate`: these rows are a starting
+     * point, and once an install exists they belong to whoever has been
+     * editing them. Overwriting reset the module's name and schema on every
+     * re-seed - orphaning any entry data stored under a field somebody had
+     * added, since the value stays in `data` under a key the schema no longer
+     * mentions - and switched a deliberately disabled language back on.
+     * Nothing here overwrites; delete a row if you want it seeded afresh.
      */
     public function run(): void
     {
-        $user = User::updateOrCreate(
+        $user = User::firstOrCreate(
             ['email' => 'test@example.com'],
             [
                 'name' => 'Test User',
@@ -32,7 +40,7 @@ class DatabaseSeeder extends Seeder
         // `el`, not `gr`: that is the ISO code for Greek, it is the example the
         // languages migration itself gives, and it is the key every
         // translation inside Entry.data ends up stored under.
-        $greek = Language::updateOrCreate(
+        $greek = Language::firstOrCreate(
             ['code' => 'el'],
             ['name' => 'Greek', 'is_active' => true]
         );
@@ -55,7 +63,7 @@ class DatabaseSeeder extends Seeder
             $greek->forceFill(['is_default' => true])->save();
         }
 
-        Module::updateOrCreate(
+        Module::firstOrCreate(
             ['slug' => 'projects'],
             [
                 'user_id' => $user->id,

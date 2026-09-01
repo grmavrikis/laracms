@@ -58,14 +58,17 @@ class ModuleAccessTest extends TestCase
         $this->makeModule($master, 'articles');
         $this->makeModule($staff, 'gallery');
 
+        // Asserted in the order the endpoint returns them, not sorted: the
+        // listing is `latest()->orderByDesc('id')`, and sorting here would
+        // discard the tie-break. Rows created inside one test share a
+        // `created_at` to the second, so the id is what decides - which is the
+        // case the tie-break exists for.
         $slugs = $this->actingAs($staff)
             ->getJson('/api/modules')
             ->assertOk()
             ->json('*.slug');
 
-        sort($slugs);
-
-        $this->assertSame(['articles', 'gallery', 'rooms'], $slugs);
+        $this->assertSame(['gallery', 'articles', 'rooms'], $slugs);
     }
 
     /**

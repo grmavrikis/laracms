@@ -119,6 +119,23 @@ class LoginRateLimitTest extends TestCase
     }
 
     /**
+     * The `login` limiter is declared on its route, so every test above would
+     * still pass with `throttleApi()` deleted from bootstrap/app.php - leaving
+     * every other endpoint unlimited again, which is the state this was all
+     * meant to fix.
+     *
+     * Presence of the header is the assertion, not its value: what has to hold
+     * is that the group carries a limiter at all.
+     */
+    public function test_the_api_group_carries_a_limiter_of_its_own(): void
+    {
+        $this->actingAs(User::factory()->create())
+            ->getJson('/api/modules')
+            ->assertOk()
+            ->assertHeader('X-RateLimit-Limit');
+    }
+
+    /**
      * A few honest typos must not lock somebody out of their own panel.
      */
     public function test_a_correct_password_still_works_after_a_couple_of_typos(): void

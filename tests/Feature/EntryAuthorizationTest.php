@@ -6,7 +6,33 @@ use App\Models\Entry;
 use App\Models\Module;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Gate;
 use Tests\TestCase;
+
+/**
+ * Refuses everything, so a route that skips the policy stands out.
+ *
+ * ModulePolicy currently answers "yes" to every question, which means no
+ * assertion against the real one can tell a route that consults it from a
+ * route that does not.
+ */
+class RefuseEverythingModulePolicy
+{
+    public function view(User $user, Module $module): bool
+    {
+        return false;
+    }
+
+    public function update(User $user, Module $module): bool
+    {
+        return false;
+    }
+
+    public function delete(User $user, Module $module): bool
+    {
+        return false;
+    }
+}
 
 /**
  * What can be reached, and by whom.
@@ -126,6 +152,47 @@ class EntryAuthorizationTest extends TestCase
             ->assertNotFound();
 
         $this->assertSame('Secret', $article->fresh()->data['title']);
+    }
+
+    /**
+     * The policy is the seam group permissions will land on, and it is the
+     * stated reason it was kept rather than deleted when ownership stopped
+     * being the axis. But it answers "yes" to everything, so removing
+     * `$this->authorize(...)` from a controller breaks nothing and the seam
+     * could be tidied away as dead code before it is ever used.
+     *
+     * Swapping in a policy that refuses makes each call site observable.
+     */
+    public function test_every_entry_route_consults_the_policy(): void
+    {
+        Gate::policy(Module::class, RefuseEverythingModulePolicy::class);
+
+        $user = User::factory()->create();
+        $module = $this->makeModule($user, 'rooms');
+        $entry = $this->makeEntry($module, 'Sea view');
+
+        $this->actingAs($user)
+            ->getJson("/api/modules/{$module->slug}/entries")
+            ->assertForbidden();
+
+        $this->actingAs($user)
+            ->getJson("/api/modules/{$module->slug}/entries/{$entry->id}")
+            ->assertForbidden();
+
+        $this->actingAs($user)
+            ->postJson("/api/modules/{$module->slug}/entries", ['data' => ['title' => 'Injected']])
+            ->assertForbidden();
+
+        $this->actingAs($user)
+            ->putJson("/api/modules/{$module->slug}/entries/{$entry->id}", ['data' => ['title' => 'Defaced']])
+            ->assertForbidden();
+
+        $this->actingAs($user)
+            ->deleteJson("/api/modules/{$module->slug}/entries/{$entry->id}")
+            ->assertForbidden();
+
+        $this->assertSame('Sea view', $entry->fresh()->data['title']);
+        $this->assertDatabaseCount('entries', 1);
     }
 
     public function test_entry_endpoints_require_authentication(): void
