@@ -31,7 +31,7 @@ That is enough to take instructions. Read the fourth when you need the *why*:
 
 | File | What you get |
 |---|---|
-| `docs/CHANGELOG.md` | Why the code looks the way it does — 14 themed sections, each: what was wrong, what was decided, how it was checked. **Most entries are decisions, not fixes.** Skim the headings; read a section before changing what it describes. |
+| `docs/CHANGELOG.md` | Why the code looks the way it does — 15 themed sections, each: what was wrong, what was decided, how it was checked. **Most entries are decisions, not fixes.** Skim the headings; read a section before changing what it describes. |
 
 `README.md` is for a human running the app. Read it only if you need setup.
 
@@ -43,6 +43,7 @@ Read all of these before touching backend behaviour. They are small.
 |---|---|
 | `app/Services/SchemaRuleBuilder.php` | **The heart of the project.** Turns a Module's JSON schema into Laravel rules. Owns `SUPPORTED_TYPES`, requiredness, the two-level translatable rules, and the checks that reject contradictory validation. Most findings live here. |
 | `app/Services/RichTextDocument.php` | Rich text is stored as a **Tiptap JSON document, never HTML**. This rebuilds every incoming document from an allowlist. Read the class docblock — it explains why. |
+| `app/Services/RichTextRenderer.php` | The other half: document → HTML for public pages. Normalises first, escapes everything, returns an `HtmlString` so no template writes `{!! !!}`. |
 | `app/Http/Controllers/Api/ModuleController.php` | Slug derivation (single-query collision resolution, length, format) and schema validation at creation. |
 | `app/Http/Controllers/Api/EntryController.php` | Authorization calls, pagination, and where documents get normalised. Short. |
 | `app/Policies/ModulePolicy.php` | 30 lines. Every authorization question in the app reduces to what is in here. |
@@ -76,7 +77,7 @@ on one entry, alt text per language), `RichTextEditor.jsx` (Tiptap),
 
 ### 4. Tests — read one before writing one
 
-`tests/Feature/` has 18 files, each named for what it pins — the suite is the
+`tests/Feature/` has 19 files, each named for what it pins — the suite is the
 best description of intended behaviour. Read `EntryAuthorizationTest.php`
 first: it documents the security model by attacking it. `ExampleTest.php` is
 the Laravel default and covers nothing.
@@ -132,7 +133,7 @@ JS tests sit **beside** their source as `resources/js/lib/*.test.js`.
 ## Commands
 
 ```bash
-php artisan test                    # 142 tests
+php artisan test                    # 163 tests
 npm test                            # 106 tests
 npm run build
 php artisan schema:sync-field-types # after changing field type constants
@@ -200,7 +201,7 @@ Started from a repo that would not boot (eight files of merge conflicts).
 Worked through a prioritised list; every item is either done or recorded in
 `CHANGELOG.md` with its reasoning.
 
-- **142 PHP tests, 106 JS tests**, all passing. Build clean.
+- **163 PHP tests, 106 JS tests**, all passing. Build clean.
 - **The project has a commercial goal as of 2026-08-30**, and it now decides
   what gets worked on. A multilingual CMS that feeds client sites, owned
   outright, for a one-person web agency: **one installation per client site**,

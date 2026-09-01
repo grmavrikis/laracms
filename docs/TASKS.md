@@ -52,7 +52,7 @@ profitability.
 
 - [x] #47, #48, #54 fixed — and nothing else from the findings list
       *(done — CHANGELOG §13; a login defect found on the way was fixed with them)*
-- [ ] #55 rich-text renderer, Tiptap document → HTML
+- [x] #55 rich-text renderer, Tiptap document → HTML *(done — CHANGELOG §15)*
 - [ ] #56 publication state, with a Publish action
 - [ ] #57 manual ordering
 - [ ] #58 per-language entry slugs

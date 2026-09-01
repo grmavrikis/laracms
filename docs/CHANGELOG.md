@@ -1054,3 +1054,64 @@ The rest:
   which three numbers have left and why.
 
 **134 → 142 PHP tests, 104 → 106 JS tests.**
+
+---
+
+## 15. Rich text reaches a page
+
+`#55`, and the first item of Phase 1 that the public side actually needs: rich
+text was stored as a Tiptap document and **nothing turned one into markup**.
+The admin table rendered a plain-text excerpt and that was the whole of it, so
+no rich text could appear on a client's site at all.
+
+### The counterpart to the normaliser, not a second copy of it
+
+`RichTextRenderer` **normalises before it renders**, rather than keeping its
+own allowlist. That costs one walk of a small tree and buys two things: a
+single definition of what a document may contain, and the guarantee that the
+renderer only ever walks a tree already rebuilt from it. A document written
+straight into the database, or stored before the normaliser existed, is
+therefore no more dangerous than one saved through the API.
+
+**Decision: the structure is safe by construction, the text is not.** There is
+no node type in the vocabulary that could emit a script tag, so nothing needs
+stripping afterwards. But text is stored **verbatim on purpose** - `<script>`
+typed as text is content - so every string reaching the output is escaped, and
+that is the one thing this class must never get wrong.
+
+`ENT_SUBSTITUTE` is not decoration: without it `htmlspecialchars` returns an
+**empty string** for malformed UTF-8, so one bad byte would silently delete a
+paragraph rather than mangle a character of it.
+
+### It returns an HtmlString, so no template writes `{!! !!}`
+
+Blade renders an `Htmlable` unescaped from `{{ }}`, which means the claim that
+this output is safe is made **once, here**, instead of at every call site. That
+is the same reasoning that keeps `dangerouslySetInnerHTML` out of the React
+side: the dangerous-looking construct should not be something a template author
+types by habit.
+
+### Checked by attacking it
+
+Four of the twenty-one tests are attempts to get markup out: a script tag typed
+as text, every character that matters, a quote trying to close an `href` early,
+and a `javascript:` link. The escaping was then **mutated away** to prove they
+bite - with `escape()` returning its argument the suite produces
+`<p><script>alert(1)</script></p>` and an `href` broken open by
+`onmouseover="alert(1)`, and all four fail.
+
+Then rendered against the real database rather than only the fixtures. It
+already held the attack: an entry in `test3` where somebody had typed
+`<script>console.log('123')</script>` into the editor. It comes out as
+`&lt;script&gt;console.log(&#039;123&#039;)&lt;/script&gt;`. Six stored
+documents rendered, Greek text, headings, marks and alignment intact.
+
+### Left deliberately
+
+An empty document renders `<p></p>` rather than nothing. The normaliser's empty
+document is one childless paragraph and that is what it is; whether a field
+should have been empty at all is #36, not this class's guess. To ask whether
+there is anything worth rendering, `RichTextDocument::toPlainText()` already
+answers it.
+
+**142 → 163 PHP tests.**

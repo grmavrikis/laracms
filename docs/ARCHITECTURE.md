@@ -117,10 +117,11 @@ would otherwise redirect guests to that route name and fail, so
 unauthenticated `/api/*` request answers 401 whatever it asks to `Accept`.
 
 `/api/login` also carries its own rate limit — five attempts a minute keyed by
-email **and** address, on top of the 120/minute the `api` group applies to
-everything. Both limiters are defined in `AppServiceProvider`; `bootstrap/app.php`
-has to call `throttleApi()` or the group carries no limiter at all
-(CHANGELOG §13).
+email **and** address, on top of the `AppServiceProvider::API_PER_MINUTE` the
+`api` group applies to everything. Both apply, so the tighter one binds and the
+group limit never decides a login. Both limiters are defined in
+`AppServiceProvider`; `bootstrap/app.php` has to call `throttleApi()` or the
+group carries no limiter at all (CHANGELOG §13).
 
 **Both limits key on the client address, so deploying behind a reverse proxy
 needs `TRUSTED_PROXIES` set** — otherwise `$request->ip()` is the proxy's
@@ -364,6 +365,24 @@ excludes `data.*` from trimming, and
 The side effect is that plain string fields are no longer auto-trimmed
 either — which is the right default for a CMS: content is stored as the
 author typed it.
+
+**Rendering back out** is [`RichTextRenderer`](../app/Services/RichTextRenderer.php),
+the other half of the same contract: normalise on write, render on read, from
+one vocabulary. It runs the document through `RichTextDocument::normalize()`
+first rather than keeping a second allowlist, so it only ever walks a tree that
+has already been rebuilt — a document written straight into the database is no
+more dangerous than one saved through the API.
+
+The closed vocabulary makes the *structure* safe; the **text is not**, because
+it is stored verbatim on purpose. Every string reaching the output is escaped
+with `ENT_QUOTES | ENT_SUBSTITUTE` — the second flag matters, since without it
+`htmlspecialchars` returns an empty string for malformed UTF-8 and would delete
+a paragraph rather than mangle a character.
+
+It returns an `HtmlString`, so **a Blade template writes `{{ }}` and never
+`{!! !!}`**. The claim that the output is safe is made once, in that class,
+instead of at every call site — the server-side counterpart to keeping
+`dangerouslySetInnerHTML` out of the React code.
 
 Legacy HTML values were converted once by
 `php artisan entries:migrate-richtext` (idempotent; `--dry-run` shows
