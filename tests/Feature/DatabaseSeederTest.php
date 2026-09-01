@@ -95,6 +95,32 @@ class DatabaseSeederTest extends TestCase
     }
 
     /**
+     * Exactly one language may be the default, and nothing in the schema
+     * enforces it - so seeding an install that already has one used to leave
+     * two rows flagged, with `defaultLanguage()` silently taking whichever
+     * `/api/languages` returned first.
+     *
+     * RefreshDatabase means test_the_seeded_language_is_the_default cannot see
+     * this: it always starts from an empty table, which is the one case where
+     * claiming the flag is safe.
+     */
+    public function test_it_does_not_add_a_second_default_language(): void
+    {
+        Language::create([
+            'code' => 'en',
+            'name' => 'English',
+            'is_default' => true,
+            'is_active' => true,
+        ]);
+
+        $this->seed(DatabaseSeeder::class);
+
+        $this->assertSame(1, Language::where('is_default', true)->count());
+        $this->assertSame('en', Language::where('is_default', true)->sole()->code);
+        $this->assertDatabaseHas('languages', ['code' => 'el', 'is_default' => false]);
+    }
+
+    /**
      * The seeder uses updateOrCreate throughout precisely so it can be re-run
      * against a database that already has these rows.
      */

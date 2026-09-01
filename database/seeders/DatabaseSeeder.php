@@ -32,14 +32,28 @@ class DatabaseSeeder extends Seeder
         // `el`, not `gr`: that is the ISO code for Greek, it is the example the
         // languages migration itself gives, and it is the key every
         // translation inside Entry.data ends up stored under.
-        //
-        // is_default is set here because nothing else in the codebase ever
-        // wrote it, so a fresh install had no default language at all and the
-        // panel fell back to whichever row came first by id (TASKS.md #49).
-        Language::updateOrCreate(
+        $greek = Language::updateOrCreate(
             ['code' => 'el'],
-            ['name' => 'Greek', 'is_default' => true, 'is_active' => true]
+            ['name' => 'Greek', 'is_active' => true]
         );
+
+        // Nothing else in the codebase ever wrote is_default, so a fresh
+        // install had no default language and the panel fell back to whichever
+        // row came first by id (TASKS.md #49).
+        //
+        // Claimed only when no other language holds it. Exactly one row may,
+        // nothing in the schema enforces that, and `defaultLanguage()` takes
+        // whichever it sees first - so setting it unconditionally left an
+        // install that already had a default with two, and moved the panel to
+        // a different language on the next `migrate --seed`.
+        $claimedElsewhere = Language::where('is_default', true)
+            ->whereKeyNot($greek->getKey())
+            ->exists();
+
+        if (!$claimedElsewhere)
+        {
+            $greek->forceFill(['is_default' => true])->save();
+        }
 
         Module::updateOrCreate(
             ['slug' => 'projects'],

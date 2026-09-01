@@ -48,7 +48,7 @@ Read all of these before touching backend behaviour. They are small.
 | `app/Policies/ModulePolicy.php` | 30 lines. Every authorization question in the app reduces to what is in here. |
 | `app/Http/Requests/StoreEntryRequest.php` + `UpdateEntryRequest.php` | Nearly identical, ~30 lines each. `authorize()` runs before `rules()` — that ordering is deliberate. |
 | `routes/api.php` | The entire API surface, ~40 lines. Note `Route::scopeBindings()`. |
-| `bootstrap/app.php` | Four deliberate middleware decisions with comments: `statefulApi`, `throttleApi`, `trimStrings(except: data.*)`, `redirectGuestsTo(fn () => null)`. Each fixed a real bug. |
+| `bootstrap/app.php` | Five deliberate middleware decisions with comments: `statefulApi`, `throttleApi`, `trustProxies` (env-driven, empty by default), `trimStrings(except: data.*)`, `redirectGuestsTo(fn () => null)`. Each fixed a real bug. |
 
 Models (`app/Models/*.php`) are 15–30 lines each and hold no logic worth
 reading up front. Read one when you touch it.
@@ -127,7 +127,7 @@ JS tests sit **beside** their source as `resources/js/lib/*.test.js`.
 ## Commands
 
 ```bash
-php artisan test                    # 99 tests
+php artisan test                    # 102 tests
 npm test                            # 72 tests
 npm run build
 php artisan schema:sync-field-types # after changing field type constants
@@ -195,7 +195,7 @@ Started from a repo that would not boot (eight files of merge conflicts).
 Worked through a prioritised list; every item is either done or recorded in
 `CHANGELOG.md` with its reasoning.
 
-- **99 PHP tests, 72 JS tests**, all passing. Build clean.
+- **102 PHP tests, 72 JS tests**, all passing. Build clean.
 - **The project has a commercial goal as of 2026-08-30**, and it now decides
   what gets worked on. A multilingual CMS that feeds client sites, owned
   outright, for a one-person web agency: **one installation per client site**,

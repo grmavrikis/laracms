@@ -23,6 +23,27 @@ return Application::configure(basePath: dirname(__DIR__))
         // `api` and `login` limiters are defined in AppServiceProvider.
         $middleware->throttleApi();
 
+        // Those limiters key on $request->ip(). Behind a reverse proxy that is
+        // the *proxy's* address unless the proxy is trusted here - so every
+        // visitor would share one bucket and a single busy client would lock
+        // out the whole site. That is the deployment this project is heading
+        // for (BUSINESS.md: a VPS holding several sites).
+        //
+        // Empty by default on purpose, and this is the dangerous direction:
+        // trusting a proxy that is not in front of the app lets anyone spoof
+        // X-Forwarded-For and mint a fresh rate-limit bucket per request,
+        // which is worse than the problem. Set TRUSTED_PROXIES only for a
+        // proxy that actually exists - '127.0.0.1' for nginx on the same host,
+        // '*' only where the application cannot be reached directly.
+        $proxies = trim((string) env('TRUSTED_PROXIES', ''));
+
+        if ($proxies !== '')
+        {
+            $middleware->trustProxies(
+                at: $proxies === '*' ? '*' : array_map('trim', explode(',', $proxies))
+            );
+        }
+
         // Entry payloads carry rich-text documents. A mark splits a sentence
         // into several text nodes, and the spaces between words sit at the
         // edges of those nodes ("Κάτι ", "έντονο", " εδώ"). Trimming each

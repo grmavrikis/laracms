@@ -664,3 +664,65 @@ being addressed through the wrong Module — which, with ownership gone, is now
 the only structural limit on which Entry a request can name.
 
 **88 → 99 tests.**
+
+### Three defects the review of the above found
+
+A code review of this section's own commit. All three are in code it added,
+and the first two are worse than what they replaced.
+
+#### A non-string `email` made the login endpoint answer 500
+
+The `login` limiter builds its key from `$request->input('email')`, and throttle
+middleware runs **before** validation — so the value is whatever the client
+sent. Casting an array to string raises a warning, Laravel promotes warnings to
+`ErrorException`, and the only endpoint anybody can reach without signing in
+answered **500** to a one-line request.
+
+Confirmed live before the fix: `{"email":["a","b"],"password":"x"}` → 500, with
+`ErrorException: Array to string conversion at AppServiceProvider.php:52` in the
+log. Before rate limiting existed, that same body reached validation and
+returned a clean 422 — so this section had introduced it.
+
+**Decision: read the value once and key as empty unless it is a string.** A
+non-string then falls through to validation and is refused there, which is what
+should have happened all along. All three shapes — array, object, integer — now
+answer 422 live.
+
+#### Every visitor would have shared one rate-limit bucket behind a proxy
+
+Both limiters key on `$request->ip()`, and no proxy was trusted anywhere, so
+that is the address of whatever connects — the reverse proxy, once this is
+deployed the way `BUSINESS.md` §4 plans. The 120/minute API limit would have
+become 120/minute for the entire site, and one busy client would have locked
+everybody out.
+
+**Decision: `TRUSTED_PROXIES`, empty by default.** Deliberately *not* `'*'`,
+because the wrong direction here is worse than the problem: trusting a proxy
+that is not in front of the application lets anyone send their own
+`X-Forwarded-For` and mint a fresh bucket per request, removing the limit
+entirely. Set it only for a proxy that exists — `127.0.0.1` for nginx on the
+same host — and it is documented in `.env.example`.
+
+`test_a_forwarded_header_cannot_split_the_rate_limit_bucket` pins it. That test
+passed from the moment it was written, so it proves nothing on its own; it was
+**mutated to check it bites** — hardcoding `at: '*'` made the sixth attempt
+return 401 instead of 429, which is exactly the evasion.
+
+#### The seeder created a second default language
+
+`Language::updateOrCreate` set `is_default => true` unconditionally. Exactly one
+row may carry it, nothing in the schema enforces that, and `defaultLanguage()`
+takes whichever `/api/languages` returns first.
+
+So running `migrate --seed` — the README's setup step, and documented here as
+re-runnable — against an install that already had a default left **two** rows
+flagged and moved the panel to a different language. The working database has
+`en` flagged, which is how this was noticed: the seeder was deliberately not run
+against it during the live check.
+
+**Decision: claim the flag only when no other language holds it.** A fresh
+install gets a default; an existing choice is left alone. `test_it_is_idempotent`
+could not have caught this — `RefreshDatabase` always starts from an empty
+table, the one case where setting the flag unconditionally is safe.
+
+**99 → 102 tests.**

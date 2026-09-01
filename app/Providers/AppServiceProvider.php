@@ -44,16 +44,27 @@ class AppServiceProvider extends ServiceProvider
             ->by($request->user()?->id ?: $request->ip()));
 
         // Signing in gets its own, far tighter limit, declared on the route.
-        RateLimiter::for('login', fn (Request $request) => [
-            // Keyed by address *and* email together. Keyed by email alone, an
-            // attacker working through addresses against one account would
-            // lock its real owner out of their own panel.
-            Limit::perMinute(5)->by(
-                Str::lower((string) $request->input('email')) . '|' . $request->ip()
-            ),
-            // And by address alone, so working through many emails from one
-            // place is caught as well - which the key above would not see.
-            Limit::perMinute(20)->by($request->ip()),
-        ]);
+        RateLimiter::for('login', function (Request $request)
+        {
+            // Throttle middleware runs *before* validation, so `email` is
+            // whatever the client sent - an array, an object, a number.
+            // Casting that to string threw, and the only endpoint anybody can
+            // reach without signing in answered 500 to a one-line request.
+            // Anything that is not a string keys as empty and goes on to be
+            // refused by validation, which is what should have happened.
+            $email = $request->input('email');
+            $email = is_string($email) ? Str::lower($email) : '';
+
+            return [
+                // Keyed by address *and* email together. Keyed by email alone,
+                // an attacker working through addresses against one account
+                // would lock its real owner out of their own panel.
+                Limit::perMinute(5)->by($email . '|' . $request->ip()),
+                // And by address alone, so working through many emails from
+                // one place is caught as well - which the key above would not
+                // see.
+                Limit::perMinute(20)->by($request->ip()),
+            ];
+        });
     }
 }

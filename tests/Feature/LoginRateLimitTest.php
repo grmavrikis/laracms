@@ -22,12 +22,53 @@ class LoginRateLimitTest extends TestCase
     /** Matches the `login` limiter in AppServiceProvider. */
     private const ATTEMPTS_PER_MINUTE = 5;
 
-    private function attemptLogin(string $email, string $password = 'wrong-password')
+    private function attemptLogin(string $email, string $password = 'wrong-password', array $headers = [])
     {
         return $this->postJson('/api/login', [
             'email' => $email,
             'password' => $password,
-        ]);
+        ], $headers);
+    }
+
+    /**
+     * The limiter reads `email` to build its key, and throttle middleware runs
+     * *before* validation - so whatever the client sent arrives raw. Casting a
+     * non-string to string threw, and the only public endpoint in the
+     * application answered 500 to anybody who asked.
+     */
+    public function test_a_non_string_email_is_rejected_rather_than_erroring(): void
+    {
+        $this->postJson('/api/login', ['email' => ['a', 'b'], 'password' => 'x'])
+            ->assertStatus(422);
+
+        $this->postJson('/api/login', ['email' => ['k' => 'v'], 'password' => 'x'])
+            ->assertStatus(422);
+
+        $this->postJson('/api/login', ['email' => 5, 'password' => 'x'])
+            ->assertStatus(422);
+    }
+
+    /**
+     * Both limits key on the client address, so anyone able to dictate what
+     * Laravel believes that address to be gets an unlimited supply of buckets.
+     *
+     * No proxy is trusted unless TRUSTED_PROXIES says so (bootstrap/app.php),
+     * which is what makes X-Forwarded-For inert here. This test exists to fail
+     * loudly if that is ever widened to `*` while the app is still reachable
+     * directly.
+     */
+    public function test_a_forwarded_header_cannot_split_the_rate_limit_bucket(): void
+    {
+        $user = User::factory()->create();
+
+        for ($i = 0; $i < self::ATTEMPTS_PER_MINUTE; $i++)
+        {
+            $this->attemptLogin($user->email, 'wrong-password', ['X-Forwarded-For' => "203.0.113.{$i}"])
+                ->assertUnauthorized();
+        }
+
+        $this->attemptLogin($user->email, 'wrong-password', ['X-Forwarded-For' => '203.0.113.99'])
+            ->assertStatus(429);
     }
 
     public function test_repeated_failures_are_locked_out(): void

@@ -106,7 +106,7 @@ treat as stateful, while a wrong one answered 401 — a difference readable
 straight off the status code. Rate limiting the login while leaving that
 behind would have shipped the change half-done.
 
-88 → 99 tests.
+88 → 102 tests, including three defects a review found in this work itself.
 
 ### Phase 1 — content reaches the public (6–8 days)
 

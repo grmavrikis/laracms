@@ -122,6 +122,13 @@ everything. Both limiters are defined in `AppServiceProvider`; `bootstrap/app.ph
 has to call `throttleApi()` or the group carries no limiter at all
 (CHANGELOG §13).
 
+**Both limits key on the client address, so deploying behind a reverse proxy
+needs `TRUSTED_PROXIES` set** — otherwise `$request->ip()` is the proxy's
+address and every visitor shares one bucket. It is empty by default, and that
+is the safe direction: trusting a proxy that is not there lets anyone supply
+their own `X-Forwarded-For` and escape the limit altogether. `.env.example`
+carries the guidance.
+
 **Ownership is not the authorization axis.** It was until #54: every question
 reduced to *does this user own this Module?*. One installation serves one site,
 its Modules are created only by the master admin, and its users are colleagues
