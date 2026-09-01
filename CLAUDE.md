@@ -25,8 +25,9 @@ to answer one precise question about framework behaviour.
 |---|---|
 | `docs/ARCHITECTURE.md` | How the system works **now**. Domain model, auth, schema→validation, rich text, slugs, pagination. Start here. |
 | `docs/TASKS.md` | What is open. **Read its MVP section first** — it holds the definition of done, the phases, and the product decisions that govern everything else. The numbered code-review findings further down are mostly *not* being worked on. |
+| `docs/BUSINESS.md` | Short. What is sold, for how much, what it costs to run, and how we know it works. **It outranks `TASKS.md` when the two disagree** — the goal is revenue, not a finished feature list. Read it before arguing that something should be built. |
 
-That is enough to take instructions. Read the third when you need the *why*:
+That is enough to take instructions. Read the fourth when you need the *why*:
 
 | File | What you get |
 |---|---|
@@ -205,6 +206,13 @@ Worked through a prioritised list; every item is either done or recorded in
 - **`docs/TASKS.md` → The MVP is the governing section.** It carries a binding
   definition of done, four phases, and the decisions taken. Read it before
   proposing any work.
+- **`docs/BUSINESS.md` carries the numbers**: €290 build and €25/month for the
+  first ten clients (the discount is on the build only, **never** on the
+  monthly), €800 + €30 after, one day per site from the fifth onward. The
+  freelancer registration is already active, so the incremental cost is ~€6/month
+  plus ~€300/year — **the first client makes it profitable.** The build fee is
+  nearly a loss-leader; the €25/month annuity is the actual business, and the
+  ceiling on it is **support minutes per client**, not sales.
 - **Next up: Phase 0** — #47 (the seeder is fatally broken and is step one of
   the README), #48 (no rate limiting on login), #54 (`ModuleController::index`
   hides every module from anyone but its creator). Half a day for all three.

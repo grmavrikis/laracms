@@ -91,6 +91,9 @@ php artisan storage:link
 
 ## Documentation
 
+- [`docs/BUSINESS.md`](docs/BUSINESS.md) — what is sold, for how much, what it
+  costs to run, and how we know it works. Outranks `TASKS.md` when they
+  disagree.
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — how the system is built (stack, data model, request flow, frontend).
 - [`docs/TASKS.md`](docs/TASKS.md) — what's left. **Read its MVP section
   first**: it carries the definition of done and the product decisions that

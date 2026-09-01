@@ -4,6 +4,10 @@ What is left to do. Completed work and the reasoning behind it is in
 [`CHANGELOG.md`](CHANGELOG.md); how the system is put together is in
 [`ARCHITECTURE.md`](ARCHITECTURE.md).
 
+**Why this order is right is in [`BUSINESS.md`](BUSINESS.md)** — what is sold,
+for how much, what it costs to run and how we know it works. That file outranks
+this one when the two disagree: the goal is revenue, not a finished list.
+
 **Read the MVP section first.** As of 2026-08-30 this project has a stated
 commercial goal, and that goal — not the size of a finding — decides what is
 worked on. Most of the numbered findings further down are deliberately **not**
@@ -31,8 +35,14 @@ market's pain. Retail was the alternative and was rejected: a retail
 presentation site asks for a shopping cart within months, which is the one
 thing being deferred.
 
-**Budget: about €5/month** (a small EU VPS, staging as a subdomain on it) plus
-€20–60 once per bought theme. Nothing else is paid for until there is revenue.
+**Budget to build it: about €6/month** — a small EU VPS with staging as a
+subdomain on it, and a domain — plus €20–60 once per bought theme, which is
+charged on to the client. Nothing else is paid for until there is revenue.
+
+That is the cost of *building*. The cost of *operating a business* is roughly
+sixty times larger and is in [`BUSINESS.md`](BUSINESS.md) §4, along with the
+prices and the break-even. Do not use the €6 figure to reason about
+profitability.
 
 ## Definition of done — binding
 
