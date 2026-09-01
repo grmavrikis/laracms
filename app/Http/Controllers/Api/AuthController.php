@@ -17,7 +17,20 @@ class AuthController extends Controller
 
         if (Auth::attempt($credentials))
         {
-            $request->session()->regenerate();
+            // Regenerating the id is what defeats session fixation, so it stays
+            // - but it is guarded, because a request that is not stateful has
+            // no session to regenerate and session() threw on it.
+            //
+            // Sanctum only starts a session for an origin listed in
+            // SANCTUM_STATEFUL_DOMAINS. Anything else - curl, another site,
+            // the test suite - got a 500 for the *correct* password and a 401
+            // for a wrong one, which is a difference an attacker can read
+            // straight off the status code without ever holding a session.
+            if ($request->hasSession())
+            {
+                $request->session()->regenerate();
+            }
+
             return response()->json(['user' => Auth::user()]);
         }
 

@@ -9,18 +9,30 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 /**
- * Entries are owned only indirectly, through Entry -> Module -> User.
- * These tests pin down that an authenticated user can reach an Entry only
- * through a Module they own.
+ * What can be reached, and by whom.
+ *
+ * This file used to pin the opposite model: an Entry was reachable only
+ * through a Module the user owned, and a second account was an attacker. That
+ * was correct while the product might have been multi-tenant. It is not.
+ *
+ * One installation serves one site (docs/TASKS.md -> Decisions). Its users are
+ * colleagues, not tenants: they share one content space, and the modules are
+ * created by the master admin, so ownership cannot distinguish them. Two
+ * boundaries remain and both are tested below:
+ *
+ *   - signing in, which separates the installation from the public;
+ *   - the scoped route binding, which separates one Module's Entries from
+ *     another's. With ownership gone, this is the only structural check left
+ *     on which Entry a request can address, so it matters more than before.
  */
 class EntryAuthorizationTest extends TestCase
 {
     use RefreshDatabase;
 
-    private function makeModule(User $owner, string $slug): Module
+    private function makeModule(User $creator, string $slug): Module
     {
         return Module::create([
-            'user_id' => $owner->id,
+            'user_id' => $creator->id,
             'name' => ucfirst($slug),
             'slug' => $slug,
             'schema' => [
@@ -34,136 +46,100 @@ class EntryAuthorizationTest extends TestCase
         return $module->entries()->create(['data' => ['title' => $title]]);
     }
 
-    public function test_user_cannot_list_entries_of_another_users_module(): void
+    public function test_a_colleague_can_list_entries_in_a_module_somebody_else_created(): void
     {
-        $attacker = User::factory()->create();
-        $victim = User::factory()->create();
-        $victimModule = $this->makeModule($victim, 'victim-module');
+        $master = User::factory()->create();
+        $staff = User::factory()->create();
+        $module = $this->makeModule($master, 'rooms');
+        $entry = $this->makeEntry($module, 'Sea view');
 
-        $this->actingAs($attacker)
-            ->getJson("/api/modules/{$victimModule->slug}/entries")
-            ->assertForbidden();
+        $this->actingAs($staff)
+            ->getJson("/api/modules/{$module->slug}/entries")
+            ->assertOk()
+            ->assertJsonPath('data.0.id', $entry->id);
     }
 
-    public function test_user_cannot_read_an_entry_in_another_users_module(): void
+    public function test_a_colleague_can_read_an_entry(): void
     {
-        $attacker = User::factory()->create();
-        $victim = User::factory()->create();
-        $victimModule = $this->makeModule($victim, 'victim-module');
-        $victimEntry = $this->makeEntry($victimModule, 'Secret');
+        $master = User::factory()->create();
+        $staff = User::factory()->create();
+        $module = $this->makeModule($master, 'rooms');
+        $entry = $this->makeEntry($module, 'Sea view');
 
-        $this->actingAs($attacker)
-            ->getJson("/api/modules/{$victimModule->slug}/entries/{$victimEntry->id}")
-            ->assertForbidden();
+        $this->actingAs($staff)
+            ->getJson("/api/modules/{$module->slug}/entries/{$entry->id}")
+            ->assertOk()
+            ->assertJsonPath('data.title', 'Sea view');
     }
 
-    public function test_user_cannot_update_an_entry_in_another_users_module(): void
+    public function test_a_colleague_can_create_update_and_delete_entries(): void
     {
-        $attacker = User::factory()->create();
-        $victim = User::factory()->create();
-        $victimModule = $this->makeModule($victim, 'victim-module');
-        $victimEntry = $this->makeEntry($victimModule, 'Secret');
+        $master = User::factory()->create();
+        $staff = User::factory()->create();
+        $module = $this->makeModule($master, 'rooms');
 
-        $this->actingAs($attacker)
-            ->putJson(
-                "/api/modules/{$victimModule->slug}/entries/{$victimEntry->id}",
-                ['data' => ['title' => 'Defaced']]
-            )
-            ->assertForbidden();
-
-        $this->assertSame('Secret', $victimEntry->fresh()->data['title']);
-    }
-
-    public function test_user_cannot_delete_an_entry_in_another_users_module(): void
-    {
-        $attacker = User::factory()->create();
-        $victim = User::factory()->create();
-        $victimModule = $this->makeModule($victim, 'victim-module');
-        $victimEntry = $this->makeEntry($victimModule, 'Secret');
-
-        $this->actingAs($attacker)
-            ->deleteJson("/api/modules/{$victimModule->slug}/entries/{$victimEntry->id}")
-            ->assertForbidden();
-
-        $this->assertDatabaseHas('entries', ['id' => $victimEntry->id]);
-    }
-
-    public function test_user_cannot_create_an_entry_in_another_users_module(): void
-    {
-        $attacker = User::factory()->create();
-        $victim = User::factory()->create();
-        $victimModule = $this->makeModule($victim, 'victim-module');
-
-        $this->actingAs($attacker)
-            ->postJson(
-                "/api/modules/{$victimModule->slug}/entries",
-                ['data' => ['title' => 'Injected']]
-            )
-            ->assertForbidden();
-
-        $this->assertDatabaseCount('entries', 0);
-    }
-
-    /**
-     * The original bug: show/update/destroy did Entry::findOrFail($id) and
-     * ignored the module segment entirely, so passing your own module slug
-     * with someone else's entry id returned their Entry.
-     */
-    public function test_entry_id_from_another_module_is_not_reachable_through_own_module(): void
-    {
-        $attacker = User::factory()->create();
-        $victim = User::factory()->create();
-
-        $attackerModule = $this->makeModule($attacker, 'attacker-module');
-        $victimModule = $this->makeModule($victim, 'victim-module');
-        $victimEntry = $this->makeEntry($victimModule, 'Secret');
-
-        $this->actingAs($attacker)
-            ->getJson("/api/modules/{$attackerModule->slug}/entries/{$victimEntry->id}")
-            ->assertNotFound();
-    }
-
-    public function test_owner_can_fully_manage_entries_in_their_own_module(): void
-    {
-        $owner = User::factory()->create();
-        $module = $this->makeModule($owner, 'own-module');
-
-        $this->actingAs($owner)
-            ->postJson("/api/modules/{$module->slug}/entries", ['data' => ['title' => 'Hello']])
+        $this->actingAs($staff)
+            ->postJson("/api/modules/{$module->slug}/entries", ['data' => ['title' => 'Sea view']])
             ->assertCreated();
 
         $entry = $module->entries()->sole();
 
-        $this->actingAs($owner)
-            ->getJson("/api/modules/{$module->slug}/entries/{$entry->id}")
-            ->assertOk()
-            ->assertJsonPath('data.title', 'Hello');
-
-        $this->actingAs($owner)
-            ->putJson("/api/modules/{$module->slug}/entries/{$entry->id}", ['data' => ['title' => 'Updated']])
+        $this->actingAs($staff)
+            ->putJson("/api/modules/{$module->slug}/entries/{$entry->id}", ['data' => ['title' => 'Garden view']])
             ->assertOk();
 
-        $this->assertSame('Updated', $entry->fresh()->data['title']);
+        $this->assertSame('Garden view', $entry->fresh()->data['title']);
 
-        $this->actingAs($owner)
-            ->getJson("/api/modules/{$module->slug}/entries")
-            ->assertOk()
-            ->assertJsonPath('data.0.id', $entry->id);
-
-        $this->actingAs($owner)
+        $this->actingAs($staff)
             ->deleteJson("/api/modules/{$module->slug}/entries/{$entry->id}")
             ->assertNoContent();
 
         $this->assertDatabaseCount('entries', 0);
     }
 
+    /**
+     * The original bug: show/update/destroy did Entry::findOrFail($id) and
+     * ignored the module segment entirely, so passing one module slug with an
+     * Entry id belonging to another returned that other Entry.
+     *
+     * Scoped route binding fixed it, and this is now the only structural limit
+     * on which Entry a request can name - ownership no longer backs it up.
+     */
+    public function test_an_entry_id_from_another_module_is_not_reachable_through_this_one(): void
+    {
+        $user = User::factory()->create();
+
+        $rooms = $this->makeModule($user, 'rooms');
+        $articles = $this->makeModule($user, 'articles');
+        $article = $this->makeEntry($articles, 'Secret');
+
+        $this->actingAs($user)
+            ->getJson("/api/modules/{$rooms->slug}/entries/{$article->id}")
+            ->assertNotFound();
+
+        $this->actingAs($user)
+            ->putJson("/api/modules/{$rooms->slug}/entries/{$article->id}", ['data' => ['title' => 'Defaced']])
+            ->assertNotFound();
+
+        $this->actingAs($user)
+            ->deleteJson("/api/modules/{$rooms->slug}/entries/{$article->id}")
+            ->assertNotFound();
+
+        $this->assertSame('Secret', $article->fresh()->data['title']);
+    }
+
     public function test_entry_endpoints_require_authentication(): void
     {
-        $victim = User::factory()->create();
-        $module = $this->makeModule($victim, 'victim-module');
+        $module = $this->makeModule(User::factory()->create(), 'rooms');
+        $entry = $this->makeEntry($module, 'Sea view');
 
-        $this->getJson("/api/modules/{$module->slug}/entries")
-            ->assertUnauthorized();
+        $this->getJson("/api/modules/{$module->slug}/entries")->assertUnauthorized();
+        $this->getJson("/api/modules/{$module->slug}/entries/{$entry->id}")->assertUnauthorized();
+        $this->postJson("/api/modules/{$module->slug}/entries", ['data' => []])->assertUnauthorized();
+        $this->putJson("/api/modules/{$module->slug}/entries/{$entry->id}", ['data' => []])->assertUnauthorized();
+        $this->deleteJson("/api/modules/{$module->slug}/entries/{$entry->id}")->assertUnauthorized();
+
+        $this->assertDatabaseCount('entries', 1);
     }
 
     /**
@@ -174,8 +150,7 @@ class EntryAuthorizationTest extends TestCase
      */
     public function test_an_unauthenticated_request_is_401_even_without_a_json_header(): void
     {
-        $victim = User::factory()->create();
-        $module = $this->makeModule($victim, 'victim-module');
+        $module = $this->makeModule(User::factory()->create(), 'rooms');
 
         $this->get("/api/modules/{$module->slug}/entries", ['Accept' => 'text/html'])
             ->assertUnauthorized();

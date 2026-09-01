@@ -116,20 +116,33 @@ would otherwise redirect guests to that route name and fail, so
 `bootstrap/app.php` sets `redirectGuestsTo(fn () => null)`; an
 unauthenticated `/api/*` request answers 401 whatever it asks to `Accept`.
 
-Because a Module is owned by one User and an Entry is owned only
-indirectly (`Entry → Module → User`), every authorization question reduces
-to *does this user own this Module?*. The policy is consulted from the
-controller (read/delete) and from `authorize()` on both Entry FormRequests
-(write) — the latter runs before validation, so a Module's schema is never
-exposed to someone who can't write to it.
+`/api/login` also carries its own rate limit — five attempts a minute keyed by
+email **and** address, on top of the 120/minute the `api` group applies to
+everything. Both limiters are defined in `AppServiceProvider`; `bootstrap/app.php`
+has to call `throttleApi()` or the group carries no limiter at all
+(CHANGELOG §13).
 
-**Ownership is on its way out as the axis** (`TASKS.md` #54). Under the
-single-tenant model, modules are created only by the master admin, so
-`Module.user_id` cannot tell two users apart — and `ModuleController::index`
-would show the client's own staff nothing at all. The replacement is group ×
-module, collapsing for now to "any signed-in user reaches every module". The
-paragraph above still describes the code as it stands; the funnel it describes
-is what makes the change small, since there is exactly one place to change.
+**Ownership is not the authorization axis.** It was until #54: every question
+reduced to *does this user own this Module?*. One installation serves one site,
+its Modules are created only by the master admin, and its users are colleagues
+sharing one content space — so `Module.user_id` records who wrote the row and
+distinguishes nobody. Used to authorize, it showed the client's own staff an
+empty panel.
+
+`ModulePolicy` now answers **"is this user signed in?"**, which for these
+routes means it returns true. It is kept rather than deleted because it is the
+one place every authorization question passes through: group permissions —
+which group may work in which Module — land there and nowhere else. The policy
+is consulted from the controller (read/delete) and from `authorize()` on both
+Entry FormRequests (write); the latter runs before validation, so a Module's
+schema is never exposed to a request that will be refused.
+
+Two boundaries remain, and neither is in the policy:
+
+- **Authentication**, applied by the route group.
+- **The scoped route binding**, which stops an Entry being addressed through
+  the wrong Module. With ownership gone this is the only structural limit on
+  which Entry a request can name, so it matters more than it did.
 
 ## 4. Module schema → validation
 
@@ -178,10 +191,10 @@ Languages: `is_default` decides which language the panel opens on, read by
 `/api/languages`, so how the list is sorted and which entry is the default
 stay independent.
 
-**Nothing writes that flag**, though — not the seeder, not any endpoint. On a
-fresh install no language carries it and `defaultLanguage()` falls back to the
-first in the list, so the behaviour described above only appears on a database
-somebody edited by hand (`TASKS.md` #49).
+The **seeder** sets that flag, and is the only thing that does. No endpoint can
+change which language is the default, and nothing enforces that exactly one
+carries it — two flagged rows and `defaultLanguage()` silently takes whichever
+comes first (`TASKS.md` #49, waiting on #52).
 
 `SchemaRuleBuilder::SUPPORTED_TYPES` is the **single list** of field types
 the system understands: `string`, `text`, `integer`, `boolean`, `date`,

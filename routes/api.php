@@ -8,7 +8,11 @@ use App\Http\Controllers\UploadController;
 use Illuminate\Support\Facades\Route;
 
 // Public Routes (Don't require login)
-Route::post('/login', [AuthController::class, 'login']);
+//
+// The only unauthenticated write in the application, so it carries a limit of
+// its own on top of the group's: five attempts a minute per email+address.
+// See the `login` limiter in AppServiceProvider for why it is keyed that way.
+Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:login');
 
 // Protected Routes (Require login)
 Route::middleware('auth:sanctum')->group(function ()

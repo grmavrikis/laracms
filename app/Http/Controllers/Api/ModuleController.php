@@ -149,11 +149,22 @@ class ModuleController extends Controller
         return $base . '-' . $suffix;
     }
 
-    public function index(Request $request): JsonResponse
+    /**
+     * Every Module in the installation, for anyone signed in.
+     *
+     * This used to filter on `user_id`. One installation serves one site and
+     * its Modules are created by the master admin, so that filter showed the
+     * client's own staff an entirely empty panel - invisible only because
+     * there had never been a second account. Ownership is not the
+     * authorization axis here; see ModulePolicy.
+     *
+     * `id` breaks the tie on `created_at` for the same reason it does in
+     * EntryController: without a total order the database is free to return
+     * rows differently between requests.
+     */
+    public function index(): JsonResponse
     {
-        $modules = Module::where('user_id', $request->user()->id)
-            ->latest()
-            ->get();
+        $modules = Module::latest()->orderByDesc('id')->get();
 
         return response()->json($modules);
     }

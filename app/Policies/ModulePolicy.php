@@ -6,9 +6,24 @@ use App\Models\Module;
 use App\Models\User;
 
 /**
- * A Module is owned by exactly one User, and Entries are owned only
- * indirectly, through their Module. So every authorization question in the
- * CMS reduces to this one check: does this User own this Module?
+ * Who may reach a Module, and the Entries inside it.
+ *
+ * The answer used to be "whoever owns it". It is now "whoever is signed in",
+ * and that is a decision rather than an omission: one installation serves one
+ * site (docs/TASKS.md -> Decisions). Its users are the client's colleagues
+ * sharing a single content space, not tenants who have to be kept apart, and
+ * the Modules are created only by the master admin - so `Module.user_id`
+ * records who wrote the row and can tell nobody apart. Using it to authorize
+ * hid every Module from the client's own staff (#54).
+ *
+ * The methods are kept rather than the policy deleted, because this is the one
+ * place every authorization question in the application passes through. Group
+ * permissions - which group may work in which Module - land here and nowhere
+ * else, which is what keeps that change small when it comes.
+ *
+ * Two boundaries still hold and neither is here: authentication, applied by
+ * the route group, and the scoped route binding that stops an Entry being
+ * addressed through the wrong Module.
  */
 class ModulePolicy
 {
@@ -17,7 +32,7 @@ class ModulePolicy
      */
     public function view(User $user, Module $module): bool
     {
-        return $module->user_id === $user->id;
+        return true;
     }
 
     /**
@@ -25,11 +40,11 @@ class ModulePolicy
      */
     public function update(User $user, Module $module): bool
     {
-        return $module->user_id === $user->id;
+        return true;
     }
 
     public function delete(User $user, Module $module): bool
     {
-        return $module->user_id === $user->id;
+        return true;
     }
 }

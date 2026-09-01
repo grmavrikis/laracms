@@ -31,7 +31,7 @@ That is enough to take instructions. Read the fourth when you need the *why*:
 
 | File | What you get |
 |---|---|
-| `docs/CHANGELOG.md` | Why the code looks the way it does — 12 themed sections, each: what was wrong, what was decided, how it was checked. **Most entries are decisions, not fixes.** Skim the headings; read a section before changing what it describes. |
+| `docs/CHANGELOG.md` | Why the code looks the way it does — 13 themed sections, each: what was wrong, what was decided, how it was checked. **Most entries are decisions, not fixes.** Skim the headings; read a section before changing what it describes. |
 
 `README.md` is for a human running the app. Read it only if you need setup.
 
@@ -48,7 +48,7 @@ Read all of these before touching backend behaviour. They are small.
 | `app/Policies/ModulePolicy.php` | 30 lines. Every authorization question in the app reduces to what is in here. |
 | `app/Http/Requests/StoreEntryRequest.php` + `UpdateEntryRequest.php` | Nearly identical, ~30 lines each. `authorize()` runs before `rules()` — that ordering is deliberate. |
 | `routes/api.php` | The entire API surface, ~40 lines. Note `Route::scopeBindings()`. |
-| `bootstrap/app.php` | Three deliberate middleware decisions with comments: `statefulApi`, `trimStrings(except: data.*)`, `redirectGuestsTo(fn () => null)`. Each fixed a real bug. |
+| `bootstrap/app.php` | Four deliberate middleware decisions with comments: `statefulApi`, `throttleApi`, `trimStrings(except: data.*)`, `redirectGuestsTo(fn () => null)`. Each fixed a real bug. |
 
 Models (`app/Models/*.php`) are 15–30 lines each and hold no logic worth
 reading up front. Read one when you touch it.
@@ -73,7 +73,7 @@ Components, in order of how much they will surprise you:
 
 ### 4. Tests — read one before writing one
 
-`tests/Feature/` has 12 files, each named for what it pins — the suite is the
+`tests/Feature/` has 15 files, each named for what it pins — the suite is the
 best description of intended behaviour. Read `EntryAuthorizationTest.php`
 first: it documents the security model by attacking it. `ExampleTest.php` is
 the Laravel default and covers nothing.
@@ -127,7 +127,7 @@ JS tests sit **beside** their source as `resources/js/lib/*.test.js`.
 ## Commands
 
 ```bash
-php artisan test                    # 88 tests
+php artisan test                    # 99 tests
 npm test                            # 72 tests
 npm run build
 php artisan schema:sync-field-types # after changing field type constants
@@ -195,7 +195,7 @@ Started from a repo that would not boot (eight files of merge conflicts).
 Worked through a prioritised list; every item is either done or recorded in
 `CHANGELOG.md` with its reasoning.
 
-- **88 PHP tests, 72 JS tests**, all passing. Build clean.
+- **99 PHP tests, 72 JS tests**, all passing. Build clean.
 - **The project has a commercial goal as of 2026-08-30**, and it now decides
   what gets worked on. A multilingual CMS that feeds client sites, owned
   outright, for a one-person web agency: **one installation per client site**,
@@ -217,11 +217,12 @@ Worked through a prioritised list; every item is either done or recorded in
 - **The selling season is November–March.** Greek accommodation owners work
   through the summer and buy in the off-season, so a month lost in autumn costs
   a season, not a month.
-- **Next up: Phase 0** — #47 (the seeder is fatally broken and is step one of
-  the README), #48 (no rate limiting on login), #54 (`ModuleController::index`
-  hides every module from anyone but its creator). Half a day for all three.
-  Then Phase 1, which is the real gap: **the CMS stores content, has no way to
-  show it to anybody, and no way to receive anything back.** Start Phase 1 with
+- **Phase 0 is done** (CHANGELOG §13): the seeder, rate limiting, and ownership
+  dropped as the authorization axis — plus a login defect the tests turned up,
+  where a correct password answered 500 from any non-stateful origin while a
+  wrong one answered 401.
+- **Next up: Phase 1**, which is the real gap: **the CMS stores content, has no
+  way to show it to anybody, and no way to receive anything back.** Start with
   **#68** — an entry cannot hold more than one image today, which makes the
   first market's central module unusable, and it changes the field-type system,
   so anything built before it must be revisited.

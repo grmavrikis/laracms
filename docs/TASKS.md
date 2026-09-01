@@ -50,7 +50,8 @@ profitability.
 > languages, filled by somebody through the admin without touching code, and
 > pressing **Publish** changes the page a visitor sees.
 
-- [ ] #47, #48, #54 fixed — and nothing else from the findings list
+- [x] #47, #48, #54 fixed — and nothing else from the findings list
+      *(done — CHANGELOG §13; a login defect found on the way was fixed with them)*
 - [ ] #55 rich-text renderer, Tiptap document → HTML
 - [ ] #56 publication state, with a Publish action
 - [ ] #57 manual ordering
@@ -96,9 +97,16 @@ Rejected for the MVP at the same time, with reasons, as #69, #70 and #71.
 
 ## Phases
 
-### Phase 0 — blocks everything (half a day)
+### Phase 0 — blocks everything (half a day) — **done**
 
-**#47, #48, #54.** Two are one line each.
+**#47, #48, #54**, written up in CHANGELOG §13 and removed from the lists
+below. Writing the tests first turned up a fourth defect that is fixed with
+them: a correct password answered **500** from any origin Sanctum does not
+treat as stateful, while a wrong one answered 401 — a difference readable
+straight off the status code. Rate limiting the login while leaving that
+behind would have shipped the change half-done.
+
+88 → 99 tests.
 
 ### Phase 1 — content reaches the public (6–8 days)
 
@@ -245,19 +253,6 @@ back in unnoticed.
 Listed by number, which is stable and does **not** imply sequence — the
 **Phases** section above gives the order. Anything outside the MVP carries a
 phase tag.
-
-### 54. `ModuleController::index` hides every module but your own
-
-`ModuleController:154` filters with `where('user_id', $request->user()->id)`.
-Under the single-tenant model the master admin creates every module, so the
-client's own users would open the panel and see **nothing at all**.
-
-Invisible today only because there is one user. Part of Phase 0 because the
-second user account makes it immediate.
-
-The MVP shape: any signed-in user sees every module, and `ModulePolicy` answers
-on that basis rather than on ownership. `Module.user_id` stays as a record of
-who created the row; it stops being an authorization input.
 
 ### 55. Rich-text renderer: Tiptap document → HTML, in PHP
 
@@ -423,7 +418,8 @@ designing once, deliberately, rather than adding in a hurry when a client asks.
   and the page it came from
 - A **honeypot**, not a captcha. At this volume a captcha costs conversions and
   buys nothing.
-- Rate limited — covered by the `throttleApi()` that #48 introduces
+- Rate limited — already covered by the `api` limiter (CHANGELOG §13), though
+  an unauthenticated public write may want a tighter one of its own
 - Email notification to the owner
 - Admin list is **read and delete only, never edit**: an enquiry is a record of
   what somebody sent, not a document to revise
@@ -536,10 +532,11 @@ is an improvement on a working system rather than a prerequisite for one.
 
 # Code-review findings
 
-Numbered **#36–#53**, from two reviews. **Only #47 and #48 are in the MVP**
-(with #54 above). The rest are real, stay recorded, and are not being worked
-on — grinding through them before the MVP ships is the most plausible way to
-spend three months and reach no client.
+Numbered **#36–#53**, from two reviews. The two that were in the MVP, #47 and
+#48, are done and gone from here. **Nothing else on this list is scheduled** —
+the rest are real, stay recorded, and are not being worked on. Grinding through
+them before the MVP ships is the most plausible way to spend three months and
+reach no client.
 
 The priority labels rank these *against each other*, not against the MVP.
 **P1** is behaviour that is wrong now, **P2** is correctness with small blast
@@ -550,6 +547,9 @@ the cost of recent changes rather than old debt — noted per item where that is
 so. Items **#47–#53** came from a review of the project as a whole and are
 largely the opposite: gaps present from the beginning that no single change is
 responsible for.
+
+**#47 and #48 are gone from this list — they are done** (CHANGELOG §13). The
+numbers are not reused.
 
 ---
 
@@ -584,61 +584,6 @@ also where the feature is documented as working.
 Needs a document-aware check — the frontend already has `isEmptyDoc`/
 `docToText`; the backend has `RichTextDocument::toPlainText()` and no
 equivalent rule.
-
-### 47. Seeding a fresh install fails outright
-
-`DatabaseSeeder:14` calls `User::updateOrCreate` with no `use App\Models\User`.
-In namespace `Database\Seeders` that resolves to `Database\Seeders\User`, which
-does not exist — so `php artisan migrate --seed`, step one of `README.md:62`,
-dies before writing anything.
-
-Verified:
-
-```
-class_exists('Database\Seeders\User')  ->  false
-class_exists('App\Models\User')        ->  true
-```
-
-Three more problems sit in the same method and only become visible once the
-fatal is fixed:
-
-- the language is seeded as `code => 'gr'`; the ISO code for Greek is `el`,
-  which is what the languages migration gives as its own example;
-- no language is flagged `is_default` (#49);
-- the module is written with `DB::table(...)->updateOrInsert()` and no
-  timestamps, so `created_at` is NULL — the column `latest()` orders by.
-
-Not a cost of recent work: nothing in `CHANGELOG.md` touched the seeder.
-
-### 48. No rate limiting anywhere, including `/api/login`
-
-Laravel 13 adds a limiter to the `api` middleware group only when
-`throttleApi()` is called — the group is assembled in
-`Foundation/Configuration/Middleware.php:495`, where the throttle entry is
-conditional on `$this->apiLimiter` being set. `bootstrap/app.php` never calls
-it, and there is no `throttle:` anywhere in `routes/` or `app/`.
-
-So `POST /api/login` accepts unlimited password guesses, as fast as Apache will
-serve them. That a single account exists makes it easier to attack, not harder.
-
-`->throttleApi()` in `bootstrap/app.php` covers the API surface; the login route
-wants something tighter than the shared default, keyed by email as well as IP so
-one attacker cannot lock out the real user from a rotating address.
-
-### 49. `is_default` is read but never written
-
-`languages.is_default` decides which language the panel opens on — `getLangCode`
-and `defaultLanguage` in `lib/languages.js`, adopted in CHANGELOG §7.
-
-Nothing writes it. Not the seeder, not an endpoint, not a migration beyond
-`->default(false)`; searched `app/`, `database/` and `resources/js/`. So
-`defaultLanguage()` always falls through to `languages[0]`, and on any install
-whose database was not edited by hand the panel is back to opening on whichever
-language `orderBy('id')` returns first.
-
-The behaviour CHANGELOG §7 describes is therefore real in code and dormant in
-practice. Somewhere has to set the flag — and enforce that exactly one language
-carries it, which is a rule with no home until #52.
 
 ---
 
@@ -764,6 +709,26 @@ somewhere to live, and there is currently no code that could hold it.
 Also a gap rather than a defect, and the larger of the two — it is a controller,
 a policy question (these are installation-wide, not per-owner) and a screen.
 
+### 49. `is_default` is read but never written
+
+`languages.is_default` decides which language the panel opens on — `getLangCode`
+and `defaultLanguage` in `lib/languages.js`, adopted in CHANGELOG §7.
+
+Nothing wrote it. Not the seeder, not an endpoint, not a migration beyond
+`->default(false)`. So `defaultLanguage()` always fell through to
+`languages[0]`, and on any install whose database had not been edited by hand
+the panel opened on whichever language `orderBy('id')` returned first.
+
+**Half fixed (CHANGELOG §13).** The seeder now flags the language it creates,
+so a fresh install has a real default and the behaviour CHANGELOG §7 describes
+is no longer dormant.
+
+**What remains:** nothing can *change* it, and nothing enforces that exactly
+one language carries it — two rows flagged and `defaultLanguage()` silently
+picks whichever comes first. Both need a writer, which has no home until #52.
+Downgraded from P1 accordingly: it is no longer wrong on a fresh install, only
+unmanageable.
+
 ---
 
 ## P3 — tidying
@@ -808,9 +773,12 @@ Nothing here is insecure — every path does check, and that was confirmed befor
 filing this. The cost is that confirming it means reading four spellings
 individually, and that the next endpoint has four precedents to copy from.
 
-Related to #54, which changes what the policy *asks* rather than where it is
-asked from. Doing #54 first is right: there is no point tidying four call sites
-into one spelling of a question that is about to be replaced.
+**Reduced by #54, not resolved.** That changed what the policy *asks* — it now
+answers "is this user signed in?" — but not where it is asked from. The four
+spellings are still four, and `ModulePolicy::delete()` is still called from
+nowhere while `destroy` asks for `update`. Doing #54 first was right: there was
+no point tidying four call sites into one spelling of a question that was about
+to be replaced.
 
 ---
 

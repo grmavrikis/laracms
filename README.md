@@ -69,10 +69,8 @@ php artisan migrate --seed
 php artisan storage:link
 ```
 
-> **`--seed` currently fails.** `DatabaseSeeder` uses `User` without importing
-> it, so seeding dies with a class-not-found error before writing anything.
-> That is `TASKS.md` #47 and the fix is one `use` statement. Until it lands,
-> run `php artisan migrate` and create the account by hand.
+Seeding creates the test account, Greek as the default language, and one
+example module.
 
 ### Gotchas
 

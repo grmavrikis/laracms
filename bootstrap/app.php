@@ -17,6 +17,12 @@ return Application::configure(basePath: dirname(__DIR__))
         // Enable stateful API for Sanctum
         $middleware->statefulApi();
 
+        // Without this call Laravel puts no limiter in the `api` group at all,
+        // and nothing here declared one - so every endpoint, /api/login
+        // included, accepted requests as fast as they could be sent. The
+        // `api` and `login` limiters are defined in AppServiceProvider.
+        $middleware->throttleApi();
+
         // Entry payloads carry rich-text documents. A mark splits a sentence
         // into several text nodes, and the spaces between words sit at the
         // edges of those nodes ("Κάτι ", "έντονο", " εδώ"). Trimming each

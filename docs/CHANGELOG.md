@@ -564,3 +564,103 @@ The cleanest resolution is not a CSS one — see **Should `/` exist?** in
 > shipping to a page that does not use it — the public pages render rich text
 > (#55), and `prose` is precisely what they need. The measurement stands; the
 > problem it measured disappears along with the placeholder.
+
+---
+
+## 13. Phase 0 of the MVP
+
+The three items that blocked everything else, plus one defect the tests found
+on the way. See `TASKS.md` → The MVP for why these three and nothing else.
+
+### The seeder died before writing anything
+
+`DatabaseSeeder` called `User::updateOrCreate` with no `use App\Models\User`.
+In namespace `Database\Seeders` that resolves to `Database\Seeders\User`, which
+does not exist — so `php artisan migrate --seed`, **step one of the README**,
+ended in a class-not-found error. A fresh checkout could not be started, and
+nothing covered the seeder at all.
+
+**Decision: import it, and move the whole seeder onto the models.**
+`DB::table()->updateOrInsert()` does not fill timestamps, so the seeded rows
+had a null `created_at` — the column `latest()` orders by, which left them
+sorting unpredictably against everything created afterwards. The models also
+cast `schema`, so it no longer has to be hand-encoded.
+
+Two things were wrong in the same method and are fixed with it:
+
+- the language was seeded as `gr`; **`el`** is the ISO code for Greek, the
+  example the migration itself gives, and the key translations are stored under
+- no language was flagged `is_default`, so a fresh install had no default at
+  all and the panel fell back to whichever row came first by id (#49)
+
+Checked by `DatabaseSeederTest` — seven tests, including that the credentials
+the README hands out actually sign in, and that running the seeder twice does
+not duplicate anything.
+
+### Nothing in the application was rate limited
+
+Laravel puts a limiter in the `api` middleware group only when
+`bootstrap/app.php` calls `throttleApi()`. It did not, and no route declared a
+throttle of its own — so `/api/login` accepted unlimited password guesses as
+fast as Apache would serve them. Having a single account makes that easier to
+attack, not harder: there is only one email to guess against.
+
+**Decision: a generous limit on the API, a tight one on signing in.**
+
+- `api` — 120/minute per user or address. It exists to stop a runaway client,
+  not to police ordinary use of the panel, where saving one entry is several
+  requests.
+- `login` — **5/minute keyed by email *and* address**, plus 20/minute by
+  address alone. Keyed by email alone, an attacker working through addresses
+  against one account would lock its real owner out of their own panel; keyed
+  by address alone, working through many emails from one place would be missed.
+  Both keys are needed and each covers the other's blind spot.
+
+Checked by `LoginRateLimitTest`, including that the lockout holds even when the
+correct password arrives after the limit — guessing until the right one lands
+is the whole attack.
+
+`throttleApi()` itself is covered by no test, because the login test passes on
+the route-level throttle regardless. It was verified separately: `throttle:api`
+is present in the group and both limiters resolve.
+
+### A correct password answered 500 from anywhere but the panel
+
+Found by writing the rate-limit test, not by review. `AuthController::login`
+called `$request->session()->regenerate()` unconditionally, and Sanctum only
+starts a session for an origin listed in `SANCTUM_STATEFUL_DOMAINS`.
+
+From anywhere else — curl, another site, the test suite — a **correct**
+password threw `Session store not set on request` and produced a 500, while a
+**wrong** one produced a clean 401. That difference is readable straight off
+the status code, so credentials could be confirmed without ever holding a
+session.
+
+**Decision: guard the regeneration with `hasSession()`.** It defeats session
+fixation and stays, but only where there is a session to regenerate. Fixed here
+rather than logged, because rate limiting the login while leaving an oracle
+behind it would have shipped the change half-done.
+
+### Ownership hid every module from the client's own staff
+
+`ModuleController::index` filtered with `where('user_id', $request->user()->id)`
+and `ModulePolicy` answered "does this user own this Module?".
+
+Under the single-tenant model (`TASKS.md` → Decisions) that is the wrong axis:
+one installation serves one site, Modules are created only by the master admin,
+and the client's users are colleagues sharing one content space. The second
+account the client is given would have opened the panel and seen **nothing at
+all** — invisible only because there had never been a second account.
+
+**Decision: any signed-in user reaches every Module.** `Module.user_id` stays
+as a record of who wrote the row and stops being an authorization input. The
+policy is kept rather than deleted: it is the one place every authorization
+question passes through, and group permissions land there and nowhere else.
+
+`EntryAuthorizationTest` used to pin the opposite model and was rewritten to
+pin this one. The two boundaries that remain are tested unchanged and both
+still hold: authentication, and the scoped route binding that stops an Entry
+being addressed through the wrong Module — which, with ownership gone, is now
+the only structural limit on which Entry a request can name.
+
+**88 → 99 tests.**
