@@ -4,6 +4,8 @@ import {
     isGalleryField,
     emptyGallery,
     toGallery,
+    fromStored,
+    galleryPreview,
     galleryItem,
     altFor,
     withAlt,
@@ -47,6 +49,65 @@ describe('toGallery', () => {
 
     it('drops entries that are not objects', () => {
         expect(toGallery([img('a.jpg'), 'b.jpg', null, ['c.jpg']])).toEqual([img('a.jpg')]);
+    });
+});
+
+describe('fromStored', () => {
+    it('keeps a list that is already a gallery', () => {
+        const items = [img('a.jpg'), img('b.jpg')];
+
+        expect(fromStored(items)).toEqual(items);
+    });
+
+    it('carries a bare URL over as the first image', () => {
+        // Changing a field from `image` to `gallery` is the obvious reason to
+        // want this type, and the photograph is still wanted. Filtering it
+        // away would show an empty editor over data that is still there, and
+        // saving would then wipe it.
+        expect(fromStored('/storage/uploads/sea.jpg')).toEqual([
+            { url: '/storage/uploads/sea.jpg', alt: {} },
+        ]);
+    });
+
+    it('treats an empty string as no images', () => {
+        expect(fromStored('')).toEqual([]);
+    });
+
+    it('gives an empty list for anything else', () => {
+        expect(fromStored(null)).toEqual([]);
+        expect(fromStored(undefined)).toEqual([]);
+        expect(fromStored(42)).toEqual([]);
+        expect(fromStored({ url: 'a.jpg' })).toEqual([]);
+    });
+});
+
+describe('galleryPreview', () => {
+    // The entries table renders whatever a helper gives it, the way it renders
+    // docToText() for rich text. Without one, a gallery reached String() on an
+    // array of objects and the column read "[object Object],[object Object]".
+    it('counts the images', () => {
+        expect(galleryPreview([img('a.jpg'), img('b.jpg'), img('c.jpg')])).toBe('3 images');
+    });
+
+    it('uses the singular for one', () => {
+        expect(galleryPreview([img('a.jpg')])).toBe('1 image');
+    });
+
+    it('is empty for none, so the table shows its own dash', () => {
+        expect(galleryPreview([])).toBe('');
+        expect(galleryPreview(null)).toBe('');
+        expect(galleryPreview(undefined)).toBe('');
+    });
+
+    it('counts only what is really an image', () => {
+        expect(galleryPreview([img('a.jpg'), 'b.jpg', null])).toBe('1 image');
+    });
+
+    it('never returns an object, whatever it is handed', () => {
+        // The bug being fixed: anything that reaches String() in the table has
+        // to be a string already.
+        expect(typeof galleryPreview('/storage/uploads/sea.jpg')).toBe('string');
+        expect(typeof galleryPreview({ url: 'a.jpg' })).toBe('string');
     });
 });
 

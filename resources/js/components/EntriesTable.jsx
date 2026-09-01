@@ -1,4 +1,5 @@
 import { isRichTextField, docToText } from '../lib/richText';
+import { isGalleryField, galleryPreview } from '../lib/gallery';
 import { getLangCode } from '../lib/languages';
 
 export default function EntriesTable({
@@ -105,6 +106,18 @@ export default function EntriesTable({
                                                             <div className="line-clamp-2">
                                                                 {excerpt || <span className="text-gray-300">-</span>}
                                                             </div>
+                                                        </td>
+                                                    );
+                                                }
+
+                                                // A gallery is a list of objects. Without its own
+                                                // branch it fell through to String() below and the
+                                                // column read "[object Object],[object Object]".
+                                                if (isGalleryField(field)) {
+                                                    const preview = galleryPreview(value);
+                                                    return (
+                                                        <td key={field.name} className="whitespace-nowrap px-4 py-4 text-gray-600">
+                                                            {preview || <span className="text-gray-300">-</span>}
                                                         </td>
                                                     );
                                                 }

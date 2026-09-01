@@ -34,6 +34,44 @@ const isImage = (item) => !!item && typeof item === 'object' && !Array.isArray(i
 
 export const galleryItem = (url) => ({ url, alt: {} });
 
+/**
+ * The stored value as a gallery, migrating what another type left behind.
+ *
+ * `toGallery` filters for rendering and is right to drop what it cannot draw.
+ * This is for the value going *into* the form, where dropping is destructive:
+ * a field changed from `image` to `gallery` - the obvious reason to want this
+ * type - still holds a bare URL, and filtering it away would show an empty
+ * editor over a photograph that is still there, then save the emptiness over
+ * it. The URL becomes the first image instead.
+ */
+export const fromStored = (value) => {
+    if (typeof value === 'string') {
+        return value === '' ? [] : [galleryItem(value)];
+    }
+
+    return toGallery(value);
+};
+
+/**
+ * What the entries table shows in a gallery column.
+ *
+ * The table renders this the way it renders `docToText()` for rich text.
+ * Without it a gallery reached `String()` on an array of objects and the
+ * column read "[object Object],[object Object]".
+ *
+ * A count rather than thumbnails, deliberately: nothing generates derivative
+ * images, so the stored file is the full upload - fifteen rows of those would
+ * be tens of megabytes to render a list. Thumbnails belong with the media
+ * library, where the derivatives will exist.
+ */
+export const galleryPreview = (value) => {
+    const count = toGallery(value).length;
+
+    if (count === 0) return '';
+
+    return count === 1 ? '1 image' : `${count} images`;
+};
+
 export const altFor = (item, langCode) => item?.alt?.[langCode] ?? '';
 
 /**

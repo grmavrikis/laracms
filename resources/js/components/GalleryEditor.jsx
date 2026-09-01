@@ -56,7 +56,12 @@ export default function GalleryEditor({ value, onChange, languages = [], onError
             .map((r) => galleryItem(r.value.data.url));
 
         if (uploaded.length > 0) {
-            onChange(appendItems(items, uploaded));
+            // Appended to the list *as it stands*, not to `items`, which was
+            // captured when this handler was created. Uploading fifteen photos
+            // is the intended use, so there is a wide window in which the
+            // author removes an image or types alt text - and computing from
+            // the captured list would quietly undo all of it.
+            onChange((current) => appendItems(toGallery(current), uploaded));
         }
 
         const failed = results.filter((r) => r.status === 'rejected');

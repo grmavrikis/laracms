@@ -4,7 +4,7 @@ import api from '../lib/api';
 import RichTextEditor from './RichTextEditor';
 import GalleryEditor from './GalleryEditor';
 import { isRichTextField, emptyDoc } from '../lib/richText';
-import { isGalleryField, emptyGallery } from '../lib/gallery';
+import { isGalleryField, emptyGallery, fromStored } from '../lib/gallery';
 import { validationErrors, errorSummary, messagesForField, messagesNotForFields } from '../lib/apiErrors';
 import { getLangCode, defaultLanguage } from '../lib/languages';
 
@@ -41,7 +41,14 @@ export default function EntryForm({ moduleSlug, schema, languages, onSaved, onCa
         if (!isEdit) return emptyValues(staticFields);
         const obj = {};
         staticFields.forEach(f => {
-            obj[f.name] = entryData[f.name] ?? emptyValueFor(f);
+            const stored = entryData[f.name] ?? emptyValueFor(f);
+
+            // A gallery has to enter state as a list, not just be *drawn* as
+            // one. A field whose type was changed from `image` still holds a
+            // bare URL: leaving it here showed an empty editor over a
+            // photograph that was still there, and saving posted the string
+            // back to fail validation with nothing on screen to explain it.
+            obj[f.name] = isGalleryField(f) ? fromStored(stored) : stored;
         });
         return obj;
     });
@@ -71,7 +78,15 @@ export default function EntryForm({ moduleSlug, schema, languages, onSaved, onCa
     const [fieldErrors, setFieldErrors] = useState({});
     const [summary, setSummary] = useState([]);
 
-    const setStaticField = (name, value) => setStaticValues((prev) => ({ ...prev, [name]: value }));
+    // A function is applied to the value as it stands rather than replacing
+    // it. The gallery editor needs that: it appends uploads after an await,
+    // and anything the author did while the files were in flight - removing an
+    // image, typing alt text - would otherwise be overwritten by the list as
+    // it was when the upload started.
+    const setStaticField = (name, value) => setStaticValues((prev) => ({
+        ...prev,
+        [name]: typeof value === 'function' ? value(prev[name]) : value,
+    }));
     const setTranslatedField = (langId, name, value) => {
         setTranslations((prev) => ({
             ...prev,
