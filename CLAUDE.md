@@ -11,7 +11,7 @@ first market tourist accommodation. See **Where we are** at the bottom, and
 You are reading this because it loads automatically. It exists so a fresh
 session can be useful in ten minutes without reading the repo.
 
-**127 tracked files. About 25 are worth reading.** `vendor/` and
+**130 tracked files. About 25 are worth reading.** `vendor/` and
 `node_modules/` are 179 directories of noise — never grep or read them except
 to answer one precise question about framework behaviour.
 
@@ -35,7 +35,7 @@ That is enough to take instructions. Read the fourth when you need the *why*:
 
 `README.md` is for a human running the app. Read it only if you need setup.
 
-### 2. The backend that carries the design (~8 files)
+### 2. The backend that carries the design (~9 files)
 
 Read all of these before touching backend behaviour. They are small.
 
@@ -43,7 +43,7 @@ Read all of these before touching backend behaviour. They are small.
 |---|---|
 | `app/Services/SchemaRuleBuilder.php` | **The heart of the project.** Turns a Module's JSON schema into Laravel rules. Owns `SUPPORTED_TYPES`, requiredness, the two-level translatable rules, and the checks that reject contradictory validation. Most findings live here. |
 | `app/Services/RichTextDocument.php` | Rich text is stored as a **Tiptap JSON document, never HTML**. This rebuilds every incoming document from an allowlist. Read the class docblock — it explains why. |
-| `app/Services/RichTextRenderer.php` | The other half: document → HTML for public pages. Normalises first, escapes everything, returns an `HtmlString` so no template writes `{!! !!}`. |
+| `app/Services/RichTextRenderer.php` | The other half: document → HTML for public pages. Normalises first, escapes everything, returns an `HtmlString` so no template writes `{!! !!}`. Takes the language as a second argument — a translatable field holds a map, not a document. |
 | `app/Http/Controllers/Api/ModuleController.php` | Slug derivation (single-query collision resolution, length, format) and schema validation at creation. |
 | `app/Http/Controllers/Api/EntryController.php` | Authorization calls, pagination, and where documents get normalised. Short. |
 | `app/Policies/ModulePolicy.php` | 30 lines. Every authorization question in the app reduces to what is in here. |
@@ -133,7 +133,7 @@ JS tests sit **beside** their source as `resources/js/lib/*.test.js`.
 ## Commands
 
 ```bash
-php artisan test                    # 163 tests
+php artisan test                    # 170 tests
 npm test                            # 106 tests
 npm run build
 php artisan schema:sync-field-types # after changing field type constants
@@ -201,7 +201,7 @@ Started from a repo that would not boot (eight files of merge conflicts).
 Worked through a prioritised list; every item is either done or recorded in
 `CHANGELOG.md` with its reasoning.
 
-- **163 PHP tests, 106 JS tests**, all passing. Build clean.
+- **170 PHP tests, 106 JS tests**, all passing. Build clean.
 - **The project has a commercial goal as of 2026-08-30**, and it now decides
   what gets worked on. A multilingual CMS that feeds client sites, owned
   outright, for a one-person web agency: **one installation per client site**,

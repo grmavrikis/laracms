@@ -21,8 +21,16 @@ namespace App\Services;
  */
 class RichTextDocument
 {
-    /** Node types that may contain other nodes, mapped to their allowed attrs. */
-    private const NODES = [
+    /**
+     * Node types that may contain other nodes, mapped to their allowed attrs.
+     *
+     * Public because it is the vocabulary, not an implementation detail:
+     * `RichTextRenderer` has to produce markup for every key here, and
+     * `RichTextRendererTest` asserts that it does. Adding a type without
+     * teaching the renderer about it used to make the content vanish from
+     * the page in silence.
+     */
+    public const NODES = [
         'paragraph' => ['textAlign'],
         'heading' => ['level', 'textAlign'],
         'bulletList' => [],
@@ -34,8 +42,8 @@ class RichTextDocument
         'hardBreak' => [],
     ];
 
-    /** Inline marks, mapped to their allowed attrs. */
-    private const MARKS = [
+    /** Inline marks, mapped to their allowed attrs. Public for the same reason as NODES. */
+    public const MARKS = [
         'bold' => [],
         'italic' => [],
         'strike' => [],

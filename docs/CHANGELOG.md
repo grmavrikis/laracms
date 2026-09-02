@@ -1115,3 +1115,53 @@ there is anything worth rendering, `RichTextDocument::toPlainText()` already
 answers it.
 
 **142 → 163 PHP tests.**
+
+### What the review of it found
+
+#### A translatable field rendered as an empty paragraph
+
+`toHtml()` could not tell an empty document from the wrong shape, and a
+translatable rich-text field holds a **map of language code to document** -
+which is the common shape here: every rich-text field in the real database is
+translatable. Handed one, the normaliser saw something that was not a document,
+returned the empty one, and the page showed a blank section with nothing
+anywhere to say why. The scratch script written to render real content had to
+unwrap the map by hand, which was the same trap arriving early and going
+unnoticed.
+
+**Decision: take the language as a second argument, and refuse a map without
+one.** `toHtml($value, $language)` renders that translation; a language nobody
+has written yet is *data* rather than a mistake, so it renders empty. Passing
+the whole map is a mistake in the template itself and now raises on the first
+page load.
+
+The language is **ignored on a field that is not translatable**, so a template
+passes the language it is on without first asking which kind of field it has.
+And only a map of *documents* counts: anything merely malformed keeps rendering
+empty, because a template author cannot fix bad stored data by being shouted at
+on a live page.
+
+#### The two vocabularies could drift apart in silence
+
+`RichTextDocument` decides what may exist; this class decides how it looks. The
+lists have to name the same things and nothing checked that - a node type added
+to the normaliser and not here fell through to a branch that returned an empty
+string, so the content sat in the database and never appeared, with no
+exception and a green suite.
+
+This is the drift `FieldTypeConsistencyTest` exists to stop between the PHP
+field types and their generated JS copy, and it was written because those two
+had already diverged once.
+
+**Decision: check the lists, and make the fallthrough throw.** `NODES` and
+`MARKS` are public now - they are the vocabulary, not an implementation detail -
+and the test walks both. The unknown-type branch raises instead of returning
+`''`, so the drift cannot ship even if somebody deletes the test: silence was
+what made it dangerous.
+
+Proven by mutation in both directions: adding `'image'` to the normaliser alone
+fails with *"Node type 'image' is kept by RichTextDocument but RichTextRenderer
+cannot render it"*, and removing `underline` from the renderer alone fails the
+same way for the mark.
+
+**163 → 170 PHP tests.**

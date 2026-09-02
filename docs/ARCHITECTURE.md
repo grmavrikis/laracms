@@ -384,6 +384,19 @@ It returns an `HtmlString`, so **a Blade template writes `{{ }}` and never
 instead of at every call site — the server-side counterpart to keeping
 `dangerouslySetInnerHTML` out of the React code.
 
+**`toHtml($value, $language)` takes the language**, because a translatable
+field holds a *map* of language code to document rather than a document — the
+common shape here. Passing the map without a language raises; a language nobody
+has written yet renders empty, since that is data rather than a mistake. The
+argument is ignored on a field that is not translatable, so a template passes
+the language it is on without first asking which kind of field it has.
+
+`RichTextDocument::NODES` and `MARKS` are public because they are the
+vocabulary, not an implementation detail: the renderer must produce markup for
+every key, `RichTextRendererTest` walks both lists to check it does, and an
+unknown type **throws** rather than rendering nothing — silence is what let a
+type added to one and not the other disappear from the page.
+
 Legacy HTML values were converted once by
 `php artisan entries:migrate-richtext` (idempotent; `--dry-run` shows
 the diff first).

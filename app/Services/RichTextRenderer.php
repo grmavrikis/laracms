@@ -3,6 +3,8 @@
 namespace App\Services;
 
 use Illuminate\Support\HtmlString;
+use InvalidArgumentException;
+use LogicException;
 
 /**
  * Turns a stored Tiptap document into the HTML a public page shows.
@@ -60,11 +62,65 @@ class RichTextRenderer
     {
     }
 
-    public function toHtml(mixed $document): HtmlString
+    /**
+     * @param string|null $language which translation to render, for a field
+     *        that is translatable. Ignored for one that is not, so a template
+     *        can pass the language it is on without first asking which kind of
+     *        field it has.
+     */
+    public function toHtml(mixed $value, ?string $language = null): HtmlString
     {
-        $normalized = $this->documents->normalize($document);
+        if (self::isLanguageMap($value))
+        {
+            if ($language === null)
+            {
+                throw new InvalidArgumentException(
+                    'This value is a per-language map of documents, not a document. Pass the'
+                    . ' language code as the second argument to say which translation to render.'
+                );
+            }
+
+            // A language nobody has written yet is data rather than a mistake:
+            // the entry simply has no Greek. That renders as empty.
+            $value = $value[$language] ?? null;
+        }
+
+        $normalized = $this->documents->normalize($value);
 
         return new HtmlString($this->renderChildren($normalized['content'] ?? []));
+    }
+
+    /**
+     * Whether this is a translatable field's value: language code => document.
+     *
+     * A translatable rich-text field holds one of these, and it is the common
+     * shape here. Handed one without a language, `normalize()` sees something
+     * that is not a document and returns the empty one, so the page rendered a
+     * blank section indistinguishable from a document that really was empty.
+     *
+     * Only a map of *documents* counts. Anything else that is merely the wrong
+     * shape keeps the old behaviour and renders empty, because a template
+     * author cannot fix bad stored data by being shouted at on a live page -
+     * whereas passing the whole map is a mistake in the template itself, and
+     * shows up the first time it is loaded.
+     */
+    private static function isLanguageMap(mixed $value): bool
+    {
+        if (!is_array($value) || $value === [] || ($value['type'] ?? null) === 'doc')
+        {
+            return false;
+        }
+
+        foreach ($value as $translation)
+        {
+            if ($translation !== null
+                && !(is_array($translation) && ($translation['type'] ?? null) === 'doc'))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private function renderChildren(mixed $nodes): string
@@ -140,11 +196,9 @@ class RichTextRenderer
 
         $tag = self::TAGS[$type] ?? null;
 
-        // Unreachable after normalisation, which drops anything not in the
-        // vocabulary. Kept so that this method is total on its own terms.
         if ($tag === null)
         {
-            return '';
+            throw self::vocabulariesDisagree('Node type', $type);
         }
 
         return "<{$tag}{$this->alignment($attrs)}>{$children}</{$tag}>";
@@ -198,7 +252,34 @@ class RichTextRenderer
 
         $tag = self::MARK_TAGS[$type] ?? null;
 
-        return $tag === null ? $html : "<{$tag}>{$html}</{$tag}>";
+        if ($tag === null)
+        {
+            throw self::vocabulariesDisagree('Mark', $type);
+        }
+
+        return "<{$tag}>{$html}</{$tag}>";
+    }
+
+    /**
+     * Only reachable when this class and `RichTextDocument`'s vocabulary have
+     * drifted apart, which is a bug in the code rather than in the data: the
+     * normaliser drops everything it does not list, so anything arriving here
+     * is something it *does* list and this class has not been taught.
+     *
+     * Thrown rather than skipped. Returning an empty string made a type added
+     * to the normaliser and not here vanish from the page in silence, with the
+     * content still sitting in the database and nothing to say where it went.
+     * `RichTextRendererTest` walks both lists so this cannot ship, and the
+     * throw is what makes that walk fail loudly rather than on an assertion
+     * about empty output.
+     */
+    private static function vocabulariesDisagree(string $kind, mixed $type): LogicException
+    {
+        $name = is_string($type) ? $type : get_debug_type($type);
+
+        return new LogicException(
+            "{$kind} '{$name}' is kept by RichTextDocument but RichTextRenderer cannot render it."
+        );
     }
 
     /**

@@ -2,8 +2,10 @@
 
 namespace Tests\Feature;
 
+use App\Services\RichTextDocument;
 use App\Services\RichTextRenderer;
 use Illuminate\Support\HtmlString;
+use InvalidArgumentException;
 use Tests\TestCase;
 
 /**
@@ -32,9 +34,9 @@ class RichTextRendererTest extends TestCase
         $this->renderer = app(RichTextRenderer::class);
     }
 
-    private function render(mixed $document): string
+    private function render(mixed $document, ?string $language = null): string
     {
-        return (string) $this->renderer->toHtml($document);
+        return (string) $this->renderer->toHtml($document, $language);
     }
 
     private function doc(array ...$content): array
@@ -315,6 +317,114 @@ class RichTextRendererTest extends TestCase
         foreach ([null, '', 'a string', 42, ['not' => 'a doc']] as $value)
         {
             $this->assertSame('<p></p>', $this->render($value));
+        }
+    }
+
+    // ------------------------------------------------- translatable fields
+
+    /**
+     * A translatable rich-text field holds a map of language code to document,
+     * which is the common shape here - the real database's rich text is all
+     * translatable. Handed one without a language this used to normalise to
+     * nothing and render an empty paragraph, indistinguishable from a document
+     * that really was empty, so a template rendered a blank section and
+     * nothing anywhere said why.
+     */
+    public function test_a_language_map_renders_the_language_asked_for(): void
+    {
+        $html = $this->render([
+            'el' => $this->doc($this->paragraph($this->text('Ελληνικά'))),
+            'en' => $this->doc($this->paragraph($this->text('English'))),
+        ], 'en');
+
+        $this->assertSame('<p>English</p>', $html);
+    }
+
+    public function test_a_language_map_with_no_language_asked_for_is_refused(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+
+        $this->render([
+            'el' => $this->doc($this->paragraph($this->text('Ελληνικά'))),
+        ]);
+    }
+
+    /**
+     * A language nobody has written yet is data, not a mistake - the entry
+     * simply has no Greek. That renders as empty, it does not raise.
+     */
+    public function test_a_language_that_has_not_been_written_renders_empty(): void
+    {
+        $html = $this->render([
+            'en' => $this->doc($this->paragraph($this->text('English'))),
+        ], 'el');
+
+        $this->assertSame('<p></p>', $html);
+    }
+
+    /**
+     * So a template can pass the language it is on without first asking
+     * whether the field happens to be translatable.
+     */
+    public function test_a_language_is_ignored_on_a_field_that_is_not_translatable(): void
+    {
+        $html = $this->render($this->doc($this->paragraph($this->text('One set'))), 'el');
+
+        $this->assertSame('<p>One set</p>', $html);
+    }
+
+    /**
+     * Only a map of documents is a map. Anything else keeps the old
+     * behaviour, because a template author cannot fix bad stored data by
+     * being shouted at on a live page.
+     */
+    public function test_a_shape_that_is_merely_wrong_still_renders_empty(): void
+    {
+        $this->assertSame('<p></p>', $this->render(['not' => 'a doc']));
+        $this->assertSame('<p></p>', $this->render([]));
+    }
+
+    // -------------------------------------------------- the two vocabularies
+
+    /**
+     * `RichTextDocument` decides what may exist and this class decides how it
+     * looks, so the two lists have to name the same things. Nothing enforced
+     * that: a type added to the normaliser and not here was dropped silently,
+     * leaving content in the database that never appeared on a page.
+     *
+     * The same drift `FieldTypeConsistencyTest` exists to stop between the PHP
+     * field types and their generated JS copy.
+     */
+    public function test_every_node_type_the_normaliser_keeps_can_be_rendered(): void
+    {
+        foreach (array_keys(RichTextDocument::NODES) as $type)
+        {
+            $html = $this->render($this->doc(['type' => $type]));
+
+            $this->assertNotSame(
+                '',
+                $html,
+                "Node type '{$type}' is kept by RichTextDocument and renders to nothing."
+            );
+        }
+    }
+
+    public function test_every_mark_the_normaliser_keeps_can_be_rendered(): void
+    {
+        // Whatever each mark needs in order to survive normalisation.
+        $attrs = ['link' => ['href' => 'https://example.com']];
+
+        foreach (array_keys(RichTextDocument::MARKS) as $mark)
+        {
+            $html = $this->render($this->doc($this->paragraph($this->text('x', [
+                array_filter(['type' => $mark, 'attrs' => $attrs[$mark] ?? null]),
+            ]))));
+
+            $this->assertNotSame(
+                '<p>x</p>',
+                $html,
+                "Mark '{$mark}' is kept by RichTextDocument and leaves no trace in the HTML."
+            );
         }
     }
 
