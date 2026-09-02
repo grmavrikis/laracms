@@ -1165,3 +1165,37 @@ cannot render it"*, and removing `underline` from the renderer alone fails the
 same way for the mark.
 
 **163 → 170 PHP tests.**
+
+#### And the four the same review left
+
+All coverage or naming; none changed behaviour.
+
+**The Blade claim was asserted by a type check.** `assertInstanceOf(HtmlString)`
+proves the return type, not that Blade honours it — that lives in Laravel's
+`e()` helper, which nothing exercised. `Blade::render('{{ $html }}', …)` now
+asserts both halves in one line: the `<p>` this class produced survives, and
+the `<b>` an author typed stays escaped. Mutated to check it bites, and the
+mutation had to be done properly — returning a plain string from a method
+declared `: HtmlString` is a TypeError that fails every test and isolates
+nothing. With the signature loosened too, the new test fails showing the
+double-escaped output, which is the consequence the type check cannot show.
+
+**`ENT_SUBSTITUTE` had never been isolated.** The earlier mutation removed the
+escaping wholesale, and that test passed under it — the raw bytes still contain
+both words — so its specific claim was unverified. It now asserts
+`assertNotSame('<p></p>', …)` first, which is exactly what dropping the flag
+produces, and fails with *"One bad byte emptied the whole paragraph."*
+
+**Nested lists and `mailto`.** Both worked; neither was pinned. Nesting is where
+a recursive renderer usually breaks, and `mailto` is a third of the scheme
+allowlist and the only member that is not http-shaped. Removing it from
+`LINK_SCHEMES` now fails one test and nothing else.
+
+**`TAGS` read as a complete list of node types and was not one.** Renamed
+`PLAIN_TAGS`, with the rule written down: types needing more than a tag —
+`heading` builds its own, `codeBlock` wraps in two elements, `orderedList`
+carries `start`, `hardBreak` and `horizontalRule` are void — live in
+`renderNode()`. That is why `bulletList` is in the map and `orderedList` is not,
+which reads as an omission until you know it.
+
+**170 → 173 PHP tests.**

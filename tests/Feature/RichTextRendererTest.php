@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Services\RichTextDocument;
 use App\Services\RichTextRenderer;
+use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\HtmlString;
 use InvalidArgumentException;
 use Tests\TestCase;
@@ -135,8 +136,12 @@ class RichTextRendererTest extends TestCase
     }
 
     /**
-     * htmlspecialchars returns an empty string for malformed UTF-8 unless told
-     * otherwise, which would silently drop a paragraph rather than mangle it.
+     * `htmlspecialchars` returns an **empty string** for malformed UTF-8
+     * unless `ENT_SUBSTITUTE` is set, so a single bad byte would delete a
+     * whole paragraph rather than mangle a character of it.
+     *
+     * The first assertion is the one that names that failure: without the flag
+     * this output is exactly `<p></p>`.
      */
     public function test_malformed_utf8_does_not_empty_the_output(): void
     {
@@ -144,6 +149,7 @@ class RichTextRendererTest extends TestCase
             $this->text("before \xB1\x31\x8B after")
         )));
 
+        $this->assertNotSame('<p></p>', $html, 'One bad byte emptied the whole paragraph.');
         $this->assertStringContainsString('before', $html);
         $this->assertStringContainsString('after', $html);
     }
@@ -237,6 +243,29 @@ class RichTextRendererTest extends TestCase
         $this->assertSame('<pre><code>plain</code></pre>', $html);
     }
 
+    public function test_a_list_nests_inside_a_list_item(): void
+    {
+        // Where a recursive renderer usually breaks, and the editor allows it.
+        $html = $this->render($this->doc([
+            'type' => 'bulletList',
+            'content' => [[
+                'type' => 'listItem',
+                'content' => [
+                    $this->paragraph($this->text('outer')),
+                    ['type' => 'bulletList', 'content' => [[
+                        'type' => 'listItem',
+                        'content' => [$this->paragraph($this->text('inner'))],
+                    ]]],
+                ],
+            ]],
+        ]));
+
+        $this->assertSame(
+            '<ul><li><p>outer</p><ul><li><p>inner</p></li></ul></li></ul>',
+            $html
+        );
+    }
+
     // ------------------------------------------------------------------ marks
 
     public function test_each_mark_has_its_tag(): void
@@ -281,6 +310,22 @@ class RichTextRendererTest extends TestCase
             '<p><mark>x</mark></p>',
             $this->render($this->doc($this->paragraph($this->text('x', [['type' => 'highlight']]))))
         );
+    }
+
+    /**
+     * One of the three schemes the normaliser admits, and the only one that is
+     * not http-shaped - so it is the one a stricter URL check would break.
+     */
+    public function test_a_mailto_link_survives(): void
+    {
+        $html = $this->render($this->doc($this->paragraph(
+            $this->text('write', [[
+                'type' => 'link',
+                'attrs' => ['href' => 'mailto:someone@example.gr'],
+            ]])
+        )));
+
+        $this->assertStringContainsString('href="mailto:someone@example.gr"', $html);
     }
 
     /**
@@ -439,5 +484,22 @@ class RichTextRendererTest extends TestCase
         $rendered = $this->renderer->toHtml($this->doc($this->paragraph($this->text('x'))));
 
         $this->assertInstanceOf(HtmlString::class, $rendered);
+    }
+
+    /**
+     * The type check above proves the return type, not that Blade honours it -
+     * that behaviour lives in Laravel's `e()` helper, which no assertion here
+     * had exercised. Both halves matter in one line of template: the tags this
+     * class produced survive, and the text an author typed stays escaped.
+     */
+    public function test_a_blade_template_renders_it_with_double_braces(): void
+    {
+        $rendered = Blade::render('{{ $html }}', [
+            'html' => $this->renderer->toHtml($this->doc($this->paragraph(
+                $this->text('<b>bold</b> & co')
+            ))),
+        ]);
+
+        $this->assertSame('<p>&lt;b&gt;bold&lt;/b&gt; &amp; co</p>', $rendered);
     }
 }

@@ -41,8 +41,19 @@ use LogicException;
  */
 class RichTextRenderer
 {
-    /** Node types that are a container with a fixed tag and nothing else. */
-    private const TAGS = [
+    /**
+     * Node types that are **nothing but a tag** (plus alignment, where the
+     * vocabulary allows it).
+     *
+     * Not every node type is here, and the name says which: the ones that need
+     * more than a tag are handled in `renderNode()` because they cannot be
+     * expressed as a lookup - `heading` builds its tag from the level,
+     * `codeBlock` wraps in two elements and carries a class, `orderedList`
+     * carries `start`, and `hardBreak`/`horizontalRule` are void. So
+     * `bulletList` is here while `orderedList` is not, which reads as an
+     * omission until you know that rule.
+     */
+    private const PLAIN_TAGS = [
         'paragraph' => 'p',
         'bulletList' => 'ul',
         'listItem' => 'li',
@@ -194,7 +205,7 @@ class RichTextRenderer
             return "<ol{$attribute}>{$children}</ol>";
         }
 
-        $tag = self::TAGS[$type] ?? null;
+        $tag = self::PLAIN_TAGS[$type] ?? null;
 
         if ($tag === null)
         {
