@@ -11,7 +11,12 @@ this one when the two disagree: the goal is revenue, not a finished list.
 **Read the MVP section first.** As of 2026-08-30 this project has a stated
 commercial goal, and that goal — not the size of a finding — decides what is
 worked on. Most of the numbered findings further down are deliberately **not**
-in the MVP. Three of them are.
+in the MVP. Three of them were, and are now done.
+
+**Exception, added 2026-09-02: `## P0` in the findings section is first, ahead
+of everything.** It is fourteen defects in #56/#57/#58 — work finished the same
+day — and three of them are wrong in the browser right now. They are not old
+debt to be weighed against the MVP; they are the MVP shipping broken.
 
 Numbering is continuous and stable so commits and comments can cite it. It does
 not imply order or priority.
@@ -56,6 +61,7 @@ profitability.
 - [x] #56 publication state, with a Publish action *(done — CHANGELOG §16)*
 - [x] #57 manual ordering *(done — CHANGELOG §16)*
 - [x] #58 per-language entry slugs *(done — CHANGELOG §16)*
+- [ ] **#75–#88 the review of #56/#57/#58 — before #59** *(findings section, `## P0`)*
 - [ ] #59 public Blade routes, page cache cleared on publish, sitemap + hreflang
 - [ ] #60 `singleton` modules
 - [ ] #61 core/site boundary drawn
@@ -110,7 +116,15 @@ behind would have shipped the change half-done.
 
 ### Phase 1 — content reaches the public (6–8 days)
 
-**Done: #68, #55, #56, #57, #58.** Remaining: **#59, #60, #61, #66, #67.**
+**Done: #68, #55, #56, #57, #58.** Remaining: **#75–#88 first**, then **#59,
+#60, #61, #66, #67.**
+
+**#75–#88 come before #59 and there is no judgement call in it.** #59 is the
+public read path, and it is built on exactly the four things the review found
+broken: it resolves a URL through `Entry::forSlug`, filters through
+`published()`, orders by `sort_order`, and renders slugs the panel writes.
+Building on them first means finding the same defects again through a Blade
+template, which is the most expensive place to find them.
 
 #68 went first because it changed the field-type system, and anything built
 before it would have had to be revisited. #56, #57 and #58 were one piece of
@@ -510,7 +524,7 @@ is an improvement on a working system rather than a prerequisite for one.
 
 # Code-review findings
 
-Numbered **#36–#53**, from two reviews. Three have left: **#47** and **#48**,
+Numbered **#36–#88**, from four reviews. Three have left: **#47** and **#48**,
 which were in the MVP, and **#39**, which was fixed while the code it described
 was being changed for another reason (CHANGELOG §14). The numbers are not
 reused, so the gaps in the sequence are those three and nothing is missing. **Nothing else on this list is scheduled** —
@@ -519,8 +533,9 @@ them before the MVP ships is the most plausible way to spend three months and
 reach no client.
 
 The priority labels rank these *against each other*, not against the MVP.
-**P1** is behaviour that is wrong now, **P2** is correctness with small blast
-radius, **P3** is tidying. There is no P0 open.
+**P0 is the exception and outranks the MVP itself** — see below. **P1** is
+behaviour that is wrong now, **P2** is correctness with small blast radius,
+**P3** is tidying.
 
 Items **#36–#46** came from a review of the work in `CHANGELOG.md`, so most are
 the cost of recent changes rather than old debt — noted per item where that is
@@ -530,6 +545,206 @@ responsible for.
 
 **#47 and #48 are gone from this list — they are done** (CHANGELOG §13). The
 numbers are not reused.
+
+---
+
+Items **#75–#88** came from a review of #56/#57/#58 on the day that work
+landed. They are a different kind of entry from everything below them: not debt
+inherited from an earlier version of this codebase, but defects in code written
+hours earlier, three of which are wrong in the browser now.
+
+---
+
+## P0 — the #56/#57/#58 review, before anything else
+
+Fourteen findings against commit `91e0222`, 2026-09-02, at xhigh effort. **This
+block is done before #59 and before any other work.** The reasoning is in Phase
+1: #59 is built on precisely the four mechanisms this list says are broken.
+
+Three were verified live against MySQL with a `zz-review` probe module rather
+than argued from reading — those say so. **The test suite cannot catch #76**:
+it runs on SQLite, which does not enforce `varchar` limits.
+
+### The three that are wrong in the browser
+
+#### 75. Reordering renumbers only the ids it is sent, so pages collide
+
+`EntryController::reorder` assigns positions `1..N` to exactly the ids in the
+body. `EntriesTable` only ever holds one page — `paginate(15)` — so
+`reorderedIds` sends fifteen ids at most.
+
+A module with 20 entries: reorder on page 1 and those fifteen get `sort_order`
+1–15. Page to entries 16–20, press ↑ once, and those five are written 1–5. They
+now sort ahead of, and interleaved with, the fifteen on page 1 — an order
+nobody chose.
+
+**Why the tests missed it:** every case in `EntryOrderingTest` sends the
+module's whole set. Write the failing test first — reorder a subset, assert the
+untouched entries keep their positions.
+
+Two possible fixes, and the choice is a product decision:
+
+- **Positions are relative to the page**: the endpoint offsets by
+  `($page - 1) * 15`. Cheap, and wrong the moment a filter changes what a page
+  holds.
+- **The panel sends the whole module's order**: the table asks for every id
+  before a move, or the endpoint takes "move entry X to position N" and
+  renumbers around it server-side. More work, and correct under pagination.
+
+The second is the real answer. A list somebody wants to hand-order is a slider
+or a menu, so it is small — fetching every id is one cheap query.
+
+#### 76. A `slugs` key is never validated, and MySQL answers 500
+
+`ValidatesStructuralFields` validates every slug *value* and no slug *key*,
+while `entry_slugs.language_code` is `varchar(5)`.
+
+**Verified on MySQL.** `{"slugs": {"en-GB-oxendict": "probe"}}` passes
+validation, then the insert throws:
+
+```
+QueryException SQLSTATE[22001]: String data, right truncated:
+1406 Data too long for column 'language_code' at row 1
+```
+
+A 500 where the author should get a 422 — and **the suite cannot catch this**,
+because tests run on SQLite, which silently accepts the over-long value.
+CLAUDE.md records this exact trap under Environment.
+
+Two holes, one fix: validate the key. Length, and membership in the active
+languages — `{"zz": "about"}` currently creates a public URL in a language the
+site does not have. `Rule::in` over the active language codes covers both.
+
+#### 77. `syncSlugs` deletes before it inserts, outside a transaction
+
+`EntryController::syncSlugs` runs `$entry->slugs()->delete()` and then creates
+the new rows with nothing wrapping the pair.
+
+An entry live at `/el/rooms/thea` and `/en/rooms/sea-view` is updated with a
+third language whose key trips #76 — or loses a race on the unique index. The
+DELETE has committed; the INSERT throws; **both existing public URLs are gone.**
+The author sees a 500 and two pages are dead.
+
+`store()` has the same shape: the entry row is committed before `syncSlugs`
+runs, so a slug failure leaves a saved entry the client was never told about.
+
+Wrap the write — entry and slugs together — in one `DB::transaction`. Fixing
+#76 makes the common trigger go away; it does not make this correct.
+
+### The rest, in the order they were ranked
+
+#### 78. Rapid ↑/↓ clicks race on a stale `entries` array
+
+`EntriesManager.handleReorder` has no in-flight guard and the arrows stay
+enabled. Click ↓ twice quickly and the second click computes `reorderedIds`
+from the list that the first PUT has not yet refreshed, so it sends the same
+single swap again. The row moves one place instead of two, and out-of-order
+responses can leave either state on screen.
+
+Disable the controls while a reorder is in flight, or apply the new order
+optimistically so the second click computes from it.
+
+#### 79. Status constants are read by array index
+
+`resources/js/lib/entries.js` takes `STATUSES[0]` and `STATUSES[1]`. That is
+positional extraction from a generated array, which **re-introduces the drift
+`fieldTypes.json` exists to prevent**, and does it silently.
+
+Add a third state — `['draft', 'scheduled', 'published']`, the obvious
+insertion point — and `FieldTypeConsistencyTest` still passes, the build still
+succeeds, and `STATUS_PUBLISHED` is now `'scheduled'`. The Publish button
+writes the wrong status and every badge is mislabelled.
+
+Emit a keyed object from `SyncFieldTypes` so a missing key is `undefined` and
+fails loudly.
+
+#### 80. The `sortOrder` accessor returns 0 for an unhydrated attribute
+
+`Entry::sortOrder`'s getter casts before it compares, so `(int) null` is `0`
+and `0 !== 100000` returns `0` rather than `null`.
+
+**Verified:** `(new Entry)->sort_order` is `0` — "pinned to the top" — where
+the docblock promises `null` for unpositioned. That is the exact inversion the
+sentinel was introduced to prevent, waiting for the first code that builds an
+Entry before saving it. Check `$value === null` before casting.
+
+#### 81. The 201 omits the columns the database defaulted
+
+`store()` returns the model straight from `create()`, which never reads the row
+back. **Verified on MySQL:** the response serialises `data, status, module_id,
+updated_at, created_at, id` — no `sort_order`, no `published_at`, and `status`
+only because the panel happens to send it.
+
+A client that creates an entry without a status reads `response.status` as
+`undefined`, so `isPublished()` says Draft whatever the database chose. And
+`show()` loads `slugs` while `store()` and `update()` do not, so three
+endpoints return three shapes for one resource. `->refresh()->load('slugs')`
+before responding makes them agree.
+
+#### 82. `sort_order`'s cap lets a client set the sentinel itself
+
+`'max:' . Entry::UNPOSITIONED` permits exactly 100000. **Verified:** PUT
+`sort_order: 100000`, get a 200, read the entry back as `null`. The value
+silently became "unpositioned". Cap at `Entry::UNPOSITIONED - 1`.
+
+`min:0` is the same mismatch one size smaller: every comment says positions
+start at 1, and 0 validates.
+
+#### 83. The comment in `index()` claims a default of 0
+
+> "Everything starts at 0, so a Module nobody has ordered keeps the old
+> newest-first behaviour"
+
+The migration in the same commit defaults `sort_order` to **100000** and
+explains at length why 0 was wrong. The next reader who trusts the controller
+reasons about ordering backwards — the precise mistake the sentinel prevents.
+
+#### 84. `reorder` runs 2N queries and accepts duplicate ids
+
+`ids.*` fires one `exists` per id; the transaction then fires one UPDATE per
+id. Fifteen rows is 30 statements for one swap. Nothing enforces `distinct`, so
+a repeated id consumes two positions and writes one row; nothing caps the
+array, so one request can issue tens of thousands of statements inside a single
+transaction.
+
+`distinct` on `ids.*`, `max` on `ids`, one `whereIn` for existence, one
+CASE-based UPDATE for the write.
+
+#### 85. `slugFor` lazy-loads the relation on every call
+
+It touches `$this->slugs`, per model and per call. A public index of fifteen
+entries with a link each is fifteen SELECTs against `entry_slugs` — thirty if
+the template also needs the hreflang alternate. **This is the read path #59 is
+about to build on**, so it is worth fixing before rather than after: eager-load
+at the call sites, or have the listing scope select the slug alongside the
+entry.
+
+#### 86. The form resends `status`, so saving can silently revert a publish
+
+`EntryForm` always includes `status` in the payload, taken from what it loaded
+when it opened. An author opens a draft to fix a typo; meanwhile the entry is
+published elsewhere; the author saves and the form writes `status: 'draft'`.
+The live page disappears with nothing said.
+
+The rules are `sometimes`, so omitting `status` when it was not touched is
+already supported and confines the write to what was actually edited.
+
+#### 87. `published()` filters an unqualified column after a join
+
+`scopePublished` uses a bare `status`, and `scopeForSlug`'s docblock advertises
+`forSlug(...)->published()` — a where clause against a joined query. It works
+only because `entry_slugs` has no `status` column today. Add one — a
+per-language publication state is the obvious next request for a multilingual
+CMS — and every public lookup becomes `ambiguous column 'status'`, failing in
+the read path rather than where the column was added. `entries.status` costs
+nothing.
+
+#### 88. `validated()` is recomputed for each write path
+
+`attributes()` and `syncSlugs()` each call `$request->validated()`, so every
+create and update walks the full rule set twice — including the schema-derived
+`data.*` rules, the largest part of it. Pass the array in from the controller
+method.
 
 ---
 

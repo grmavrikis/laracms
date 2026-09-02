@@ -48,6 +48,7 @@ Read all of these before touching backend behaviour. They are small.
 | `app/Http/Controllers/Api/EntryController.php` | Authorization calls, pagination, and where documents get normalised. Short. |
 | `app/Policies/ModulePolicy.php` | 30 lines. Every authorization question in the app reduces to what is in here. |
 | `app/Http/Requests/StoreEntryRequest.php` + `UpdateEntryRequest.php` | Nearly identical, ~30 lines each. `authorize()` runs before `rules()` — that ordering is deliberate. |
+| `app/Http/Requests/Concerns/ValidatesStructuralFields.php` | The rules for the columns that are *not* schema fields: `status`, `sort_order`, per-language slugs. Shared by both Entry requests. |
 | `routes/api.php` | The entire API surface, ~40 lines. Note `Route::scopeBindings()`. |
 | `bootstrap/app.php` | Five deliberate middleware decisions with comments: `statefulApi`, `throttleApi`, `trustProxies` (env-driven, empty by default), `trimStrings(except: data.*)`, `redirectGuestsTo(fn () => null)`. Each fixed a real bug. |
 
@@ -228,18 +229,55 @@ Worked through a prioritised list; every item is either done or recorded in
   dropped as the authorization axis — plus a login defect the tests turned up,
   where a correct password answered 500 from any non-stateful origin while a
   wrong one answered 401.
-- **Next up: Phase 1**, which is the real gap: **the CMS stores content, has no
-  way to show it to anybody, and no way to receive anything back.** Start with
-  **#55**, the Tiptap-to-HTML renderer: nothing turns a stored document into
-  markup, so no rich text can appear on a public page at all. #56, #57 and #58
-  are one piece of work after it — `status`, `sort_order` and per-language
-  slugs as indexed columns — and #59 needs all four.
-- **#68 is done** (CHANGELOG §14). An entry can hold an ordered list of images,
-  each with alt text per language; a gallery refuses the translatable flag,
-  because one set of photographs per language is not a thing anybody wants.
+- **Phase 1 is half done.** #68 (CHANGELOG §14), #55 (§15) and #56/#57/#58
+  (§16) have landed: a gallery field, a Tiptap-to-HTML renderer, and the three
+  structural columns plus their admin UI. What is left of the phase is #59,
+  #60, #61, #66, #67.
+- **Next is not #59. It is `TASKS.md` → `## P0` (#75–#88)** — fourteen findings
+  from a review of #56/#57/#58 on the day it landed, 2026-09-02. **Three are
+  wrong in the browser now**: reordering on page 2 renumbers those rows over
+  page 1 (#75); a `slugs` key longer than five characters answers **500** on
+  MySQL (#76); and a failed slug write **destroys the entry's existing public
+  URLs**, because `syncSlugs` deletes before it inserts with no transaction
+  (#77). #59 is built on exactly those mechanisms, so it goes second.
 - **#36 is no longer next**, and neither is most of #36–#53. They are recorded,
   real, and deliberately not being worked on. Grinding through them before the
   MVP ships is the most plausible way to spend three months and reach no client.
+  **`## P0` is the one exception** and outranks even the MVP list.
+
+### What #56/#57/#58 actually built — read this before touching an Entry
+
+Four mechanisms, and each has a reason a fresh session will otherwise undo:
+
+- **`sort_order` reads as `null` everywhere above the database.** The column
+  defaults to the sentinel `Entry::UNPOSITIONED` (100000) and an Eloquent
+  `Attribute` maps it to and from `null`. The sentinel exists so "unpositioned
+  sorts last" is a plain indexed ascending sort; **a default of 0 inverted the
+  intent** — setting an entry to position 1 pushed it *below* everything
+  nobody had positioned. Do not "simplify" it back to 0, and do not let the
+  sentinel reach JavaScript.
+- **Entry statuses are generated into `fieldTypes.json`**, like the field
+  types, so the panel never restates a PHP constant. `FieldTypeConsistencyTest`
+  pins it. (#79 says the JS then reads them *positionally*, which quietly
+  defeats this — fix that before adding a third status.)
+- **Slugs are rows in `entry_slugs`, not a key in `data`**, with `module_id`
+  copied onto them. Uniqueness is **per Module per language** — the module slug
+  is already in the path, so `/el/rooms/about` and `/el/pages/about` are both
+  legitimate. `Entry::forSlug($module, $lang, $slug)` is a scope so the public
+  side composes `forSlug(...)->published()`.
+- **Reordering is one request for the whole list**, `PUT
+  /modules/{module}/entries/order`, routed **before** `{entry}` or the binding
+  tries to resolve an Entry called "order". The ids arrive in the body where
+  scoped binding cannot reach them, so that endpoint is the one place the
+  Module is checked by hand.
+
+### Not verified by a human yet
+
+The API and models were verified end-to-end against the real MySQL database
+(probe scripts, since deleted). **Nobody has clicked through the admin panel**
+— the Publish buttons, the per-language slug inputs and the ↑/↓ controls have
+never been exercised in a browser, because doing so needs a password typed into
+a form. Ask the user to try them, or expect surprises there first.
 
 **Decisions you must not re-open or contradict** (all in `TASKS.md` →
 Decisions, with reasoning): Blade rather than React for public pages; single

@@ -1331,3 +1331,35 @@ would, which was a real bug once (§5). Left for when the demo shows whether it
 matters.
 
 **173 → 210 PHP tests, 106 → 120 JS tests.**
+
+### What the review of it found — fourteen, and this section is not finished
+
+A review of this work the day it landed returned **fourteen findings**, kept in
+`TASKS.md` as **#75–#88** under a `## P0` heading that outranks the MVP list.
+This section stays as written because it records what was decided and why, but
+**do not read it as a description of working code until that block is closed.**
+
+Three are wrong in the browser:
+
+- **Reordering renumbers only the ids it is sent** (#75). The table holds one
+  page of fifteen, so a move on page 2 writes positions 1–5 over page 1's. Every
+  ordering test sends the module's whole set, which is why the suite is green.
+- **A `slugs` key is never validated** (#76). `language_code` is `varchar(5)`;
+  a longer key answers **500** on MySQL. The suite runs on SQLite, which does
+  not enforce varchar limits, so **no test could have caught it** — the trap
+  CLAUDE.md already documents, walked into again.
+- **`syncSlugs` deletes before it inserts, outside a transaction** (#77). A
+  failed insert leaves the entry with **no URLs at all**, so a 500 during a save
+  takes the live pages with it.
+
+The other eleven are smaller: an accessor that returns 0 where it promises null
+(#80), a 201 that omits the columns the database defaulted (#81), status
+constants read out of the generated file **by array index** (#79) — which
+quietly undoes the drift protection this very section claims — and a comment in
+`EntryController::index` that still says the default is 0 (#83).
+
+Three were verified live against MySQL rather than argued from reading. The
+lesson worth keeping: **the tests being green was never the check.** Two of the
+three serious findings are invisible to the suite by construction, one because
+of the database it runs on and one because every test happened to exercise the
+whole list.
