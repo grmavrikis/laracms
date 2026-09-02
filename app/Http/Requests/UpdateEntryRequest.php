@@ -2,12 +2,15 @@
 
 namespace App\Http\Requests;
 
+use App\Http\Requests\Concerns\ValidatesStructuralFields;
 use App\Models\Module;
 use App\Services\SchemaRuleBuilder;
 use Illuminate\Foundation\Http\FormRequest;
 
 class UpdateEntryRequest extends FormRequest
 {
+    use ValidatesStructuralFields;
+
     /**
      * Updating an Entry means writing into the Module, so it requires
      * ownership of that Module. The Entry itself is already guaranteed to
@@ -27,6 +30,11 @@ class UpdateEntryRequest extends FormRequest
         // the scoped binding guarantees the Entry belongs to this Module.
         //
         // Keyed `data`, the field this request carries - see StoreEntryRequest.
-        return SchemaRuleBuilder::build($this->route('module')->schema, 'data');
+        $module = $this->route('module');
+
+        // The entry being updated is passed so its own slugs do not count as
+        // a collision with itself.
+        return SchemaRuleBuilder::build($module->schema, 'data')
+            + $this->structuralRules($module, $this->route('entry'));
     }
 }

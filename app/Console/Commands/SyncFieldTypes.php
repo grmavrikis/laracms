@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Models\Entry;
 use App\Services\RichTextDocument;
 use App\Services\SchemaRuleBuilder;
 use Illuminate\Console\Command;
@@ -37,6 +38,10 @@ class SyncFieldTypes extends Command
             'richText' => RichTextDocument::FIELD_TYPES,
             'legacyRichText' => RichTextDocument::LEGACY_FIELD_TYPES,
             'gallery' => SchemaRuleBuilder::GALLERY_FIELD_TYPES,
+            // Not a field type, but the same problem: the admin needs the
+            // values and writing them into JavaScript by hand is the drift
+            // this file exists to prevent.
+            'entryStatuses' => Entry::STATUSES,
         ];
     }
 

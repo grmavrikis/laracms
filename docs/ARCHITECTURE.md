@@ -73,9 +73,25 @@ User (1:N) Module (1:N) Entry
   (`Ψυχαγωγία` → `psychagogia` vs `psikhaghoghia`, and `Café Münchén` →
   `caf-m-nch-n`). Since the frontend sent its value, the wrong one was the
   one stored. The form now leaves the slug blank unless the user types one.
-- **Entry** — `id, module_id, data(json)`. Belongs to one Module. Has no
-  `user_id` of its own — ownership is derived indirectly through
-  `Entry → Module → User`.
+- **Entry** — `id, module_id, data(json), status, published_at, sort_order`.
+  Belongs to one Module. Has no `user_id` of its own — ownership is derived
+  indirectly through `Entry → Module → User`.
+
+  The three columns beside `data` are **structural**: they mean the same thing
+  for every Module and they are what routing, filtering and ordering run on, so
+  they are indexed columns rather than schema fields (CHANGELOG.md §16).
+  `status` is `draft` or `published` and new entries are drafts; `published_at`
+  records when an entry *first* went out and never moves afterwards;
+  `sort_order` is ascending with **`Entry::UNPOSITIONED` (100000) as the
+  default**, so a position an author types comes above everything nobody has
+  ordered — with a default of 0 that expectation was exactly inverted.
+- **EntrySlug** — `entry_id, module_id, language_code, slug`, unique on
+  `(module_id, language_code, slug)`. A public URL resolves an entry by a
+  *translated* value, which inside `data` would be an unindexed scan on every
+  page view. `module_id` is copied onto the row so uniqueness can be per Module
+  — `/el/rooms/about` and `/el/pages/about` are different pages — and so the
+  lookup is one indexed read. `Entry::forSlug()` is a scope, so the public side
+  composes `forSlug(...)->published()`.
 - **Language** — `id, name, code, is_default, is_active`.
 
 **Translation model** (decided; see CHANGELOG.md §3): translatable content
@@ -164,6 +180,11 @@ Module.schema  →  SchemaRuleBuilder::build()  →  Laravel validation rules
 `SchemaRuleBuilder` (`app/Services/SchemaRuleBuilder.php`) converts each
 schema field into Laravel validation rules based on its `type` and its
 `translatable` flag.
+
+It describes `data` and nothing else. `status`, `sort_order` and `slugs` are
+not part of a Module's schema, so their rules live in the
+`ValidatesStructuralFields` trait that both Entry requests use — which also
+keeps the slug-collision check from existing twice.
 
 A **translatable** field yields two levels of rules, because its value is a
 map of language code to value: `data.{name}` governs the map and
@@ -289,8 +310,9 @@ to a different Module is a 404 before any controller code runs; a Module
 owned by a different user is a 403 from the policy. Modules are addressed
 by slug only — numeric ids are not accepted.
 
-**Listing** is paginated at 15 per page, ordered by `created_at` **and
-`id`** descending. The `id` is not decoration: entries saved in the same
+**Listing** is paginated at 15 per page, ordered by `sort_order` ascending,
+then `created_at` **and `id`** descending. Drafts are included: this is the
+admin, and an author has to see what they have not published. The `id` is not decoration: entries saved in the same
 second tie on `created_at`, and without a total order the database may
 return them differently between requests, so a paginated list can repeat
 or skip rows. On the client, `lib/pagination.js` reduces the paginator

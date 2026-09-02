@@ -82,6 +82,23 @@ export default function EntriesManager({ module, onBack }) {
         }
     };
 
+    /**
+     * The table hands over the order the list should end up in, and the whole
+     * of it goes in one request - so a move is one round trip rather than two
+     * writes that could half-fail and leave the list in an order nobody chose.
+     */
+    const handleReorder = async (ids) => {
+        setError(null);
+
+        try {
+            await api.put(`/modules/${module.slug}/entries/order`, { ids });
+            setRefreshKey((n) => n + 1);
+        } catch (err) {
+            console.error(err);
+            setError('Failed to save the new order.');
+        }
+    };
+
     const handleFormClose = (saved = false) => {
         const wasCreating = view === 'create';
 
@@ -188,6 +205,7 @@ export default function EntriesManager({ module, onBack }) {
                     schema={module.schema ?? []}
                     entries={entries}
                     onEdit={handleEdit}
+                    onReorder={handleReorder}
                     languages={languages}
                     currentLangCode={viewLangCode}
                     onLanguageChange={setViewLangCode}

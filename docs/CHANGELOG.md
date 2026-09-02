@@ -1199,3 +1199,135 @@ carries `start`, `hardBreak` and `horizontalRule` are void — live in
 which reads as an omission until you know it.
 
 **170 → 173 PHP tests.**
+
+---
+
+## 16. Structural columns: publication, order, and URLs
+
+`#56`, `#57` and `#58` are one piece of work. All three are things that mean
+the same for **every** Module and that routing, filtering and ordering run on -
+so they are real indexed columns rather than keys inside `data`, which cannot be
+indexed without generated columns. Content stays in the JSON.
+
+### Everything was public the moment it was saved
+
+No draft, no publication date, no Publish action: a half-written text was live,
+which is the first call an unhappy client makes.
+
+`status` is `draft` or `published`, and **new entries are drafts** - the safe
+direction. `published_at` records when an entry *first* went out and is never
+moved afterwards: editing a live entry, or republishing one that was pulled,
+must not rewrite that history, and unpublishing keeps the record of what
+happened rather than erasing it.
+
+Rows written before the column existed are backfilled to `published` with
+`published_at` from `created_at`. They *were* live - the site had no other
+state - and marking them drafts would hide a client's content the moment public
+pages arrive.
+
+The admin listing keeps showing drafts. An author being able to see what they
+have not published is the whole point.
+
+### "These four rooms, in this order" could not be said at all
+
+`sort_order` is ascending, so position 1 is the top of the page.
+
+**The default is 100000, not 0**, and a test caught why. With 0, ordering
+ascending meant that setting an entry to position 1 pushed it *below* every
+entry nobody had positioned - the exact inverse of the intent. A sentinel
+beyond any hand-set position keeps "unpositioned sorts last" true without a
+computed `ORDER BY` that no index could serve, and positions are capped at it
+so one can never sort after an unpositioned entry.
+
+Everything starts unpositioned, so a Module nobody has ordered keeps its old
+newest-first behaviour rather than being silently rearranged. The `id`
+tie-break stays: entries saved in the same second tie on both other columns,
+and without a total order a paginated list can repeat or skip rows.
+
+### A public URL resolves an entry by a translated value
+
+`/el/rooms/thea-sti-thalassa`. Inside `data` that would be an unindexed scan on
+every page view of every page, so slugs are rows in `entry_slugs` with a real
+index. **This is the storage complaint's valid core in miniature**: the rule is
+not "everything in tables", it is *whatever you search by goes in a table*.
+
+`module_id` is copied onto the row rather than reached through the entry, for
+two reasons that both need it there. Uniqueness has to be per Module - the
+module slug is already in the path, so `/el/rooms/about` and `/el/pages/about`
+are different pages and both are legitimate. And the public lookup is then one
+read of one index instead of a join.
+
+`language_code` is a plain code rather than a foreign key, matching how
+`Entry.data` keys its translations.
+
+`Entry::forSlug()` is a **scope**, not a finder, so it composes: the public
+side asks for `forSlug(...)->published()->first()` while a preview leaves the
+second half off.
+
+Sending `slugs` replaces the whole set, so a language left out loses its URL -
+which is what "these are the addresses of this entry" has to mean. Leaving the
+key out entirely changes nothing, so an update touching only `data` need not
+restate them.
+
+### Where the rules live
+
+`status`, `sort_order` and `slugs` are not derived from the schema, so
+`SchemaRuleBuilder` knows nothing about them: a `ValidatesStructuralFields`
+trait describes them and both Entry requests use it, which also keeps the
+slug-collision check from existing twice. Uniqueness is checked per Module and
+per language - which `Rule::unique` cannot express, since the language is the
+wildcard key and has to be read off the attribute name. The database index
+stays the real guarantee; the check exists so an author gets a 422 naming the
+language rather than a 500 from a constraint violation.
+
+### Checked
+
+173 → 205 tests, across three files named for what each pins.
+
+Then the migration was run against an **exact copy of the real database** -
+schema and all 23 rows - rather than an empty one, so the backfill was
+exercised on content that exists: 23 rows to `published`, `published_at` taken
+from `created_at`, both composite indexes present, and the unique index on
+`(module_id, language_code, slug)`. The copy was dropped and the migration then
+run for real.
+
+Live afterwards: a draft defaulting correctly, a published entry stamping its
+date and carrying two slugs, `published()` returning one of two, and
+`forSlug('el', …)` resolving while the same slug under `en` does not.
+
+### The panel
+
+A **Publication** section in the entry form: Draft or Published as two
+buttons, with the date it first went out shown beside them once there is one.
+Below it an **Address** section - one slug box per language, because a language
+left empty simply has no page in it.
+
+**Reordering is in the list**, where the order is visible, rather than a number
+box in the form. Up and down arrows on each row send **the whole order in one
+request** to `PUT /entries/order`: a move is one round trip rather than two
+writes that could half-fail and leave the list in an order nobody chose. The
+ids arrive in the body, where the scoped route binding cannot reach them, so
+that endpoint is the one place the Module is checked by hand - otherwise a
+request could renumber another Module's entries through one it may write to.
+
+The table gained a status badge, so a draft is obvious without opening it.
+
+#### The sentinel does not leave the backend
+
+`sort_order` reads as **`null`** everywhere above the database, through an
+attribute that maps it to and from 100000. The sentinel exists so ordering
+stays a plain indexed ascending sort; letting it out would have meant the panel
+restating a PHP constant in JavaScript, which is exactly the drift
+`fieldTypes.json` is generated to prevent. Verified on MySQL: the column holds
+100000 while the model says null.
+
+The status values are generated into that same file for the same reason, with
+`FieldTypeConsistencyTest` checking they match `Entry::STATUSES`.
+
+**Not done: slugs are typed, not suggested.** Deriving one from a title would
+mean the backend knowing which field is the title, and it cannot be done in the
+browser - `Str::slug` transliterates Greek differently from anything JavaScript
+would, which was a real bug once (§5). Left for when the demo shows whether it
+matters.
+
+**173 → 210 PHP tests, 106 → 120 JS tests.**

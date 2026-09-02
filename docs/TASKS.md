@@ -53,9 +53,9 @@ profitability.
 - [x] #47, #48, #54 fixed — and nothing else from the findings list
       *(done — CHANGELOG §13; a login defect found on the way was fixed with them)*
 - [x] #55 rich-text renderer, Tiptap document → HTML *(done — CHANGELOG §15)*
-- [ ] #56 publication state, with a Publish action
-- [ ] #57 manual ordering
-- [ ] #58 per-language entry slugs
+- [x] #56 publication state, with a Publish action *(done — CHANGELOG §16)*
+- [x] #57 manual ordering *(done — CHANGELOG §16)*
+- [x] #58 per-language entry slugs *(done — CHANGELOG §16)*
 - [ ] #59 public Blade routes, page cache cleared on publish, sitemap + hreflang
 - [ ] #60 `singleton` modules
 - [ ] #61 core/site boundary drawn
@@ -110,14 +110,13 @@ behind would have shipped the change half-done.
 
 ### Phase 1 — content reaches the public (6–8 days)
 
-**#68 done.** Remaining: **#55, #56, #57, #58, #59, #60, #61, #66, #67.** This is the real gap: the
-CMS stores content today, has no way to show it to anybody, and no way to
-receive anything back.
+**Done: #68, #55, #56, #57, #58.** Remaining: **#59, #60, #61, #66, #67.**
 
-**#68 was done first** because it changed the field-type system, and anything
-built before it would have had to be revisited. Of what is left, #56, #57 and
-#58 are one piece of work - three indexed columns and a table - and #59 needs
-all of them plus #55.
+#68 went first because it changed the field-type system, and anything built
+before it would have had to be revisited. #56, #57 and #58 were one piece of
+work as expected — three indexed columns and a table. **#59 now has everything
+it needs**: the renderer turns a document into HTML, `published()` says what a
+page may show, and `Entry::forSlug()` resolves a URL.
 
 ### Phase 2 — the demo site, as client #0 (3–5 days)
 

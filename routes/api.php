@@ -37,6 +37,11 @@ Route::middleware('auth:sanctum')->group(function ()
     {
         Route::get('/modules/{module}/entries', [EntryController::class, 'index']);
         Route::post('/modules/{module}/entries', [EntryController::class, 'store']);
+
+        // Before {entry}, or the binding would try to resolve an Entry called
+        // "order". Reordering is one request for the whole list rather than
+        // one per row, so dragging three rows is not three round trips.
+        Route::put('/modules/{module}/entries/order', [EntryController::class, 'reorder']);
         Route::get('/modules/{module}/entries/{entry}', [EntryController::class, 'show']);
         Route::put('/modules/{module}/entries/{entry}', [EntryController::class, 'update']);
         Route::delete('/modules/{module}/entries/{entry}', [EntryController::class, 'destroy']);

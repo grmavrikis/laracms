@@ -19,5 +19,9 @@
     ],
     "gallery": [
         "gallery"
+    ],
+    "entryStatuses": [
+        "draft",
+        "published"
     ]
 }

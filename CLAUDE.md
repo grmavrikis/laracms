@@ -31,7 +31,7 @@ That is enough to take instructions. Read the fourth when you need the *why*:
 
 | File | What you get |
 |---|---|
-| `docs/CHANGELOG.md` | Why the code looks the way it does — 15 themed sections, each: what was wrong, what was decided, how it was checked. **Most entries are decisions, not fixes.** Skim the headings; read a section before changing what it describes. |
+| `docs/CHANGELOG.md` | Why the code looks the way it does — 16 themed sections, each: what was wrong, what was decided, how it was checked. **Most entries are decisions, not fixes.** Skim the headings; read a section before changing what it describes. |
 
 `README.md` is for a human running the app. Read it only if you need setup.
 
@@ -62,6 +62,7 @@ The `lib/` helpers are pure functions and carry the interesting decisions:
 |---|---|
 | `resources/js/lib/richText.js` | Document helpers + which field types are rich text. |
 | `resources/js/lib/gallery.js` | List helpers for the `gallery` type. Pure; the editor holds no logic. |
+| `resources/js/lib/entries.js` | The structural bits: statuses (generated), slug maps, and working out a new order. |
 | `resources/js/lib/apiErrors.js` | Turns an axios rejection into wording. Used by all three forms. |
 | `resources/js/lib/pagination.js` | Reduces Laravel's paginator envelope. |
 | `resources/js/lib/languages.js` | `getLangCode` + which language is the default. |
@@ -77,7 +78,7 @@ on one entry, alt text per language), `RichTextEditor.jsx` (Tiptap),
 
 ### 4. Tests — read one before writing one
 
-`tests/Feature/` has 19 files, each named for what it pins — the suite is the
+`tests/Feature/` has 22 files, each named for what it pins — the suite is the
 best description of intended behaviour. Read `EntryAuthorizationTest.php`
 first: it documents the security model by attacking it. `ExampleTest.php` is
 the Laravel default and covers nothing.
@@ -133,8 +134,8 @@ JS tests sit **beside** their source as `resources/js/lib/*.test.js`.
 ## Commands
 
 ```bash
-php artisan test                    # 173 tests
-npm test                            # 106 tests
+php artisan test                    # 210 tests
+npm test                            # 120 tests
 npm run build
 php artisan schema:sync-field-types # after changing field type constants
 ```
@@ -201,7 +202,7 @@ Started from a repo that would not boot (eight files of merge conflicts).
 Worked through a prioritised list; every item is either done or recorded in
 `CHANGELOG.md` with its reasoning.
 
-- **173 PHP tests, 106 JS tests**, all passing. Build clean.
+- **210 PHP tests, 120 JS tests**, all passing. Build clean.
 - **The project has a commercial goal as of 2026-08-30**, and it now decides
   what gets worked on. A multilingual CMS that feeds client sites, owned
   outright, for a one-person web agency: **one installation per client site**,

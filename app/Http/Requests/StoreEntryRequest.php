@@ -2,12 +2,15 @@
 
 namespace App\Http\Requests;
 
+use App\Http\Requests\Concerns\ValidatesStructuralFields;
 use App\Models\Module;
 use App\Services\SchemaRuleBuilder;
 use Illuminate\Foundation\Http\FormRequest;
 
 class StoreEntryRequest extends FormRequest
 {
+    use ValidatesStructuralFields;
+
     /**
      * Creating an Entry means writing into the Module, so it requires
      * ownership of that Module. Runs before rules(), which keeps the
@@ -28,6 +31,11 @@ class StoreEntryRequest extends FormRequest
         // `data` is what this request carries, so a complaint about the schema
         // is reported against a field it actually has. Keyed `schema` it named
         // one that only exists when a Module is being created.
-        return SchemaRuleBuilder::build($this->route('module')->schema, 'data');
+        $module = $this->route('module');
+
+        // The schema decides `data`; the structural columns are the same for
+        // every Module and are described separately.
+        return SchemaRuleBuilder::build($module->schema, 'data')
+            + $this->structuralRules($module);
     }
 }

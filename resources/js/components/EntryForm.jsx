@@ -7,6 +7,7 @@ import { isRichTextField, emptyDoc } from '../lib/richText';
 import { isGalleryField, emptyGallery, fromStored } from '../lib/gallery';
 import { validationErrors, errorSummary, messagesForField, messagesNotForFields } from '../lib/apiErrors';
 import { getLangCode, defaultLanguage } from '../lib/languages';
+import { STATUS_DRAFT, STATUS_PUBLISHED, slugsToMap, slugsForPayload } from '../lib/entries';
 
 const coerce = (type, raw) => {
     if (type === 'integer') return raw === '' || raw === null ? null : Number(raw);
@@ -73,6 +74,11 @@ export default function EntryForm({ moduleSlug, schema, languages, onSaved, onCa
     const [activeLangId, setActiveLangId] = useState(defaultLanguage(languages)?.id ?? null);
     const [submitting, setSubmitting] = useState(false);
 
+    // Structural, not part of the Module's schema: they mean the same thing
+    // for every Module, so they live beside `data` rather than inside it.
+    const [status, setStatus] = useState(initialData?.status ?? STATUS_DRAFT);
+    const [slugs, setSlugs] = useState(() => slugsToMap(initialData?.slugs));
+
     // Field errors keyed by attribute path, plus the messages that belong to
     // no field and would otherwise never be shown.
     const [fieldErrors, setFieldErrors] = useState({});
@@ -114,7 +120,13 @@ export default function EntryForm({ moduleSlug, schema, languages, onSaved, onCa
             });
         });
 
-        const payload = { data: payloadData };
+        const payload = {
+            data: payloadData,
+            status,
+            // Sending the key replaces the whole set, so a language the author
+            // left blank loses its URL - which is what clearing the box means.
+            slugs: slugsForPayload(slugs),
+        };
 
         try {
             const url = isEdit ? `/modules/${moduleSlug}/entries/${initialData.id}` : `/modules/${moduleSlug}/entries`;
@@ -345,6 +357,72 @@ export default function EntryForm({ moduleSlug, schema, languages, onSaved, onCa
                         </div>
                     </div>
                 )}
+
+                <div className="mt-10 pt-8 border-t border-gray-100 space-y-6">
+                    <div>
+                        <h3 className="text-sm font-semibold text-gray-900">Publication</h3>
+                        <p className="text-sm text-gray-500">
+                            A draft is saved but never shown on the site.
+                        </p>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                        {[
+                            { value: STATUS_DRAFT, label: 'Draft' },
+                            { value: STATUS_PUBLISHED, label: 'Published' },
+                        ].map((option) => (
+                            <button
+                                key={option.value}
+                                type="button"
+                                onClick={() => setStatus(option.value)}
+                                aria-pressed={status === option.value}
+                                className={`rounded-lg px-4 py-2 text-sm font-semibold transition-all ${status === option.value
+                                    ? 'bg-indigo-600 text-white shadow-sm'
+                                    : 'bg-white text-gray-700 ring-1 ring-inset ring-gray-300 hover:bg-gray-50'
+                                    }`}
+                            >
+                                {option.label}
+                            </button>
+                        ))}
+
+                        {initialData?.published_at && (
+                            <span className="ml-2 text-xs text-gray-500">
+                                First published {new Date(initialData.published_at).toLocaleDateString()}
+                            </span>
+                        )}
+                    </div>
+
+                    {languages.length > 0 && (
+                        <div className="space-y-2">
+                            <div>
+                                <h3 className="text-sm font-semibold text-gray-900">Address</h3>
+                                <p className="text-sm text-gray-500">
+                                    The last part of the URL, per language. Leave a language empty and
+                                    it has no page in it.
+                                </p>
+                            </div>
+
+                            {languages.map((language) => {
+                                const code = getLangCode(language);
+
+                                return (
+                                    <div key={language.id} className="flex items-center gap-2">
+                                        <span className="w-8 shrink-0 text-xs font-semibold uppercase text-gray-500">
+                                            {code}
+                                        </span>
+                                        <input
+                                            type="text"
+                                            value={slugs[code] ?? ''}
+                                            onChange={(e) => setSlugs((prev) => ({ ...prev, [code]: e.target.value }))}
+                                            placeholder="thea-sti-thalassa"
+                                            className={`${inputClasses} font-mono text-xs`}
+                                        />
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
             </div>
 
             <div className="flex items-center justify-end gap-x-4 border-t border-gray-100 bg-gray-50 px-6 py-4">

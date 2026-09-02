@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Console\Commands\SyncFieldTypes;
+use App\Models\Entry;
 use App\Services\RichTextDocument;
 use App\Services\SchemaRuleBuilder;
 use Tests\TestCase;
@@ -40,6 +41,7 @@ class FieldTypeConsistencyTest extends TestCase
         $this->assertSame(RichTextDocument::FIELD_TYPES, $generated['richText']);
         $this->assertSame(RichTextDocument::LEGACY_FIELD_TYPES, $generated['legacyRichText']);
         $this->assertSame(SchemaRuleBuilder::GALLERY_FIELD_TYPES, $generated['gallery']);
+        $this->assertSame(Entry::STATUSES, $generated['entryStatuses']);
     }
 
     /**
