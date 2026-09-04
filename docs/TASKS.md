@@ -243,6 +243,143 @@ whether `/` should exist: with Blade public pages it is the site itself.
 `welcome.blade.php` — the stock Laravel placeholder with the inlined stylesheet
 — goes away as part of #59.
 
+## Decisions taken (2026-09-05)
+
+Reached in a discussion about whether to adopt a ready-made data grid, which
+turned into the more useful question underneath it: what kinds of list this
+application has, and which of them the JSON schema was ever meant to serve.
+
+**Two kinds of module, and no third.** A *content module* is what exists today:
+defined through the panel, fields in a JSON schema, rows in the shared
+`entries` table. A *domain module* is hand-written tables, models and screens.
+There is no middle tier.
+
+> A middle tier was proposed and rejected the same day: JSON plus MySQL
+> **generated columns**, which give an indexed column derived from a JSON path
+> and measure identically to a real one (see #90's numbers). It was dropped
+> because adding one **needs a hand-written migration anyway**, so it is not
+> something the Module builder can offer — which puts it on the hand-written
+> side of the line already. A tier that cannot be reached from the panel is not
+> a tier.
+
+**The rule that decides which.** Written down so the choice is not made by feel
+at the moment somebody is tired:
+
+> A **domain module** if it needs *any* of: search, sorting by column, bulk
+> actions, relations to other tables, or more than a few hundred rows.
+> Otherwise a **content module**.
+
+Accommodation crosses none of those. Rooms, pages, facilities and slider slides
+are content modules and always will be. A product catalogue crosses the line on
+day one.
+
+**Products are a domain module, and so is everything they hang off.**
+Categories, attributes, attribute values, variants, filters — all hand-written
+tables. This is not a concession: those are **relational by nature**,
+many-to-many with their own indexes and foreign keys, and expressing them in a
+JSON field schema is exactly where CMSs of this shape fall apart. What is
+gained is referential integrity the JSON never had.
+
+**Hand-written does not mean per client.** This is the distinction the whole
+model rests on. A domain module is written **once, in core**, and shipped to
+every installation that switches it on — the same way bookings and invoices
+already were decided. If each eshop client needed their own twenty tables, "one
+site a day from the fifth onward" in `BUSINESS.md` would be dead.
+
+| | Who defines it | How often |
+|---|---|---|
+| Content module | whoever builds the site, from the panel | every site, differently |
+| Domain module | us, in core, in code | **once**, identical everywhere |
+
+> **Consequence — this makes #61 more important than it looked.** The core/site
+> boundary is what lets a domain module be written once and reused. It was a
+> tidiness item; it is now load-bearing.
+
+> **Consequence — "pick a module type" is probably not a dropdown.** If domain
+> modules are code, nobody creates one from a form. The panel offers *New
+> content module*, plus a list of the domain modules available to switch on for
+> this site.
+
+**No runtime DDL. Ever.** The application must never issue `CREATE TABLE` when
+somebody clicks a button. Four reasons, and the third is the one that ends the
+argument:
+
+1. the application's database user would need DDL rights in production, so any
+   SQL injection stops being a read and becomes a rewrite;
+2. DDL does not roll back — failing on the fourteenth of twenty tables leaves
+   half a schema and no way back;
+3. **ten client installations would become ten different schemas.** No
+   migration could ever be written again, because no migration could know what
+   it was going to find. The first time a column has to be added for everybody,
+   it cannot be;
+4. a schema nobody knows in advance cannot be tested.
+
+Reason 3 kills the maintenance model, and maintenance *is* the product: the
+revenue is the €25/month, not the build.
+
+**A generator is fine — later, and not yet.** The acceptable form of "automatic"
+is a command that writes migration, models, controller and screen as **files
+you read and commit**, which then run as ordinary migrations. The schema stays
+in version control and is identical everywhere.
+
+But it should not be built yet. Domain modules are written once each, so it
+would be run perhaps four or five times ever — bookings, invoices, catalogue,
+possibly enquiries. A generator written **before** two of them exist automates
+what was imagined rather than what hurt. **Write bookings (#63) and invoicing
+(#64) by hand first, then decide.**
+
+**Two listings, not one.** `EntriesTable` stays as it is: manual order, no
+column sorting, no search. Large record lists — bookings, invoices, a catalogue
+— get their own component. Do not grow one into the other; that ends as a
+component with thirty props that serves neither.
+
+| | Content list | Record list |
+|---|---|---|
+| Columns | from the JSON schema, unknown | fixed, known to the code |
+| Cells | per-language maps, Tiptap docs, galleries | dates, amounts, names |
+| Order | **manual — it is the product** | chronological, sortable |
+| Size | dozens | thousands, and it only grows |
+| Needs | none of the below | search, sort, bulk actions |
+
+**TanStack Table for the record list, server-driven.** Headless — it supplies
+sorting, filtering, pagination and row-selection *state*, and no markup at all,
+so the Tailwind styling and the cell renderers stay ours. MIT, about 15 KB.
+
+Rejected: **AG Grid** and **MUI X DataGrid**. Both put the parts we would
+actually want behind a per-developer annual licence, against a product whose
+whole claim is that it is owned outright and whose revenue is €25 a month per
+client. Both also ship far more UI than this needs, into a bundle already at
+651 KB.
+
+Sorting, filtering and pagination are **server-side**. A hotel produces
+hundreds to a couple of thousand bookings a year and never deletes any, so the
+browser is not where they get sorted. The endpoint takes `sort`, `direction`,
+`q` and `page`, with an **allow-list of sortable columns** — the alternative is
+SQL injection through a query string — and an index behind each of them.
+
+**One endpoint per bulk action, never a generic dispatcher.** Not this:
+
+```
+POST /bulk { action: "delete", ids: [...] }
+```
+
+That is an RPC with a `switch`, and it authorizes every action at one point, so
+"who may cancel" and "who may issue an invoice" collapse into the same check.
+Instead:
+
+```
+POST /bookings/cancel   { ids: [...] }
+POST /bookings/invoice  { ids: [...] }
+```
+
+Each carries its own authorization, its own rules and its own tests. A new bulk
+button is a new endpoint and touches none of the existing ones — which is what
+makes the buttons genuinely pluggable, since the panel side is only a config
+array rendered above the table.
+
+> This is the lesson of **#75** applied before it is paid for a second time: an
+> endpoint that accepted whatever ids it was sent and trusted them.
+
 ## Deferred deliberately
 
 Not dropped. Decided against *for now*, with the reason, so they cannot creep
@@ -359,6 +496,12 @@ sites exist than after.
 
 ### 61. Draw the core/site boundary
 
+> **Raised in importance, 2026-09-05.** Domain modules — bookings, invoicing, a
+> product catalogue — are written **once in core** and shipped to every
+> installation that enables them (see Decisions, 2026-09-05). This boundary is
+> what makes that possible, so it stopped being tidiness and became the thing
+> the second product line rests on.
+
 Core code and per-client code go into separate directories now — theme,
 per-client modules and site routes on one side, everything shipped on the other.
 
@@ -383,6 +526,13 @@ themselves in it.
 Built as a paying client would be, so it doubles as the first template.
 
 ### 63. Bookings module *(Phase 3)*
+
+> **Write it by hand.** It is the first domain module, and the generator
+> question is deliberately deferred until #64 has been written by hand too —
+> two of them are what shows which parts actually repeat (Decisions,
+> 2026-09-05). Its listing is the first **record list**: server-side sort,
+> filter and pagination with an allow-list of sortable columns, TanStack Table
+> in the panel, and one endpoint per bulk action.
 
 A **register**, not an availability engine: real bookings arrive through the
 channel manager, and the owner records them here so they can be invoiced and
@@ -1076,6 +1226,100 @@ to be replaced.
 
 ---
 
+## Scale — measured, and not urgent yet (2026-09-05)
+
+Four items from measuring the JSON storage against indexed columns on the real
+MySQL, and from the discussion that followed. **Nothing here is wrong today**
+at accommodation sizes — #90 is evidence rather than a defect, and the rest
+become real the first time a module holds thousands of rows.
+
+The decisions this discussion produced are above, under **Decisions taken
+(2026-09-05)**.
+
+### 90. What the JSON actually costs, measured
+
+Recorded as evidence, because the storage design was questioned and the answer
+should not have to be argued from opinion again.
+
+**5000 entries in one module, real MySQL:**
+
+| | |
+|---|---|
+| The listing we serve today (`LIMIT 15`) | **14.40 ms** |
+| Search a title inside the JSON | 15.47 ms |
+| Sort by a price inside the JSON | 13.92 ms |
+| Sort by an **indexed generated column** | **0.49 ms** |
+| Exact match on an indexed generated column | **0.48 ms** |
+| `LIKE '%…%'` on an indexed column | 11.56 ms |
+
+**About thirty times**, and the instinct that prompted the question was right.
+Three things follow, and together they are why the JSON stays:
+
+- an indexed **generated column** built from a JSON path measures the same as a
+  real column, so the speed never required abandoning the JSON — only deciding
+  which two or three fields are searched. It was still rejected as a *tier*
+  (see Decisions), because adding one needs a migration;
+- `LIKE '%…%'` is slow **with an index too**, so moving to separate tables
+  would not have fixed search. That needs a FULLTEXT index either way;
+- at the sizes this product actually sells into — eight rooms, fifty pages —
+  none of it is measurable.
+
+Sorting a JSON value also sorts it **as text** unless it is cast: the run
+returned `10007, 10028, 10039…` ahead of `9…`. A price that sorts wrongly is a
+correctness bug, not a slow query, and it is invisible until a catalogue exists.
+
+An observation worth confirming separately: `EXPLAIN` taken *after* the
+generated columns existed showed MySQL matching the plain JSON expression to
+the generated column's index without the query being changed. If that holds, an
+index can be added to a live module without touching any code that reads it.
+
+### 91. The listing filesorts once positions tie
+
+**Measured: 14.40 ms to return fifteen rows out of 5000**, and the JSON is not
+the reason.
+
+The index is `(module_id, sort_order)`, and the ordering is
+`sort_order, created_at DESC, id DESC`. Every entry nobody has positioned holds
+the same sentinel, so `sort_order` separates nothing and MySQL sorts the whole
+module to hand back a page.
+
+Invisible at eight rooms. It is the dominant cost of the admin listing at
+catalogue size, and it is our own schema rather than anything inherited.
+
+The fix is an index that covers the tie-breakers rather than only the first
+column. Worth doing when a module is expected to be large, not before —
+and worth measuring rather than assuming, since the cheapest fix may be that
+large modules are domain modules and never take this path at all.
+
+### 92. `GET /entries/order` fetches every id on every listing load
+
+Added with #75. The panel reorders against the module's whole order, so the
+endpoint returns every id — and the effect runs alongside the listing, on every
+page load.
+
+Justified at the time by "a list somebody hand-orders is small", which is true
+and **nothing enforces it**. At three thousand entries it is a three-thousand
+element array fetched every time somebody opens a page, for a feature nobody
+would use on a list that size.
+
+Fetch it when a reorder is actually attempted, or not at all above a threshold
+— `Entry::MAX_REORDER` already says where that threshold is.
+
+### 93. Drag-and-drop instead of ↑/↓ *(after Phase 2)*
+
+The arrows work and were checked in the browser, so this is comfort rather than
+a defect. It is filed because it is now **cheap**: the endpoint already takes
+the module's whole order, which is exactly what a drag produces, and the
+optimistic apply, the coalescing write queue and `sortByOrder` all exist from
+#75 and #78. About half a day, because the difficult half is done.
+
+`@dnd-kit/core` + `@dnd-kit/sortable` — MIT, small, keyboard and screen-reader
+capable, imposes no markup.
+
+**Not before the MVP ships.** The selling season is November–March.
+
+---
+
 # To discuss
 
 Not work items, and not confined to the findings above. These need a
@@ -1092,6 +1336,21 @@ Worth noting that this question predicted its own cost correctly — it said tha
 serving public content "would make a full rich-text renderer a requirement
 rather than the excerpt the admin table needs". That renderer is #55, and it is
 the largest item in Phase 1.
+
+### Are invoices cancelled, or deleted? — a question for an accountant
+
+Raised while designing bulk actions for #64, and it is **not a software
+question**. The instinct was a *Delete selected* button; the likely reality is
+that an issued παραστατικό cannot be deleted at all and a credit note is issued
+against it instead.
+
+Nobody here knows Greek tax law well enough to answer, and guessing wrong
+builds a button that must never have existed. **Ask an accountant before the
+invoicing screen is designed**, not after.
+
+Two things hang on the answer: which bulk actions exist at all, and whether the
+invoices table needs a soft-delete or a status of its own. Both are cheap now
+and expensive once a client's books depend on them.
 
 ### How strict should a module schema be?
 
