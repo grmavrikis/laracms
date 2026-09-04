@@ -672,9 +672,14 @@ kept for clarity, not for speed. Two were measured and did matter: reordering
 fell from **32 queries to 3** (#84), and a listing's slugs from fifteen
 `SELECT`s to one (#85).
 
-**#78 is the one without a test.** There is no component-test harness in this
-repo, so the in-flight guard was verified by reading. It needs a human at the
-browser — see the check-list at the end of this section.
+**#78 was rewritten after a human tried it.** The first version disabled the
+arrows while a request was in flight, which the review offered as one of two
+options — and which fixes the race by discarding the clicks: three quick
+presses still moved a row one place. What shipped instead applies the move
+locally and serialises the writes through `lib/latestWriteQueue.js`, which
+coalesces because each payload is the module's whole order. The queue is a
+tested pure module; the component wiring around it has no harness in this repo
+and was checked in the browser.
 
 #### 78. Rapid ↑/↓ clicks race on a stale `entries` array — DONE
 
@@ -804,8 +809,9 @@ particular has no automated cover. On a module with **more than 15 entries**:
 2. **Page 1, ↑ on the first row** — disabled. **Page 2, ↓ on the last row** —
    disabled. Everything between them enabled, including ↓ on the last row of
    page 1, which should send it to page 2.
-3. **Click ↓ twice quickly** (#78). The row should move **two** places, not
-   one, and no arrow should accept a click while a move is in flight.
+3. **Click ↓ three times quickly** (#78). The row should move **three**
+   places, and the requests should go out one at a time — the middle order is
+   never sent, because the last one already describes the finished list.
 4. **Open a published entry, change only a text field, save** (#86). It must
    stay Published.
 5. **A slug box with `zz`** (#76) — a 422 naming the language, not a 500, and

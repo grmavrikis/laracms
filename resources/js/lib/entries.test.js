@@ -8,6 +8,7 @@ import {
     slugsForPayload,
     reorderedIds,
     entryPayload,
+    sortByOrder,
 } from './entries';
 
 describe('statuses', () => {
@@ -169,5 +170,39 @@ describe('entryPayload', () => {
         });
 
         expect(payload.slugs).toEqual({ el: 'thea' });
+    });
+});
+
+describe('sortByOrder', () => {
+    const rows = [{ id: 10 }, { id: 20 }, { id: 30 }];
+
+    it('puts the rows in the order the ids give', () => {
+        expect(sortByOrder(rows, [30, 10, 20]).map((r) => r.id)).toEqual([30, 10, 20]);
+    });
+
+    it('leaves the rows alone until the order has arrived', () => {
+        // The listing renders before the id list does, and a page of rows in
+        // the server's own order is the right thing to show meanwhile.
+        expect(sortByOrder(rows, []).map((r) => r.id)).toEqual([10, 20, 30]);
+        expect(sortByOrder(rows, undefined).map((r) => r.id)).toEqual([10, 20, 30]);
+    });
+
+    it('keeps a row the order does not mention, at the end', () => {
+        // Somebody else created an entry: it is on this page but not in the
+        // id list this client holds. Dropping it would make a row vanish.
+        expect(sortByOrder([...rows, { id: 99 }], [30, 10, 20]).map((r) => r.id))
+            .toEqual([30, 10, 20, 99]);
+    });
+
+    it('orders a page by the whole module, not by the page', () => {
+        // The page holds three of five. Their relative order still has to
+        // follow the module's.
+        expect(sortByOrder(rows, [50, 30, 40, 10, 20]).map((r) => r.id))
+            .toEqual([30, 10, 20]);
+    });
+
+    it('copes with no rows at all', () => {
+        expect(sortByOrder([], [1, 2])).toEqual([]);
+        expect(sortByOrder(undefined, [1, 2])).toEqual([]);
     });
 });

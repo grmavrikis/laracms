@@ -1,7 +1,7 @@
 import { isRichTextField, docToText } from '../lib/richText';
 import { isGalleryField, galleryPreview } from '../lib/gallery';
 import { getLangCode } from '../lib/languages';
-import { isPublished, reorderedIds, positionInOrder } from '../lib/entries';
+import { isPublished, reorderedIds, positionInOrder, sortByOrder } from '../lib/entries';
 
 export default function EntriesTable({
     schema,
@@ -9,7 +9,6 @@ export default function EntriesTable({
     onEdit,
     onReorder,
     orderIds = [],
-    reordering = false,
     languages = [],
     currentLangCode = 'en',
     onLanguageChange,
@@ -20,6 +19,11 @@ export default function EntriesTable({
     // otherwise this counted one page and labelled it the total.
     const total = pagination?.total ?? entries?.length ?? 0;
     const hasPages = (pagination?.lastPage ?? 1) > 1;
+
+    // A reorder is applied to the id list before the server confirms it, so
+    // the rows follow that rather than waiting for the refetch - otherwise
+    // pressing the arrow three times looks like nothing happening.
+    const rows = sortByOrder(entries, orderIds);
 
     return (
         <div className="mt-6 flex flex-col">
@@ -88,7 +92,7 @@ export default function EntriesTable({
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-100 bg-white">
-                                    {entries.map((entry) => (
+                                    {rows.map((entry) => (
                                         <tr key={entry.id} className="group hover:bg-gray-50/50 transition-colors duration-150">
                                             <td className="whitespace-nowrap px-6 py-4 font-medium text-gray-900">
                                                 #{entry.id}
@@ -183,7 +187,7 @@ export default function EntriesTable({
                                                             <button
                                                                 type="button"
                                                                 onClick={() => onReorder(reorderedIds(orderIds, entry.id, -1))}
-                                                                disabled={reordering || at <= 0}
+                                                                disabled={at <= 0}
                                                                 title="Move up"
                                                                 className="inline-flex items-center rounded-md px-2 py-1.5 text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                                                             >
@@ -192,7 +196,7 @@ export default function EntriesTable({
                                                             <button
                                                                 type="button"
                                                                 onClick={() => onReorder(reorderedIds(orderIds, entry.id, 1))}
-                                                                disabled={reordering || at < 0 || at === orderIds.length - 1}
+                                                                disabled={at < 0 || at === orderIds.length - 1}
                                                                 title="Move down"
                                                                 className="inline-flex items-center rounded-md px-2 py-1.5 text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                                                             >

@@ -110,3 +110,27 @@ export const entryPayload = ({ data, slugs, status, initialStatus, isEdit }) => 
 
     return payload;
 };
+
+/**
+ * The rows of one page, in the module's order.
+ *
+ * The table renders whatever the listing returned, and a reorder is applied
+ * locally before the server confirms it - so without this the row would not
+ * move until the refetch landed, and three quick presses of the arrow would
+ * look like nothing happening at all.
+ *
+ * A row the order does not mention keeps its place at the end rather than
+ * disappearing: somebody else may have created an entry that is on this page
+ * but not in the id list this client is holding.
+ */
+export const sortByOrder = (entries, ids) => {
+    const rows = Array.isArray(entries) ? [...entries] : [];
+
+    if (!Array.isArray(ids) || ids.length === 0) return rows;
+
+    const position = new Map(ids.map((id, index) => [id, index]));
+    const at = (entry) => position.get(entry?.id) ?? Number.MAX_SAFE_INTEGER;
+
+    return rows.sort((a, b) => at(a) - at(b));
+};
+

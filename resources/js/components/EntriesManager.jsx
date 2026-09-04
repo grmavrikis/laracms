@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import api from '../lib/api';
 import EntryForm from './EntryForm';
 import EntriesTable from './EntriesTable';
 import { paginationFrom, rowsFrom, isPastLastPage } from '../lib/pagination';
 import { defaultLangCode } from '../lib/languages';
+import { createLatestWriteQueue } from '../lib/latestWriteQueue';
 
 export default function EntriesManager({ module, onBack }) {
     const [languages, setLanguages] = useState([]);
@@ -12,7 +13,21 @@ export default function EntriesManager({ module, onBack }) {
     const [entries, setEntries] = useState([]);
     const [pagination, setPagination] = useState(null);
     const [orderIds, setOrderIds] = useState([]);
-    const [reordering, setReordering] = useState(false);
+
+    // The last order the server confirmed, to fall back to when a write
+    // fails, and the queue that guarantees one write at a time.
+    const savedOrder = useRef([]);
+    const slugRef = useRef(module.slug);
+    slugRef.current = module.slug;
+
+    const orderQueue = useRef(null);
+
+    if (!orderQueue.current) {
+        orderQueue.current = createLatestWriteQueue(async (ids) => {
+            await api.put(`/modules/${slugRef.current}/entries/order`, { ids });
+            savedOrder.current = ids;
+        });
+    }
     const [page, setPage] = useState(1);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -83,7 +98,16 @@ export default function EntriesManager({ module, onBack }) {
 
         api.get(`/modules/${module.slug}/entries/order`)
             .then(({ data }) => {
-                if (current) setOrderIds(Array.isArray(data?.ids) ? data.ids : []);
+                if (!current) return;
+
+                // A write in flight means the local order is newer than this
+                // answer, which was asked for before the move was made.
+                if (orderQueue.current.busy) return;
+
+                const ids = Array.isArray(data?.ids) ? data.ids : [];
+
+                setOrderIds(ids);
+                savedOrder.current = ids;
             })
             .catch((err) => {
                 console.error(err);
@@ -115,32 +139,32 @@ export default function EntriesManager({ module, onBack }) {
      * of it goes in one request - so a move is one round trip rather than two
      * writes that could half-fail and leave the list in an order nobody chose.
      */
+    /**
+     * A move is applied locally at once and written by a queue that keeps one
+     * request in flight (TASKS.md #78).
+     *
+     * The arrows used to send a PUT per click with nothing serialising them,
+     * so a second quick click computed its order from the list the first PUT
+     * had not yet refreshed - it sent the same swap again, the row moved one
+     * place instead of two, and whichever response landed last won.
+     *
+     * Applying locally is what makes the next click correct: it computes from
+     * the order being written rather than the one on the server. The queue is
+     * what makes the writes safe, and it can coalesce because each payload is
+     * the whole order rather than a description of one move - so three quick
+     * presses are two requests and three places moved.
+     */
     const handleReorder = async (ids) => {
-        // One move at a time. The arrows had no guard and stayed enabled, so a
-        // second click computed its order from the list the first PUT had not
-        // yet refreshed: it sent the same swap again, the row moved one place
-        // instead of two, and out-of-order responses could leave either state
-        // on screen (TASKS.md #78).
-        if (reordering) return;
-
-        setReordering(true);
         setError(null);
-
-        // Applied locally first, so the row moves under the cursor rather than
-        // after a round trip - and so a click that arrives before the refetch
-        // computes from the order actually being written.
-        const previous = orderIds;
         setOrderIds(ids);
 
         try {
-            await api.put(`/modules/${module.slug}/entries/order`, { ids });
+            await orderQueue.current.push(ids);
             setRefreshKey((n) => n + 1);
         } catch (err) {
             console.error(err);
-            setOrderIds(previous);
+            setOrderIds(savedOrder.current);
             setError('Failed to save the new order.');
-        } finally {
-            setReordering(false);
         }
     };
 
@@ -250,7 +274,6 @@ export default function EntriesManager({ module, onBack }) {
                     schema={module.schema ?? []}
                     entries={entries}
                     orderIds={orderIds}
-                    reordering={reordering}
                     onEdit={handleEdit}
                     onReorder={handleReorder}
                     languages={languages}

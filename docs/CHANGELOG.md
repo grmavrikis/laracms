@@ -1655,10 +1655,29 @@ Recording the number is the point: the finding overstated the cost.
 guard and the arrows stayed enabled, so a second click computed its order from
 the list the first `PUT` had not yet refreshed — it sent the same swap again,
 the row moved one place instead of two, and out-of-order responses could leave
-either state on screen. The arrows are now disabled while a reorder is in
-flight, and the new order is applied locally first so the next click computes
-from what is actually being written. A failed request puts the previous order
-back.
+either state on screen.
+
+The review offered two remedies: disable the controls while a request is in
+flight, **or** apply the order locally so the next click computes from it. The
+first was written and then thrown away after a human tried it, because it fixes
+the race by removing the clicks — pressing the arrow three times quickly still
+moved the row one place, having silently discarded the other two. That is the
+symptom the finding itself describes, left in place.
+
+What shipped is the second, with the serialisation the first was reaching for:
+
+- the move is applied to the id list at once, so the next click computes from
+  the order being written rather than the one on the server, and `sortByOrder`
+  puts the visible rows in that order so the row moves under the cursor;
+- `createLatestWriteQueue` keeps exactly one request in flight and **coalesces
+  what arrives behind it**. It can coalesce because each payload is the whole
+  order rather than a description of one move, so an intermediate order is
+  already superseded by the next one. Three quick presses are two requests and
+  three places moved.
+
+A failure drops the queue and reverts to the last order the server confirmed:
+anything waiting was computed on top of an order that was refused, so writing
+it would build on a state that never existed.
 
 **Saving could silently revert a publish** (#86). `EntryForm` included
 `status` in every payload, taken from what it loaded when it opened. An author
@@ -1691,12 +1710,28 @@ back out and the tests that name it confirmed to fail:
 | #85 `withSlugs` eager-loads nothing | the read-path test |
 | #86 status always sent | the payload test |
 | #87 bare `status` | the SQL test |
+| #78 the queue sends every push straight away | 3 queue tests |
+| #78 `sortByOrder` does not sort | 3 of its tests |
 
-**#78 has no test.** There is no component-test harness in this repo — the JS
-tests cover `lib/` only — so the guard is verified by reading and needs a
-human at the browser. It is in the list below.
+**One mutation did not bite, and the code changed rather than the claim.** The
+queue's failure path cleared what was waiting inside a `catch`; putting that
+back changed no test, because a rejection leaves the drain loop anyway and the
+next `push` overwrites the slot regardless. It was dead defensiveness, so it
+became two lines in the `finally` with a comment saying exactly that. Recording
+it matters more than the code did: a mutation that bites nothing is either a
+missing test or an unnecessary line, and pretending otherwise is how dead code
+accumulates behind a green suite.
 
-236 PHP tests, 127 JS tests, build clean.
+**What still has no automated cover** is the wiring inside `EntriesManager` —
+there is no component-test harness in this repo, so the queue is tested as a
+pure module and the component that uses it was checked by hand in the browser.
+
+All five browser checks were run by a human and passed: a move crossing a page
+boundary in both directions, the arrows knowing the ends of the module rather
+than of the page, a text-only save leaving a published entry published, and the
+201 carrying all nine keys.
+
+236 PHP tests, 138 JS tests, build clean.
 
 **`## P0` is closed. #59 is next.**
 
