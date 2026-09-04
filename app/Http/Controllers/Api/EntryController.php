@@ -62,13 +62,23 @@ class EntryController extends Controller
      *
      * One `select id`. A list somebody hand-orders is a menu or a set of
      * rooms, so it is small by the nature of the thing.
+     *
+     * Past `Entry::MAX_REORDER` the module cannot be reordered at all: the
+     * request would carry the whole set, which the cap refuses. Saying so here
+     * is what stops the panel rendering arrows that answer 422 on every click
+     * with nothing to explain why - an empty list disables them, and the flag
+     * says the emptiness is a limit rather than an empty module.
      */
     public function order(Module $module)
     {
         $this->authorize('view', $module);
 
+        $ids = $module->entries()->inListOrder()->pluck('id');
+        $reorderable = $ids->count() <= Entry::MAX_REORDER;
+
         return response()->json([
-            'ids' => $module->entries()->inListOrder()->pluck('id'),
+            'ids' => $reorderable ? $ids : [],
+            'reorderable' => $reorderable,
         ]);
     }
 
@@ -198,9 +208,16 @@ class EntryController extends Controller
 
         if ($cases !== '')
         {
-            $module->entries()
-                ->whereIn('id', $validated['ids'])
-                ->update(['sort_order' => DB::raw("CASE id{$cases} END")]);
+            // Without this, the Eloquent builder adds `updated_at` and moving
+            // one row restamps every entry in the module. A position is not a
+            // modification of the entry, and #59 is about to key a public page
+            // cache on exactly that column.
+            Entry::withoutTimestamps(function () use ($module, $validated, $cases)
+            {
+                $module->entries()
+                    ->whereIn('id', $validated['ids'])
+                    ->update(['sort_order' => DB::raw("CASE id{$cases} END")]);
+            });
         }
 
         return response()->noContent();

@@ -373,6 +373,79 @@ class EntryOrderingTest extends TestCase
             ->assertJsonValidationErrors('ids');
     }
 
+    /**
+     * Reordering is a change to position, not to the entries. Writing through
+     * the Eloquent builder stamps `updated_at` on every row it touches, so
+     * moving one entry rewrote the modification time of the whole module -
+     * and #59 is about to key a public page cache on exactly that.
+     */
+    public function test_reordering_does_not_restamp_the_entries(): void
+    {
+        $this->createEntry('A')->assertCreated();
+        $this->createEntry('B')->assertCreated();
+        $this->createEntry('C')->assertCreated();
+
+        $before = $this->module->entries()->orderBy('id')->pluck('updated_at', 'id');
+
+        $this->travel(1)->minutes();
+
+        $this->reorder(array_reverse($this->idsOf(['A', 'B', 'C'])))->assertNoContent();
+
+        $after = $this->module->entries()->orderBy('id')->pluck('updated_at', 'id');
+
+        $this->assertEquals($before->all(), $after->all());
+
+        // ...and the move itself still happened.
+        $this->assertSame(['C', 'B', 'A'], $this->listedTitles());
+    }
+
+    /**
+     * `max:MAX_REORDER` caps the request while the completeness rule demands
+     * the module's whole set, so a module past the cap cannot be reordered at
+     * all. The panel has to be told that, or it renders arrows that answer 422
+     * on every click with nothing to explain why.
+     */
+    public function test_a_module_too_large_to_reorder_offers_no_order(): void
+    {
+        $rows = [];
+
+        foreach (range(1, Entry::MAX_REORDER + 1) as $n)
+        {
+            $rows[] = [
+                'module_id' => $this->module->id,
+                'data' => json_encode(['title' => "E{$n}"]),
+                'status' => Entry::STATUS_DRAFT,
+                'sort_order' => Entry::UNPOSITIONED,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ];
+        }
+
+        foreach (array_chunk($rows, 500) as $chunk)
+        {
+            DB::table('entries')->insert($chunk);
+        }
+
+        $response = $this->actingAs($this->owner)
+            ->getJson("/api/modules/{$this->module->slug}/entries/order")
+            ->assertOk();
+
+        $this->assertFalse($response->json('reorderable'));
+        $this->assertSame([], $response->json('ids'));
+    }
+
+    public function test_a_module_within_the_cap_is_reorderable(): void
+    {
+        $this->createEntry('A')->assertCreated();
+
+        $response = $this->actingAs($this->owner)
+            ->getJson("/api/modules/{$this->module->slug}/entries/order")
+            ->assertOk();
+
+        $this->assertTrue($response->json('reorderable'));
+        $this->assertCount(1, $response->json('ids'));
+    }
+
     public function test_fetching_the_whole_order_requires_authentication(): void
     {
         $this->getJson("/api/modules/{$this->module->slug}/entries/order")

@@ -1228,8 +1228,9 @@ to be replaced.
 
 ## Scale — measured, and not urgent yet (2026-09-05)
 
-Four items from measuring the JSON storage against indexed columns on the real
-MySQL, and from the discussion that followed. **Nothing here is wrong today**
+Five items: four from measuring the JSON storage against indexed columns on
+the real MySQL and the discussion that followed, plus one (#94) the review of
+that same week's work made obvious. **Nothing here is wrong today**
 at accommodation sizes — #90 is evidence rather than a defect, and the rest
 become real the first time a module holds thousands of rows.
 
@@ -1304,6 +1305,21 @@ would use on a list that size.
 
 Fetch it when a reorder is actually attempted, or not at all above a threshold
 — `Entry::MAX_REORDER` already says where that threshold is.
+
+### 94. The panel has no component-test harness
+
+Three defects in a row now sit in `EntriesManager`/`EntryForm` and are verified
+by reading rather than by a test: the in-flight queue (#78), the refetch after
+a failed reorder, and the two payload omissions (#86 and its slug twin, both in
+CHANGELOG §20). The pure helpers underneath them are well covered —
+`latestWriteQueue`, `entryPayload`, `sortByOrder` — and every time the bug has
+been in the **wiring**, not in the helper.
+
+That is the shape of a missing test layer, not bad luck. Vitest is already
+here; what is missing is a renderer and a way to fake `api`.
+
+Not urgent, and deliberately not in the MVP — but the next time a panel bug is
+found by a human clicking, this is the reason.
 
 ### 93. Drag-and-drop instead of ↑/↓ *(after Phase 2)*
 

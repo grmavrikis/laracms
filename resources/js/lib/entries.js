@@ -83,29 +83,46 @@ export const reorderedIds = (ids, entryId, direction) => {
 export const positionInOrder = (ids, entryId) =>
     Array.isArray(ids) ? ids.indexOf(entryId) : -1;
 
+/** Two slug maps that say the same thing, whatever order the keys are in. */
+const sameSlugs = (a, b) => {
+    const keys = Object.keys(a);
+
+    return keys.length === Object.keys(b).length
+        && keys.every((language) => a[language] === b[language]);
+};
+
 /**
- * What the form sends, with `status` left out when the author did not touch it.
+ * What the form sends, carrying only the structural fields the author touched.
  *
- * The form used to include `status` in every payload, taken from what it
- * loaded when it opened. An author opens a draft to fix a typo, the entry is
- * published from somewhere else meanwhile, the author saves - and the form
- * writes `status: 'draft'` over it. The live page disappears with nothing said
- * (TASKS.md #86).
+ * Both of them replace what is on the server, and the form holds whatever it
+ * loaded when it opened - so resending an untouched field silently reverts
+ * whatever happened to it meanwhile.
  *
- * The rules are `sometimes`, so omitting it is already supported and confines
- * the write to what was actually edited. On create there is nothing to
- * revert and the author has just chosen it, so it is always sent.
+ * - **`status`** (TASKS.md #86): an author opens a draft to fix a typo, the
+ *   entry is published from elsewhere, the author saves, and the form writes
+ *   `status: 'draft'` over it. The live page disappears with nothing said.
+ * - **`slugs`**: sending the key replaces the *whole set*, so the same author
+ *   saving the same typo deletes a language somebody else added. That is the
+ *   same defect one field along, and it was missed when #86 was fixed.
+ *
+ * Both rules are `sometimes` and `syncSlugs` returns early when the key is
+ * absent, so omitting them is already how "I did not change this" is said. On
+ * create there is nothing to revert and the author has just chosen both, so
+ * both are always sent.
  */
-export const entryPayload = ({ data, slugs, status, initialStatus, isEdit }) => {
-    const payload = {
-        data,
-        // Sending the key replaces the whole set, so a language the author
-        // left blank loses its URL - which is what clearing the box means.
-        slugs: slugsForPayload(slugs),
-    };
+export const entryPayload = ({ data, slugs, initialSlugs, status, initialStatus, isEdit }) => {
+    const payload = { data };
 
     if (!isEdit || status !== initialStatus) {
         payload.status = status;
+    }
+
+    // Compared after normalising, so whitespace and a cleared box are judged
+    // as what they will actually be written as, not as what was typed.
+    const next = slugsForPayload(slugs);
+
+    if (!isEdit || !sameSlugs(next, slugsForPayload(initialSlugs))) {
+        payload.slugs = next;
     }
 
     return payload;

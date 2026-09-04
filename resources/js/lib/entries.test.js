@@ -164,12 +164,79 @@ describe('entryPayload', () => {
         const payload = entryPayload({
             data: {},
             slugs: { el: 'thea', en: '  ' },
+            initialSlugs: { el: 'thea', en: 'sea-view' },
             status: STATUS_DRAFT,
             initialStatus: STATUS_DRAFT,
             isEdit: true,
         });
 
         expect(payload.slugs).toEqual({ el: 'thea' });
+    });
+
+    it('leaves the slugs out of an edit that did not touch them', () => {
+        // Sending them replaces the whole set, so resending what the form
+        // loaded deletes a URL somebody else added meanwhile - the same
+        // defect as the status one above, one field along.
+        const payload = entryPayload({
+            data: { title: 'fixed a typo' },
+            slugs: { el: 'thea', en: 'sea-view' },
+            initialSlugs: { el: 'thea', en: 'sea-view' },
+            status: STATUS_DRAFT,
+            initialStatus: STATUS_DRAFT,
+            isEdit: true,
+        });
+
+        expect('slugs' in payload).toBe(false);
+    });
+
+    it('does not care what order the languages come in', () => {
+        const payload = entryPayload({
+            data: {},
+            slugs: { en: 'sea-view', el: 'thea' },
+            initialSlugs: { el: 'thea', en: 'sea-view' },
+            status: STATUS_DRAFT,
+            initialStatus: STATUS_DRAFT,
+            isEdit: true,
+        });
+
+        expect('slugs' in payload).toBe(false);
+    });
+
+    it('sends the slugs when one was edited', () => {
+        expect(entryPayload({
+            data: {},
+            slugs: { el: 'nea-thea', en: 'sea-view' },
+            initialSlugs: { el: 'thea', en: 'sea-view' },
+            status: STATUS_DRAFT,
+            initialStatus: STATUS_DRAFT,
+            isEdit: true,
+        }).slugs).toEqual({ el: 'nea-thea', en: 'sea-view' });
+    });
+
+    it('sends the slugs when one was cleared', () => {
+        // Clearing a box means "this language has no URL", which only the
+        // whole set can express.
+        expect(entryPayload({
+            data: {},
+            slugs: { el: 'thea', en: '' },
+            initialSlugs: { el: 'thea', en: 'sea-view' },
+            status: STATUS_DRAFT,
+            initialStatus: STATUS_DRAFT,
+            isEdit: true,
+        }).slugs).toEqual({ el: 'thea' });
+    });
+
+    it('sends the slugs when creating, however empty', () => {
+        const payload = entryPayload({
+            data: {},
+            slugs: {},
+            initialSlugs: {},
+            status: STATUS_DRAFT,
+            initialStatus: STATUS_DRAFT,
+            isEdit: false,
+        });
+
+        expect(payload.slugs).toEqual({});
     });
 });
 

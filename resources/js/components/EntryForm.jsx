@@ -83,6 +83,10 @@ export default function EntryForm({ moduleSlug, schema, languages, onSaved, onCa
     const initialStatus = initialData?.status ?? STATUS_DRAFT;
     const [slugs, setSlugs] = useState(() => slugsToMap(initialData?.slugs));
 
+    // What the entry's URLs were when this form opened. Saving must not
+    // replace the set unless the author edited one of the boxes.
+    const initialSlugs = slugsToMap(initialData?.slugs);
+
     // Field errors keyed by attribute path, plus the messages that belong to
     // no field and would otherwise never be shown.
     const [fieldErrors, setFieldErrors] = useState({});
@@ -127,6 +131,7 @@ export default function EntryForm({ moduleSlug, schema, languages, onSaved, onCa
         const payload = entryPayload({
             data: payloadData,
             slugs,
+            initialSlugs,
             status,
             initialStatus,
             isEdit,

@@ -115,6 +115,13 @@ User (1:N) Module (1:N) Entry
   on MySQL rather than a 422, and an unchecked *unknown* key created a public
   URL in a language nothing would ever serve (CHANGELOG.md §17).
 
+  **The form sends `slugs` only when the author edited one.** Sending the key
+  replaces the whole set, so a save that restated what the form loaded would
+  delete a language somebody added meanwhile — the same defect as resending
+  `status`, one field along. Both are `sometimes`, and `syncSlugs` returns
+  early when the key is absent, so omitting them is how "I did not change
+  this" is expressed.
+
   **An entry and its slugs are one write.** `store()` and `update()` wrap the
   entry row and `syncSlugs()` in a single `DB::transaction`. `syncSlugs`
   deletes the whole set before inserting the new one — that is what "sending
@@ -374,6 +381,14 @@ checked per id — the completeness rule already compares the body against the
 module's own ids, so a foreign or missing id cannot survive it — and
 `Entry::MAX_REORDER` caps the array. Fifteen rows used to be 32 queries for a
 single swap.
+
+A module holding more than `Entry::MAX_REORDER` entries **cannot be
+reordered at all** — the request would have to carry the whole set, which the
+cap refuses — so `GET .../order` answers `{"ids": [], "reorderable": false}`
+and the panel's arrows disable themselves rather than failing on every click.
+Reordering also writes through `Entry::withoutTimestamps()`: a position is not
+a modification of the entry, and stamping `updated_at` across the module would
+invalidate every cached public page in it.
 
 **All three entry endpoints return the same shape.** `store`, `update` and
 `show` each answer with the row read back from the database and its `slugs`

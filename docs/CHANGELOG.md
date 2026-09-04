@@ -1735,3 +1735,79 @@ than of the page, a text-only save leaving a published entry published, and the
 
 **`## P0` is closed. #59 is next.**
 
+---
+
+## 20. Four the review of §17–§19 found
+
+A review of this week's own work, run against `60fa687..HEAD`. Two of the four
+are real defects a user would hit; the other two are limits that behave badly
+at the edge.
+
+### The form deleted URLs it was never asked to touch
+
+`entryPayload` always included `slugs`, taken from what the form loaded when it
+opened — **the identical defect §19 had just fixed for `status`, one line
+above it and missed.**
+
+Author A opens an entry to correct a typo. Author B adds a French slug
+meanwhile. A saves without touching a slug box; the payload restates
+`{el, en}`; `syncSlugs` deletes all three rows and writes back two. The French
+page 404s and neither author is told.
+
+Both fields now leave the payload when the author did not change them. The
+comparison is made **after** normalising, so trailing whitespace and a cleared
+box are judged as what would actually be written rather than as what was typed,
+and the key order the form happens to produce does not count as a change.
+
+That this was missed the first time is the interesting part. §19 fixed
+`status` because the finding named `status`; the same reasoning applied
+unchanged to the field on the next line, and nobody followed it there.
+
+### A failed reorder left the panel unable to recover
+
+`handleReorder`'s catch reverted to the last confirmed order and stopped. The
+most likely rejection is the completeness rule reporting that somebody else
+added or deleted an entry — its message ends "Reload the list and try again" —
+and the panel never reloaded: it kept the ids the server had just refused, so
+every later move failed identically, with no way out but leaving the module.
+
+The catch now refetches as the success path does.
+
+### A module too large to reorder still offered the arrows
+
+`max:Entry::MAX_REORDER` caps the request while the completeness rule demands
+the module's whole set, so past a thousand entries reordering is impossible by
+construction. `GET .../order` still returned every id, so the arrows rendered
+enabled and answered 422 on every click with nothing to explain why.
+
+The endpoint now answers `{"ids": [], "reorderable": false}` above the cap. An
+empty list disables the arrows on its own; the flag is there so the panel can
+say *why* rather than looking like an empty module.
+
+### Reordering restamped every entry in the module
+
+`Eloquent\Builder::update()` adds `updated_at`, so moving one row rewrote the
+modification time of all of them. Not a regression — the per-row loop §19
+replaced did the same — but the single statement cemented it, and **#59 is
+about to key a public page cache on that column**, where one reorder would
+invalidate every page in the module. It also made "last modified" meaningless
+to the author.
+
+The write goes through `Entry::withoutTimestamps()`.
+
+### Checked
+
+Failing test first for the three that can carry one; the timestamp test failed
+by exactly the minute the test travelled, which is what proved it was measuring
+the restamp rather than the clock.
+
+Confirmed live against MySQL: an update omitting `slugs` returns both URLs
+intact, a reorder leaves every `updated_at` unchanged while writing positions
+1–5, and a module of 1006 entries answers `reorderable=false` with no ids.
+
+239 PHP tests, 143 JS tests, build clean.
+
+**The panel wiring still has no harness.** The failed-reorder recovery is
+verified by reading, like #78 before it — reproducing it needs a second client
+deleting an entry mid-flight.
+

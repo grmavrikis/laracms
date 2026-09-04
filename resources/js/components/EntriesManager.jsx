@@ -163,7 +163,16 @@ export default function EntriesManager({ module, onBack }) {
             setRefreshKey((n) => n + 1);
         } catch (err) {
             console.error(err);
+
+            // Revert to the last order the server confirmed, then ask it for
+            // the real one. The common rejection is the completeness rule
+            // saying somebody else added or deleted an entry - its message
+            // asks the reader to reload the list, and without this the panel
+            // never does: it would hold the same rejected ids and every later
+            // move would fail identically, with no way out but leaving the
+            // module.
             setOrderIds(savedOrder.current);
+            setRefreshKey((n) => n + 1);
             setError('Failed to save the new order.');
         }
     };
