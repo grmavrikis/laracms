@@ -20,8 +20,8 @@
     "gallery": [
         "gallery"
     ],
-    "entryStatuses": [
-        "draft",
-        "published"
-    ]
+    "entryStatuses": {
+        "draft": "draft",
+        "published": "published"
+    }
 }

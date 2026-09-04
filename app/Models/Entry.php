@@ -27,6 +27,18 @@ class Entry extends Model
      */
     public const UNPOSITIONED = 100000;
 
+    /**
+     * The most entries one reorder request may carry.
+     *
+     * Reordering takes the module's whole order, so this is also a ceiling on
+     * how large a module can be and still be hand-ordered - which is the
+     * honest shape of the thing. A list somebody arranges by hand is a menu or
+     * a set of rooms; past a thousand, dragging rows is not the tool. Without
+     * a cap one request could ask the server to hold and compare an unbounded
+     * array (TASKS.md #84).
+     */
+    public const MAX_REORDER = 1000;
+
     protected $fillable = ['module_id', 'data', 'status', 'published_at', 'sort_order'];
 
     protected $casts = [
@@ -46,7 +58,13 @@ class Entry extends Model
     protected function sortOrder(): Attribute
     {
         return Attribute::make(
-            get: fn(mixed $value) => (int) $value === self::UNPOSITIONED ? null : (int) $value,
+            // `null` is checked before the cast, not after: `(int) null` is 0,
+            // which is not the sentinel, so an Entry that has never been saved
+            // used to read as position 0 - "pinned to the top", the exact
+            // inversion the sentinel exists to prevent (TASKS.md #80).
+            get: fn(mixed $value) => $value === null || (int) $value === self::UNPOSITIONED
+                ? null
+                : (int) $value,
             set: fn(mixed $value) => $value === null || $value === '' ? self::UNPOSITIONED : (int) $value,
         );
     }
@@ -83,7 +101,13 @@ class Entry extends Model
      */
     public function scopePublished(Builder $query): Builder
     {
-        return $query->where('status', self::STATUS_PUBLISHED);
+        // Qualified, because this scope is advertised as composing with
+        // `forSlug()` - which joins `entry_slugs`. A bare `status` is not
+        // ambiguous only for as long as that table has no column by that
+        // name, and a per-language publication state is the obvious next
+        // request for a multilingual CMS. It would then fail in every public
+        // lookup rather than where the column was added (TASKS.md #87).
+        return $query->where('entries.status', self::STATUS_PUBLISHED);
     }
 
     /**
@@ -104,11 +128,35 @@ class Entry extends Model
     }
 
     /**
+     * Eager-load the URL segments for a listing.
+     *
+     *  reads the relation, and an unloaded relation loads itself -
+     * per model and per call. A public index of fifteen entries with a link
+     * each was fifteen SELECTs against entry_slugs, thirty if the page also
+     * carries its hreflang alternates (TASKS.md #85). This is the read path
+     * #59 is built on, so it exists before rather than after.
+     */
+    public function scopeWithSlugs(Builder $query): Builder
+    {
+        return $query->with('slugs');
+    }
+
+    /**
      * This entry's URL segment in one language, or null where nobody has
      * written that translation yet.
+     *
+     * Free when the relation is loaded, which is what withSlugs() is for. On
+     * a model loaded without it this still answers - a convenience worth
+     * keeping - but it asks for the one value rather than pulling every slug
+     * the entry has into memory to pick one out of them.
      */
     public function slugFor(string $language): ?string
     {
-        return $this->slugs->firstWhere('language_code', $language)?->slug;
+        if ($this->relationLoaded('slugs'))
+        {
+            return $this->slugs->firstWhere('language_code', $language)?->slug;
+        }
+
+        return $this->slugs()->where('language_code', $language)->value('slug');
     }
 }

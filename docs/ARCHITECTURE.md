@@ -85,6 +85,13 @@ User (1:N) Module (1:N) Entry
   `sort_order` is ascending with **`Entry::UNPOSITIONED` (100000) as the
   default**, so a position an author types comes above everything nobody has
   ordered — with a default of 0 that expectation was exactly inverted.
+
+  The sentinel never leaves the model: an `Attribute` maps it to and from
+  `null`, and it checks for `null` **before** casting, because `(int) null` is
+  0 and 0 is a position. Accepted positions are therefore `1` to
+  `UNPOSITIONED - 1` — both bounds exclusive of what they guard, so a client
+  can neither write the sentinel itself nor a position of 0 (CHANGELOG.md
+  §19).
 - **EntrySlug** — `entry_id, module_id, language_code, slug`, unique on
   `(module_id, language_code, slug)`. A public URL resolves an entry by a
   *translated* value, which inside `data` would be an unindexed scan on every
@@ -92,6 +99,14 @@ User (1:N) Module (1:N) Entry
   — `/el/rooms/about` and `/el/pages/about` are different pages — and so the
   lookup is one indexed read. `Entry::forSlug()` is a scope, so the public side
   composes `forSlug(...)->published()`.
+
+  **Reading a slug is `slugFor($language)`, and a listing eager-loads.**
+  `Entry::withSlugs()` is the scope for that: without it the relation loads
+  itself once per model per call, so a public index of fifteen entries with a
+  link each is fifteen `SELECT`s — thirty when the page also carries its
+  hreflang alternates. `slugFor` still answers on a model loaded without the
+  relation; it asks for the one value rather than pulling every slug into
+  memory to pick one out.
 
   **The key of a slug is a language the site actually has.** `slugs` arrives as
   a map keyed by language code, and `ValidatesStructuralFields` checks those
@@ -352,6 +367,22 @@ positions 1–5 straight over page 1 (CHANGELOG.md §17).
 Both endpoints order through the same `inListOrder()` scope on purpose: the
 arrows swap an entry with the row above it *on screen*, so the id list and the
 listing have to be the same order.
+
+Reordering is **two queries** whatever the row count: one to read the module's
+ids, one `CASE`-based `UPDATE` to write the new positions. Existence is not
+checked per id — the completeness rule already compares the body against the
+module's own ids, so a foreign or missing id cannot survive it — and
+`Entry::MAX_REORDER` caps the array. Fifteen rows used to be 32 queries for a
+single swap.
+
+**All three entry endpoints return the same shape.** `store`, `update` and
+`show` each answer with the row read back from the database and its `slugs`
+loaded, so `sort_order`, `published_at` and `status` are present whether the
+client sent them or the database defaulted them.
+
+The panel takes one move at a time: the arrows are disabled while a reorder is
+in flight and the new order is applied locally first, so a second click cannot
+compute from a list the first request has not yet written.
 
 The listing takes **no language parameter**. An entry carries all of its
 translations and `EntriesTable` chooses one to display, which is what

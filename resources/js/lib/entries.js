@@ -5,10 +5,18 @@
 // `php artisan schema:sync-field-types`. They are not restated here.
 import fieldTypes from './fieldTypes.json';
 
+// Looked up by name, never by position. `STATUSES[0]` and `STATUSES[1]`
+// read a generated array positionally, which is the drift `fieldTypes.json`
+// exists to prevent doing it silently: insert a third state at the obvious
+// place and STATUS_PUBLISHED becomes the new one, with the build green and
+// every badge mislabelled (TASKS.md #79).
 export const STATUSES = fieldTypes.entryStatuses;
 
-export const STATUS_DRAFT = STATUSES[0];
-export const STATUS_PUBLISHED = STATUSES[1];
+export const STATUS_DRAFT = STATUSES.draft;
+export const STATUS_PUBLISHED = STATUSES.published;
+
+/** The statuses as a list, for anything that iterates them. */
+export const STATUS_VALUES = Object.values(STATUSES);
 
 export const isPublished = (entry) => entry?.status === STATUS_PUBLISHED;
 
@@ -74,3 +82,31 @@ export const reorderedIds = (ids, entryId, direction) => {
  */
 export const positionInOrder = (ids, entryId) =>
     Array.isArray(ids) ? ids.indexOf(entryId) : -1;
+
+/**
+ * What the form sends, with `status` left out when the author did not touch it.
+ *
+ * The form used to include `status` in every payload, taken from what it
+ * loaded when it opened. An author opens a draft to fix a typo, the entry is
+ * published from somewhere else meanwhile, the author saves - and the form
+ * writes `status: 'draft'` over it. The live page disappears with nothing said
+ * (TASKS.md #86).
+ *
+ * The rules are `sometimes`, so omitting it is already supported and confines
+ * the write to what was actually edited. On create there is nothing to
+ * revert and the author has just chosen it, so it is always sent.
+ */
+export const entryPayload = ({ data, slugs, status, initialStatus, isEdit }) => {
+    const payload = {
+        data,
+        // Sending the key replaces the whole set, so a language the author
+        // left blank loses its URL - which is what clearing the box means.
+        slugs: slugsForPayload(slugs),
+    };
+
+    if (!isEdit || status !== initialStatus) {
+        payload.status = status;
+    }
+
+    return payload;
+};

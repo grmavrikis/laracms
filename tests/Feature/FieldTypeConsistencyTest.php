@@ -41,7 +41,13 @@ class FieldTypeConsistencyTest extends TestCase
         $this->assertSame(RichTextDocument::FIELD_TYPES, $generated['richText']);
         $this->assertSame(RichTextDocument::LEGACY_FIELD_TYPES, $generated['legacyRichText']);
         $this->assertSame(SchemaRuleBuilder::GALLERY_FIELD_TYPES, $generated['gallery']);
-        $this->assertSame(Entry::STATUSES, $generated['entryStatuses']);
+        // Keyed, not a list: the panel looks statuses up by name, so a
+        // value that moved would be `undefined` rather than silently wrong
+        // (TASKS.md #79).
+        $this->assertSame(
+            array_combine(Entry::STATUSES, Entry::STATUSES),
+            $generated['entryStatuses']
+        );
     }
 
     /**

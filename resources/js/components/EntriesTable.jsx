@@ -9,6 +9,7 @@ export default function EntriesTable({
     onEdit,
     onReorder,
     orderIds = [],
+    reordering = false,
     languages = [],
     currentLangCode = 'en',
     onLanguageChange,
@@ -182,7 +183,7 @@ export default function EntriesTable({
                                                             <button
                                                                 type="button"
                                                                 onClick={() => onReorder(reorderedIds(orderIds, entry.id, -1))}
-                                                                disabled={at <= 0}
+                                                                disabled={reordering || at <= 0}
                                                                 title="Move up"
                                                                 className="inline-flex items-center rounded-md px-2 py-1.5 text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                                                             >
@@ -191,7 +192,7 @@ export default function EntriesTable({
                                                             <button
                                                                 type="button"
                                                                 onClick={() => onReorder(reorderedIds(orderIds, entry.id, 1))}
-                                                                disabled={at < 0 || at === orderIds.length - 1}
+                                                                disabled={reordering || at < 0 || at === orderIds.length - 1}
                                                                 title="Move down"
                                                                 className="inline-flex items-center rounded-md px-2 py-1.5 text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                                                             >

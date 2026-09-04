@@ -167,4 +167,53 @@ class EntryPublicationTest extends TestCase
         $this->assertNotNull($entry->published_at);
         $this->assertSame(0, $this->module->entries()->published()->count());
     }
+
+    /**
+     * `scopePublished` filtered a bare `status`, while `scopeForSlug`'s own
+     * docblock advertises `forSlug(...)->published()` - a where clause against
+     * a joined query (TASKS.md #87).
+     *
+     * It works today only because `entry_slugs` happens to have no `status`
+     * column. Add one - a per-language publication state is the obvious next
+     * request for a multilingual CMS - and every public lookup becomes
+     * `ambiguous column 'status'`, failing in the read path rather than where
+     * the column was added.
+     *
+     * The column cannot be added from a test, so what is pinned is the thing
+     * that makes the ambiguity impossible: the scope names its table.
+     */
+    public function test_the_published_scope_names_its_own_table(): void
+    {
+        $this->assertStringContainsString(
+            'entries.status',
+            // The grammar quotes identifiers differently per driver - backticks
+            // on MySQL, double quotes on the SQLite the suite runs on.
+            str_replace(['`', '"'], '', Entry::query()->published()->toSql()),
+            'A bare `status` becomes ambiguous the moment the scope is composed with a join.'
+        );
+    }
+
+    public function test_the_published_scope_still_composes_with_a_slug_lookup(): void
+    {
+        $module = Module::create([
+            'user_id' => $this->owner->id,
+            'name' => 'Rooms',
+            'slug' => 'rooms-87',
+            'schema' => [['name' => 'title', 'type' => 'string', 'translatable' => false]],
+        ]);
+
+        $entry = $module->entries()->create([
+            'data' => ['title' => 'Thea'],
+            'status' => Entry::STATUS_PUBLISHED,
+        ]);
+        $entry->slugs()->create([
+            'module_id' => $module->id,
+            'language_code' => 'el',
+            'slug' => 'thea',
+        ]);
+
+        $this->assertTrue(
+            Entry::forSlug($module, 'el', 'thea')->published()->exists()
+        );
+    }
 }

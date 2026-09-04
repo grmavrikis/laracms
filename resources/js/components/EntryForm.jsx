@@ -7,7 +7,7 @@ import { isRichTextField, emptyDoc } from '../lib/richText';
 import { isGalleryField, emptyGallery, fromStored } from '../lib/gallery';
 import { validationErrors, errorSummary, messagesForField, messagesNotForFields } from '../lib/apiErrors';
 import { getLangCode, defaultLanguage } from '../lib/languages';
-import { STATUS_DRAFT, STATUS_PUBLISHED, slugsToMap, slugsForPayload } from '../lib/entries';
+import { STATUS_DRAFT, STATUS_PUBLISHED, slugsToMap, entryPayload } from '../lib/entries';
 
 const coerce = (type, raw) => {
     if (type === 'integer') return raw === '' || raw === null ? null : Number(raw);
@@ -77,6 +77,10 @@ export default function EntryForm({ moduleSlug, schema, languages, onSaved, onCa
     // Structural, not part of the Module's schema: they mean the same thing
     // for every Module, so they live beside `data` rather than inside it.
     const [status, setStatus] = useState(initialData?.status ?? STATUS_DRAFT);
+
+    // What the entry's status was when this form opened. Saving must not
+    // write it back unless the author changed it here (TASKS.md #86).
+    const initialStatus = initialData?.status ?? STATUS_DRAFT;
     const [slugs, setSlugs] = useState(() => slugsToMap(initialData?.slugs));
 
     // Field errors keyed by attribute path, plus the messages that belong to
@@ -120,13 +124,13 @@ export default function EntryForm({ moduleSlug, schema, languages, onSaved, onCa
             });
         });
 
-        const payload = {
+        const payload = entryPayload({
             data: payloadData,
+            slugs,
             status,
-            // Sending the key replaces the whole set, so a language the author
-            // left blank loses its URL - which is what clearing the box means.
-            slugs: slugsForPayload(slugs),
-        };
+            initialStatus,
+            isEdit,
+        });
 
         try {
             const url = isEdit ? `/modules/${moduleSlug}/entries/${initialData.id}` : `/modules/${moduleSlug}/entries`;

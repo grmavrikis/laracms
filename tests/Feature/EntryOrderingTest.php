@@ -6,6 +6,7 @@ use App\Models\Entry;
 use App\Models\Module;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 /**
@@ -115,14 +116,14 @@ class EntryOrderingTest extends TestCase
     public function test_the_position_can_be_changed(): void
     {
         $this->createEntry('Mover', 9)->assertCreated();
-        $this->createEntry('Other', 1)->assertCreated();
+        $this->createEntry('Other', 2)->assertCreated();
 
         $entry = $this->module->entries()->where('sort_order', 9)->sole();
 
         $this->actingAs($this->owner)
             ->putJson("/api/modules/{$this->module->slug}/entries/{$entry->id}", [
                 'data' => ['title' => 'Mover'],
-                'sort_order' => 0,
+                'sort_order' => 1,
             ])
             ->assertOk();
 
@@ -190,9 +191,12 @@ class EntryOrderingTest extends TestCase
         ]);
         $stranger = $other->entries()->create(['data' => ['title' => 'Theirs']]);
 
+        // Reported against `ids` rather than `ids.0`: existence is now checked
+        // by comparing the body against the module's own ids in one query,
+        // not by an `exists` rule per element (TASKS.md #84).
         $this->reorder([$stranger->id])
             ->assertStatus(422)
-            ->assertJsonValidationErrors('ids.0');
+            ->assertJsonValidationErrors('ids');
 
         $this->assertNull($stranger->fresh()->sort_order);
     }
@@ -201,7 +205,7 @@ class EntryOrderingTest extends TestCase
     {
         $this->reorder([999999])
             ->assertStatus(422)
-            ->assertJsonValidationErrors('ids.0');
+            ->assertJsonValidationErrors('ids');
     }
 
     /**
@@ -314,10 +318,145 @@ class EntryOrderingTest extends TestCase
             ->json('data.*.id');
     }
 
+    /**
+     * `ids.*` fired one `exists` per id and the write fired one UPDATE per id,
+     * so fifteen rows were thirty statements for one swap (TASKS.md #84).
+     *
+     * Existence is now the completeness rule's job - it compares against the
+     * module's own ids, so a foreign or missing id cannot survive it - and the
+     * write is a single CASE. The count is asserted rather than described
+     * because that is the only way it stays true.
+     */
+    public function test_reordering_a_list_is_a_handful_of_queries(): void
+    {
+        foreach (range(1, 15) as $n)
+        {
+            $this->createEntry("E{$n}")->assertCreated();
+        }
+
+        $ids = $this->module->entries()->inListOrder()->pluck('id')->all();
+        [$ids[0], $ids[1]] = [$ids[1], $ids[0]];
+
+        $this->actingAs($this->owner);
+
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+
+        try
+        {
+            $this->reorder($ids)->assertNoContent();
+            $queries = count(DB::getQueryLog());
+        }
+        finally
+        {
+            // Disabled in a finally, or a failed assertion leaves the log on
+            // for every later test in the process (TASKS.md #38).
+            DB::disableQueryLog();
+        }
+
+        // Measured: 32 before, 3 after - resolving the module by slug, reading
+        // its ids, and one UPDATE. The headroom is for the binding, not for
+        // creeping back towards a query per row.
+        $this->assertLessThanOrEqual(
+            4,
+            $queries,
+            "Reordering fifteen entries took {$queries} queries; it was 32 before #84 and 3 after."
+        );
+    }
+
+    public function test_an_absurdly_long_order_is_refused_before_it_is_looked_up(): void
+    {
+        $this->createEntry('One')->assertCreated();
+
+        $this->reorder(range(1, Entry::MAX_REORDER + 1))
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('ids');
+    }
+
     public function test_fetching_the_whole_order_requires_authentication(): void
     {
         $this->getJson("/api/modules/{$this->module->slug}/entries/order")
             ->assertUnauthorized();
+    }
+
+    // ------------------------------------------------- the sentinel's edges
+
+    /**
+     * The getter cast before it compared, so `(int) null` was 0 and 0 is not
+     * the sentinel - an unsaved Entry read as position 0, "pinned to the top",
+     * where the docblock promises null (TASKS.md #80).
+     *
+     * That is the exact inversion the sentinel was introduced to prevent,
+     * waiting for the first code that builds an Entry before saving it.
+     */
+    public function test_an_unsaved_entry_has_no_position(): void
+    {
+        $this->assertNull((new Entry)->sort_order);
+        $this->assertNull((new Entry(['data' => []]))->sort_order);
+    }
+
+    /**
+     * The cap was `max:` the sentinel itself, so a client could write 100000
+     * and read it back as null - a position that silently became "no
+     * position" (TASKS.md #82).
+     */
+    public function test_the_sentinel_itself_is_not_an_acceptable_position(): void
+    {
+        $this->actingAs($this->owner)
+            ->postJson("/api/modules/{$this->module->slug}/entries", [
+                'data' => ['title' => 'x'],
+                'sort_order' => Entry::UNPOSITIONED,
+            ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('sort_order');
+
+        $this->assertSame(0, $this->module->entries()->count());
+    }
+
+    /**
+     * Positions start at 1 - every comment in the code says so, and it is what
+     * `reorder` writes. 0 validated anyway.
+     */
+    public function test_zero_is_not_a_position(): void
+    {
+        $this->actingAs($this->owner)
+            ->postJson("/api/modules/{$this->module->slug}/entries", [
+                'data' => ['title' => 'x'],
+                'sort_order' => 0,
+            ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('sort_order');
+    }
+
+    public function test_the_highest_real_position_is_still_accepted(): void
+    {
+        $this->actingAs($this->owner)
+            ->postJson("/api/modules/{$this->module->slug}/entries", [
+                'data' => ['title' => 'x'],
+                'sort_order' => Entry::UNPOSITIONED - 1,
+            ])
+            ->assertCreated();
+
+        $this->assertSame(Entry::UNPOSITIONED - 1, $this->module->entries()->sole()->sort_order);
+    }
+
+    /**
+     * `null` is still how the panel says "no position", and it has to stay
+     * distinct from a number.
+     */
+    public function test_null_is_still_how_a_position_is_cleared(): void
+    {
+        $this->createEntry('x', 5)->assertCreated();
+        $entry = $this->module->entries()->sole();
+
+        $this->actingAs($this->owner)
+            ->putJson("/api/modules/{$this->module->slug}/entries/{$entry->id}", [
+                'data' => ['title' => 'x'],
+                'sort_order' => null,
+            ])
+            ->assertOk();
+
+        $this->assertNull($entry->fresh()->sort_order);
     }
 
     public function test_a_position_that_is_not_a_whole_number_is_rejected(): void

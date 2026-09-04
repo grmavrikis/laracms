@@ -41,7 +41,14 @@ class SyncFieldTypes extends Command
             // Not a field type, but the same problem: the admin needs the
             // values and writing them into JavaScript by hand is the drift
             // this file exists to prevent.
-            'entryStatuses' => Entry::STATUSES,
+            //
+            // Keyed by itself rather than emitted as a list, because the JS
+            // read the list *positionally* - STATUSES[0] and STATUSES[1] -
+            // which quietly reintroduced the drift this file prevents. Insert
+            // a third state and STATUS_PUBLISHED silently became the new one,
+            // with every test still passing (TASKS.md #79). A key that moves
+            // is `undefined` and fails where it is used.
+            'entryStatuses' => array_combine(Entry::STATUSES, Entry::STATUSES),
         ];
     }
 

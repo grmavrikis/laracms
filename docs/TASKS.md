@@ -13,13 +13,10 @@ commercial goal, and that goal — not the size of a finding — decides what is
 worked on. Most of the numbered findings further down are deliberately **not**
 in the MVP. Three of them were, and are now done.
 
-**Exception, added 2026-09-02: `## P0` in the findings section is first, ahead
-of everything.** It is fourteen defects in #56/#57/#58 — work finished the same
-day — and three of them were wrong in the browser. They are not old debt to be
-weighed against the MVP; they are the MVP shipping broken.
-
-**The three are fixed (#75, #76, #77 — CHANGELOG §17). Eleven remain**, and
-`## P0` still comes before #59.
+**`## P0` was the exception to the MVP order, and it is now closed.** Fourteen
+defects in #56/#57/#58 — work finished the same day — three of them wrong in
+the browser. All fourteen are done: #75, #76, #77 in CHANGELOG §17 and the
+other eleven in §19. **#59 is next.**
 
 Numbering is continuous and stable so commits and comments can cite it. It does
 not imply order or priority.
@@ -64,7 +61,7 @@ profitability.
 - [x] #56 publication state, with a Publish action *(done — CHANGELOG §16)*
 - [x] #57 manual ordering *(done — CHANGELOG §16)*
 - [x] #58 per-language entry slugs *(done — CHANGELOG §16)*
-- [ ] **#75–#88 the review of #56/#57/#58 — before #59** *(findings section, `## P0`)*
+- [x] **#75–#88 the review of #56/#57/#58** *(done — CHANGELOG §17 and §19)*
 - [ ] #59 public Blade routes, page cache cleared on publish, sitemap + hreflang
 - [ ] #60 `singleton` modules
 - [ ] #61 core/site boundary drawn
@@ -119,15 +116,20 @@ behind would have shipped the change half-done.
 
 ### Phase 1 — content reaches the public (6–8 days)
 
-**Done: #68, #55, #56, #57, #58.** Remaining: **#75–#88 first**, then **#59,
-#60, #61, #66, #67.**
+**Done: #68, #55, #56, #57, #58, and the #75–#88 review of them.** Remaining:
+**#59, #60, #61, #66, #67.**
 
-**#75–#88 come before #59 and there is no judgement call in it.** #59 is the
+**#75–#88 came before #59 and there was no judgement call in it.** #59 is the
 public read path, and it is built on exactly the four things the review found
 broken: it resolves a URL through `Entry::forSlug`, filters through
 `published()`, orders by `sort_order`, and renders slugs the panel writes.
-Building on them first means finding the same defects again through a Blade
-template, which is the most expensive place to find them.
+Building on them first meant not finding the same defects again through a
+Blade template, which is the most expensive place to find them.
+
+That was the right call twice over. #87 and #85 are both in the read path #59
+is about to write — a `published()` that would have gone ambiguous, and a
+`slugFor` that was one query per link — and #59 would have inherited them as
+its own bugs.
 
 #68 went first because it changed the field-type system, and anything built
 before it would have had to be revisited. #56, #57 and #58 were one piece of
@@ -568,8 +570,9 @@ Three were verified live against MySQL with a `zz-review` probe module rather
 than argued from reading — those say so. **The test suite cannot catch #76**:
 it runs on SQLite, which does not enforce `varchar` limits.
 
-**Status, 2026-09-02: #75, #76 and #77 are done** (CHANGELOG §17). The
-remaining eleven — #78–#88 — are open and still come before #59.
+**Status: closed, 2026-09-05.** #75, #76 and #77 in CHANGELOG §17; #78–#88 in
+§19. Kept here in full because the reasoning is worth more than the tick — each
+one says what was wrong and what was decided. **#59 is next.**
 
 ### The three that are wrong in the browser — DONE
 
@@ -655,14 +658,25 @@ transaction. The tests force the failure on the insert itself rather than
 through a constraint, because every collision the request rules already catch
 never reaches the write. CHANGELOG §17.
 
-### The rest, in the order they were ranked — all still open
+### The rest, in the order they were ranked — all DONE (CHANGELOG §19)
 
-#78 is the natural companion to #75 and is now the cheapest of them: the panel
-holds the module's order, so applying a move to it optimistically is a few
-lines. #84's duplicate-id half is already closed by #75's completeness rule;
-the query count is not.
+Two of these were the same *kind* of defect as the serious three: code correct
+only by accident, failing silently once the accident stopped holding. #79 read
+a generated list positionally, which quietly reintroduced the drift
+`fieldTypes.json` exists to prevent. #87 filters a column that is unambiguous
+only for as long as `entry_slugs` has no `status`.
 
-#### 78. Rapid ↑/↓ clicks race on a stale `entries` array
+One was measured and found not to matter: **#88 costs 133 microseconds and zero
+queries**, not the double rule-set walk it was described as. The refactor was
+kept for clarity, not for speed. Two were measured and did matter: reordering
+fell from **32 queries to 3** (#84), and a listing's slugs from fifteen
+`SELECT`s to one (#85).
+
+**#78 is the one without a test.** There is no component-test harness in this
+repo, so the in-flight guard was verified by reading. It needs a human at the
+browser — see the check-list at the end of this section.
+
+#### 78. Rapid ↑/↓ clicks race on a stale `entries` array — DONE
 
 `EntriesManager.handleReorder` has no in-flight guard and the arrows stay
 enabled. Click ↓ twice quickly and the second click computes `reorderedIds`
@@ -673,7 +687,7 @@ responses can leave either state on screen.
 Disable the controls while a reorder is in flight, or apply the new order
 optimistically so the second click computes from it.
 
-#### 79. Status constants are read by array index
+#### 79. Status constants are read by array index — DONE
 
 `resources/js/lib/entries.js` takes `STATUSES[0]` and `STATUSES[1]`. That is
 positional extraction from a generated array, which **re-introduces the drift
@@ -687,7 +701,7 @@ writes the wrong status and every badge is mislabelled.
 Emit a keyed object from `SyncFieldTypes` so a missing key is `undefined` and
 fails loudly.
 
-#### 80. The `sortOrder` accessor returns 0 for an unhydrated attribute
+#### 80. The `sortOrder` accessor returns 0 for an unhydrated attribute — DONE
 
 `Entry::sortOrder`'s getter casts before it compares, so `(int) null` is `0`
 and `0 !== 100000` returns `0` rather than `null`.
@@ -697,7 +711,7 @@ the docblock promises `null` for unpositioned. That is the exact inversion the
 sentinel was introduced to prevent, waiting for the first code that builds an
 Entry before saving it. Check `$value === null` before casting.
 
-#### 81. The 201 omits the columns the database defaulted
+#### 81. The 201 omits the columns the database defaulted — DONE
 
 `store()` returns the model straight from `create()`, which never reads the row
 back. **Verified on MySQL:** the response serialises `data, status, module_id,
@@ -710,7 +724,7 @@ A client that creates an entry without a status reads `response.status` as
 endpoints return three shapes for one resource. `->refresh()->load('slugs')`
 before responding makes them agree.
 
-#### 82. `sort_order`'s cap lets a client set the sentinel itself
+#### 82. `sort_order`'s cap lets a client set the sentinel itself — DONE
 
 `'max:' . Entry::UNPOSITIONED` permits exactly 100000. **Verified:** PUT
 `sort_order: 100000`, get a 200, read the entry back as `null`. The value
@@ -719,7 +733,7 @@ silently became "unpositioned". Cap at `Entry::UNPOSITIONED - 1`.
 `min:0` is the same mismatch one size smaller: every comment says positions
 start at 1, and 0 validates.
 
-#### 83. The comment in `index()` claims a default of 0
+#### 83. The comment in `index()` claims a default of 0 — DONE
 
 > "Everything starts at 0, so a Module nobody has ordered keeps the old
 > newest-first behaviour"
@@ -728,7 +742,7 @@ The migration in the same commit defaults `sort_order` to **100000** and
 explains at length why 0 was wrong. The next reader who trusts the controller
 reasons about ordering backwards — the precise mistake the sentinel prevents.
 
-#### 84. `reorder` runs 2N queries and accepts duplicate ids
+#### 84. `reorder` runs 2N queries and accepts duplicate ids — DONE
 
 `ids.*` fires one `exists` per id; the transaction then fires one UPDATE per
 id. Fifteen rows is 30 statements for one swap. Nothing enforces `distinct`, so
@@ -739,7 +753,7 @@ transaction.
 `distinct` on `ids.*`, `max` on `ids`, one `whereIn` for existence, one
 CASE-based UPDATE for the write.
 
-#### 85. `slugFor` lazy-loads the relation on every call
+#### 85. `slugFor` lazy-loads the relation on every call — DONE
 
 It touches `$this->slugs`, per model and per call. A public index of fifteen
 entries with a link each is fifteen SELECTs against `entry_slugs` — thirty if
@@ -748,7 +762,7 @@ about to build on**, so it is worth fixing before rather than after: eager-load
 at the call sites, or have the listing scope select the slug alongside the
 entry.
 
-#### 86. The form resends `status`, so saving can silently revert a publish
+#### 86. The form resends `status`, so saving can silently revert a publish — DONE
 
 `EntryForm` always includes `status` in the payload, taken from what it loaded
 when it opened. An author opens a draft to fix a typo; meanwhile the entry is
@@ -758,7 +772,7 @@ The live page disappears with nothing said.
 The rules are `sometimes`, so omitting `status` when it was not touched is
 already supported and confines the write to what was actually edited.
 
-#### 87. `published()` filters an unqualified column after a join
+#### 87. `published()` filters an unqualified column after a join — DONE
 
 `scopePublished` uses a bare `status`, and `scopeForSlug`'s docblock advertises
 `forSlug(...)->published()` — a where clause against a joined query. It works
@@ -768,12 +782,36 @@ CMS — and every public lookup becomes `ambiguous column 'status'`, failing in
 the read path rather than where the column was added. `entries.status` costs
 nothing.
 
-#### 88. `validated()` is recomputed for each write path
+#### 88. `validated()` is recomputed for each write path — DONE
 
 `attributes()` and `syncSlugs()` each call `$request->validated()`, so every
 create and update walks the full rule set twice — including the schema-derived
 `data.*` rules, the largest part of it. Pass the array in from the controller
 method.
+
+**Measured before believing it.** It is a re-*extraction*, not a
+re-*validation*: 17 rule attributes, **133 microseconds, zero queries**. The
+refactor was kept because passing the array down is simpler than passing the
+request to two methods that each unpack it — not because it bought anything.
+The finding overstated the cost, and that is worth recording.
+
+### What a human still has to check in the browser
+
+Nobody has clicked through the admin panel since #56/#57/#58 landed, and #78 in
+particular has no automated cover. On a module with **more than 15 entries**:
+
+1. **Page 2, ↑ on the first row.** The row should move up and **onto page 1**.
+2. **Page 1, ↑ on the first row** — disabled. **Page 2, ↓ on the last row** —
+   disabled. Everything between them enabled, including ↓ on the last row of
+   page 1, which should send it to page 2.
+3. **Click ↓ twice quickly** (#78). The row should move **two** places, not
+   one, and no arrow should accept a click while a move is in flight.
+4. **Open a published entry, change only a text field, save** (#86). It must
+   stay Published.
+5. **A slug box with `zz`** (#76) — a 422 naming the language, not a 500, and
+   the entry's other URLs untouched.
+6. **Create an entry and look at the badge** (#81). It should say Draft
+   immediately, from the server's answer, without a refresh.
 
 ---
 

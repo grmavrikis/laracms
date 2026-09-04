@@ -1561,3 +1561,142 @@ refused by §17's own rule — `'gr' is not one of this site's languages.`
 There is no artisan command for any of this. Editing languages is a hand-run
 script by design until #52 gives them a writer.
 
+---
+
+## 19. The other eleven from the same review
+
+§17 closed the three findings that were wrong in the browser. These are the
+remaining eleven, and with them `TASKS.md` → `## P0` is finished and #59 is
+next.
+
+They are smaller, but two of them are the same *kind* of defect as the three:
+something that is correct only by accident and fails silently when the
+accident stops holding.
+
+### The two that were waiting rather than broken
+
+**Statuses were read out of the generated file by array index** (#79).
+`fieldTypes.json` exists so the panel never restates a PHP constant, and
+`entries.js` then took `STATUSES[0]` and `STATUSES[1]` — which is a positional
+read of a generated list, and **reintroduces the exact drift the file
+prevents**. Add a third state at the obvious place,
+`['draft', 'scheduled', 'published']`, and `FieldTypeConsistencyTest` still
+passes, the build still succeeds, and `STATUS_PUBLISHED` silently becomes
+`'scheduled'`: the Publish button writes the wrong status and every badge is
+mislabelled.
+
+The generator now emits a map keyed by the value itself, so the panel looks a
+status up by name and a key that moved is `undefined` — loud, at the point of
+use. Mutating the generator back to a list fails four tests.
+
+**The `sortOrder` accessor cast before it compared** (#80). `(int) null` is 0,
+0 is not the sentinel, so an Entry that had never been saved read as position
+**0** — "pinned to the top" — where the docblock promises `null`. That is the
+inversion the sentinel was introduced to prevent, waiting for the first code
+that builds an Entry before saving it. The check for `null` now comes first.
+
+### Bounds that admitted the values they guard
+
+`sort_order` was capped at `Entry::UNPOSITIONED` **inclusive** (#82), so a
+client could send 100000, receive a 200, and read the entry back as `null` — a
+position that silently became "no position". The floor was `0` while every
+comment in the code, and `reorder` itself, starts positions at 1. Both bounds
+are now exclusive of what they guard: `1` to `UNPOSITIONED - 1`.
+
+### One resource, three shapes
+
+`store()` returned the model straight from `create()`, which never reads the
+row back (#81). The 201 therefore omitted `sort_order` and `published_at`
+entirely and carried `status` only when the client had happened to send one —
+so a panel creating an entry read `status` as `undefined` and showed Draft
+whatever the database had chosen. `show()` loaded `slugs`; `store()` and
+`update()` did not. All three now answer through one `asResource()`.
+
+### Correct only because a column does not exist yet
+
+`scopePublished` filtered a bare `status` (#87), while `scopeForSlug`'s own
+docblock advertises `forSlug(...)->published()` — a where clause against a
+joined query. It works only because `entry_slugs` has no `status` column
+today. Add one — a per-language publication state is the obvious next request
+for a multilingual CMS — and every public lookup becomes
+`ambiguous column 'status'`, failing in the read path rather than where the
+column was added. `entries.status` costs nothing. The test asserts the
+compiled SQL, since the column cannot be added from a test.
+
+### Measured, not asserted
+
+**Reordering was 32 queries for one swap** (#84): one `exists` per id and one
+`UPDATE` per id. Existence is now the completeness rule's job — it already
+compares the body against the module's own ids, so nothing foreign survives it
+— and the write is a single `CASE`. **Measured at 3**, one of which is
+resolving the module by slug. `Entry::MAX_REORDER` caps the array at 1000,
+which is also an honest ceiling on how large a list can be and still be
+hand-ordered.
+
+**`slugFor` lazy-loaded the relation per model and per call** (#85). Fifteen
+entries with a link each was fifteen `SELECT`s, thirty with hreflang
+alternates. `Entry::withSlugs()` makes it two, whatever the row count, and
+`slugFor` on an unloaded model now asks for the one value instead of pulling
+every slug into memory. This is the read path #59 is about to build on, which
+is why it was worth doing before rather than after.
+
+**#88 was measured and found not to matter.** `attributes()` and `syncSlugs()`
+each called `$request->validated()`, and the finding described that as walking
+the full rule set twice. It is a re-*extraction*, not a re-*validation*: on a
+schema of eight fields in three languages — 17 rule attributes — a second
+`validated()` costs **133 microseconds and zero queries**. The refactor was
+kept because passing the array down is plainly simpler than passing the
+request to two methods that each unpack it, not because it bought anything.
+Recording the number is the point: the finding overstated the cost.
+
+### The panel
+
+**Rapid clicks raced on a stale list** (#78). `handleReorder` had no in-flight
+guard and the arrows stayed enabled, so a second click computed its order from
+the list the first `PUT` had not yet refreshed — it sent the same swap again,
+the row moved one place instead of two, and out-of-order responses could leave
+either state on screen. The arrows are now disabled while a reorder is in
+flight, and the new order is applied locally first so the next click computes
+from what is actually being written. A failed request puts the previous order
+back.
+
+**Saving could silently revert a publish** (#86). `EntryForm` included
+`status` in every payload, taken from what it loaded when it opened. An author
+opens a draft to fix a typo; the entry is published from somewhere else
+meanwhile; the author saves, and the form writes `status: 'draft'` over it —
+the live page disappears with nothing said. The rules are `sometimes`, so
+omitting the key is already how "I did not change this" is expressed. On create
+it is always sent: there is nothing to revert and the author has just chosen
+it.
+
+### And a comment that lied
+
+`EntryController::index` still said "Everything starts at 0" (#83), while the
+migration in the same commit defaults `sort_order` to 100000 and explains at
+length why 0 was wrong. The next reader who trusted it would reason about
+ordering backwards — precisely the mistake the sentinel prevents.
+
+### Checked
+
+Failing test first for each finding that can carry one, then every fix mutated
+back out and the tests that name it confirmed to fail:
+
+| Put back | Failed |
+|---|---|
+| #79 generator emits a list | 3 JS tests + `FieldTypeConsistencyTest` |
+| #80 cast before compare | `test_an_unsaved_entry_has_no_position` |
+| #81 return the model from `create()` | all three shape tests |
+| #82 bounds back to 0 and the sentinel | both bound tests |
+| #84 one `exists` and one `UPDATE` per id | the query-count test |
+| #85 `withSlugs` eager-loads nothing | the read-path test |
+| #86 status always sent | the payload test |
+| #87 bare `status` | the SQL test |
+
+**#78 has no test.** There is no component-test harness in this repo — the JS
+tests cover `lib/` only — so the guard is verified by reading and needs a
+human at the browser. It is in the list below.
+
+236 PHP tests, 127 JS tests, build clean.
+
+**`## P0` is closed. #59 is next.**
+

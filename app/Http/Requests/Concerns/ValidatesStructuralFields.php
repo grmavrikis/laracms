@@ -31,9 +31,20 @@ trait ValidatesStructuralFields
         return [
             'status' => ['sometimes', Rule::in(Entry::STATUSES)],
             // `null` is how the panel says "no position"; the model turns it
-            // into the sentinel the column stores. Capped at that sentinel so
-            // a real position can never sort after an unpositioned entry.
-            'sort_order' => ['sometimes', 'nullable', 'integer', 'min:0', 'max:' . Entry::UNPOSITIONED],
+            // into the sentinel the column stores.
+            //
+            // The bounds are both exclusive of what they guard. The cap used
+            // to be the sentinel itself, so a client could send 100000, get a
+            // 200, and read the entry back as null - a position that silently
+            // became "no position". And the floor was 0 while every comment in
+            // the code, and `reorder` itself, starts positions at 1 (#82).
+            'sort_order' => [
+                'sometimes',
+                'nullable',
+                'integer',
+                'min:1',
+                'max:' . (Entry::UNPOSITIONED - 1),
+            ],
 
             // Sending the key at all replaces the whole set, so an empty map
             // is "this entry has no URLs" rather than "leave them alone".

@@ -10,7 +10,6 @@ use App\Models\Module;
 use App\Services\RichTextDocument;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\Rule;
 
 /**
  * Entries are always addressed through their parent Module.
@@ -31,10 +30,16 @@ class EntryController extends Controller
     {
         $this->authorize('view', $module);
 
-        // `sort_order` leads, ascending, so position 1 is the top of the list -
-        // which is what somebody typing a position expects. Everything starts
-        // at 0, so a Module nobody has ordered keeps the old newest-first
-        // behaviour rather than being silently rearranged.
+        // Ordering lives in Entry::inListOrder(), because `order()` below has
+        // to agree with it exactly. `sort_order` leads, ascending, so position
+        // 1 is the top of the list - which is what somebody typing a position
+        // expects.
+        //
+        // Everything starts at Entry::UNPOSITIONED (100000), **not 0**, so a
+        // Module nobody has ordered keeps its newest-first order rather than
+        // being silently rearranged. A default of 0 inverted that: setting an
+        // entry to position 1 pushed it below everything nobody had positioned.
+        // See the migration, and Entry::UNPOSITIONED.
         //
         // The id tie-break is what makes this a total order. Entries saved in
         // the same second tie on created_at as well, and the database is then
@@ -71,45 +76,66 @@ class EntryController extends Controller
     {
         // Authorized by StoreEntryRequest::authorize().
         //
+        // Read once and passed down. Both writers used to call
+        // `$request->validated()` for themselves, which walks the whole rule
+        // set again to rebuild the array - and the schema-derived `data.*`
+        // rules are the largest part of it (TASKS.md #88).
+        $validated = $request->validated();
+
         // The entry and its URLs are one write. Without the transaction the
         // entry row was committed first, so a slug failure left a saved entry
         // the client had been told nothing about (TASKS.md #77).
-        $entry = DB::transaction(function () use ($request, $module)
+        $entry = DB::transaction(function () use ($validated, $module)
         {
-            $entry = $module->entries()->create($this->attributes($request, $module));
+            $entry = $module->entries()->create($this->attributes($validated, $module));
 
-            $this->syncSlugs($entry, $request, $module);
+            $this->syncSlugs($entry, $validated, $module);
 
             return $entry;
         });
 
-        return response()->json($entry, 201);
+        return response()->json($this->asResource($entry), 201);
     }
 
     public function show(Module $module, Entry $entry)
     {
         $this->authorize('view', $module);
 
-        // The form needs the URL segments alongside the content.
-        return response()->json($entry->load('slugs'));
+        return response()->json($this->asResource($entry));
     }
 
     public function update(UpdateEntryRequest $request, Module $module, Entry $entry)
     {
         // Authorized by UpdateEntryRequest::authorize().
-        //
+        $validated = $request->validated();
+
         // The same single write as store(), and here it is what keeps the
         // entry's live pages alive: syncSlugs deletes before it inserts, so
         // an insert that failed used to commit the delete on its own and take
         // every existing public URL with it (TASKS.md #77).
-        DB::transaction(function () use ($request, $module, $entry)
+        DB::transaction(function () use ($validated, $module, $entry)
         {
-            $entry->update($this->attributes($request, $module, $entry));
+            $entry->update($this->attributes($validated, $module, $entry));
 
-            $this->syncSlugs($entry, $request, $module);
+            $this->syncSlugs($entry, $validated, $module);
         });
 
-        return response()->json($entry);
+        return response()->json($this->asResource($entry));
+    }
+
+    /**
+     * One shape for one resource, from all three endpoints.
+     *
+     * `store()` used to return the model straight from `create()`, which never
+     * reads the row back - so the 201 omitted `sort_order` and `published_at`
+     * entirely, and carried `status` only when the client had sent one. A
+     * panel creating an entry then read `status` as undefined and showed
+     * Draft whatever the database had chosen. `show()` loaded `slugs` and the
+     * other two did not, so one resource had three shapes (TASKS.md #81).
+     */
+    private function asResource(Entry $entry): Entry
+    {
+        return $entry->refresh()->load('slugs');
     }
 
     /**
@@ -142,20 +168,40 @@ class EntryController extends Controller
         $existing = $module->entries()->orderBy('id')->pluck('id')->all();
 
         $validated = $request->validate([
-            'ids' => ['present', 'array', $this->coversTheWholeModule($existing)],
-            'ids.*' => [
-                'integer',
-                Rule::exists('entries', 'id')->where('module_id', $module->id),
+            'ids' => [
+                'present',
+                'array',
+                'max:' . Entry::MAX_REORDER,
+                $this->coversTheWholeModule($existing),
             ],
+            // Existence is the completeness rule's job. It compares the body
+            // against the module's own ids, so an id that does not exist or
+            // belongs to another module cannot survive it - and one comparison
+            // in memory replaces one `exists` query per element (TASKS.md #84).
+            'ids.*' => ['integer'],
         ]);
 
-        DB::transaction(function () use ($validated, $module)
+        // One statement rather than one per row. Reordering fifteen entries
+        // was measured at 32 queries for a single swap - fifteen `exists`,
+        // fifteen UPDATEs - and is now two.
+        //
+        // The CASE is built by hand because the values have to be inlined, and
+        // they are safe to inline: each one is an integer that the
+        // completeness rule has just matched against a list read out of this
+        // module a moment earlier.
+        $cases = '';
+
+        foreach ($validated['ids'] as $position => $id)
         {
-            foreach ($validated['ids'] as $position => $id)
-            {
-                $module->entries()->whereKey($id)->update(['sort_order' => $position + 1]);
-            }
-        });
+            $cases .= ' WHEN ' . (int) $id . ' THEN ' . ($position + 1);
+        }
+
+        if ($cases !== '')
+        {
+            $module->entries()
+                ->whereIn('id', $validated['ids'])
+                ->update(['sort_order' => DB::raw("CASE id{$cases} END")]);
+        }
 
         return response()->noContent();
     }
@@ -199,12 +245,10 @@ class EntryController extends Controller
      * on write.
      */
     private function attributes(
-        StoreEntryRequest|UpdateEntryRequest $request,
+        array $validated,
         Module $module,
         ?Entry $entry = null
     ): array {
-        $validated = $request->validated();
-
         $validated['data'] = $this->richText->normalizeEntryData(
             $module->schema ?? [],
             $validated['data'] ?? []
@@ -238,14 +282,12 @@ class EntryController extends Controller
      */
     private function syncSlugs(
         Entry $entry,
-        StoreEntryRequest|UpdateEntryRequest $request,
+        array $validated,
         Module $module
     ): void {
         // Called inside the transaction store() and update() open: the delete
         // below has to be undone with the insert that follows it, or a failure
         // halfway leaves the entry with no URLs at all.
-        $validated = $request->validated();
-
         if (!array_key_exists('slugs', $validated))
         {
             return;

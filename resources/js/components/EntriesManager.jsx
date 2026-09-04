@@ -12,6 +12,7 @@ export default function EntriesManager({ module, onBack }) {
     const [entries, setEntries] = useState([]);
     const [pagination, setPagination] = useState(null);
     const [orderIds, setOrderIds] = useState([]);
+    const [reordering, setReordering] = useState(false);
     const [page, setPage] = useState(1);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -115,14 +116,31 @@ export default function EntriesManager({ module, onBack }) {
      * writes that could half-fail and leave the list in an order nobody chose.
      */
     const handleReorder = async (ids) => {
+        // One move at a time. The arrows had no guard and stayed enabled, so a
+        // second click computed its order from the list the first PUT had not
+        // yet refreshed: it sent the same swap again, the row moved one place
+        // instead of two, and out-of-order responses could leave either state
+        // on screen (TASKS.md #78).
+        if (reordering) return;
+
+        setReordering(true);
         setError(null);
+
+        // Applied locally first, so the row moves under the cursor rather than
+        // after a round trip - and so a click that arrives before the refetch
+        // computes from the order actually being written.
+        const previous = orderIds;
+        setOrderIds(ids);
 
         try {
             await api.put(`/modules/${module.slug}/entries/order`, { ids });
             setRefreshKey((n) => n + 1);
         } catch (err) {
             console.error(err);
+            setOrderIds(previous);
             setError('Failed to save the new order.');
+        } finally {
+            setReordering(false);
         }
     };
 
@@ -232,6 +250,7 @@ export default function EntriesManager({ module, onBack }) {
                     schema={module.schema ?? []}
                     entries={entries}
                     orderIds={orderIds}
+                    reordering={reordering}
                     onEdit={handleEdit}
                     onReorder={handleReorder}
                     languages={languages}

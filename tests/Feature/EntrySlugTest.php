@@ -8,6 +8,7 @@ use App\Models\Language;
 use App\Models\Module;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 /**
@@ -375,5 +376,150 @@ class EntrySlugTest extends TestCase
         }
 
         $this->assertSame(0, $this->rooms->entries()->count());
+    }
+
+    // ------------------------------------ three endpoints, one resource shape
+
+    /**
+     * `store()` returned the model straight from `create()`, which never reads
+     * the row back - so the 201 omitted every column the database defaulted
+     * (TASKS.md #81). A client creating an entry without a status read
+     * `response.status` as undefined and showed Draft whatever was stored.
+     *
+     * And `show()` loaded `slugs` while `store()` and `update()` did not, so
+     * three endpoints returned three shapes for one resource.
+     */
+    private const SHAPE = [
+        'id', 'module_id', 'data', 'status', 'published_at', 'sort_order',
+        'created_at', 'updated_at', 'slugs',
+    ];
+
+    public function test_creating_an_entry_returns_the_whole_resource(): void
+    {
+        $response = $this->actingAs($this->owner)->postJson(
+            "/api/modules/{$this->rooms->slug}/entries",
+            ['data' => ['title' => 'x'], 'slugs' => ['el' => 'thea']]
+        )->assertCreated();
+
+        $response->assertJsonStructure(self::SHAPE);
+
+        // Not merely present: the values the database chose, not the ones the
+        // client happened to send.
+        $this->assertSame(Entry::STATUS_DRAFT, $response->json('status'));
+        $this->assertNull($response->json('sort_order'));
+        $this->assertNull($response->json('published_at'));
+        $this->assertSame('thea', $response->json('slugs.0.slug'));
+    }
+
+    public function test_updating_an_entry_returns_the_same_shape(): void
+    {
+        $this->createEntry($this->rooms, ['el' => 'thea'])->assertCreated();
+        $entry = Entry::sole();
+
+        $this->actingAs($this->owner)->putJson(
+            "/api/modules/{$this->rooms->slug}/entries/{$entry->id}",
+            ['data' => ['title' => 'y'], 'slugs' => ['el' => 'nea']]
+        )
+            ->assertOk()
+            ->assertJsonStructure(self::SHAPE)
+            ->assertJsonPath('slugs.0.slug', 'nea');
+    }
+
+    public function test_showing_an_entry_returns_the_same_shape(): void
+    {
+        $this->createEntry($this->rooms, ['el' => 'thea'])->assertCreated();
+        $entry = Entry::sole();
+
+        $this->actingAs($this->owner)
+            ->getJson("/api/modules/{$this->rooms->slug}/entries/{$entry->id}")
+            ->assertOk()
+            ->assertJsonStructure(self::SHAPE);
+    }
+
+    /**
+     * The publication stamp is written by the server, so the 201 has to carry
+     * it back or the panel cannot show when the entry went out.
+     */
+    public function test_publishing_on_create_returns_the_stamp_the_server_wrote(): void
+    {
+        $response = $this->actingAs($this->owner)->postJson(
+            "/api/modules/{$this->rooms->slug}/entries",
+            ['data' => ['title' => 'x'], 'status' => Entry::STATUS_PUBLISHED]
+        )->assertCreated();
+
+        $this->assertNotNull($response->json('published_at'));
+    }
+
+    // ------------------------------------------------------- the read path
+
+    /**
+     * $this->slugs lazy-loads, per model and per call, so a public index of
+     * fifteen entries with a link each was fifteen SELECTs against
+     * entry_slugs - thirty if the template also needs the hreflang alternate
+     * (TASKS.md #85).
+     *
+     * This is the read path #59 is about to build on, so the scope that makes
+     * it one query exists before rather than after.
+     */
+    public function test_a_list_of_entries_reads_its_slugs_in_one_query(): void
+    {
+        foreach (range(1, 15) as $n)
+        {
+            $entry = $this->rooms->entries()->create(['data' => ['title' => "E{$n}"]]);
+            $entry->slugs()->create([
+                'module_id' => $this->rooms->id,
+                'language_code' => 'el',
+                'slug' => "room-{$n}",
+            ]);
+            $entry->slugs()->create([
+                'module_id' => $this->rooms->id,
+                'language_code' => 'en',
+                'slug' => "room-en-{$n}",
+            ]);
+        }
+
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+
+        try
+        {
+            $entries = Entry::query()->where('module_id', $this->rooms->id)->withSlugs()->get();
+
+            // Two languages per row, which is what a page with an hreflang
+            // alternate actually asks for.
+            $greek = $entries->map(fn(Entry $e) => $e->slugFor('el'));
+            $english = $entries->map(fn(Entry $e) => $e->slugFor('en'));
+
+            $queries = count(DB::getQueryLog());
+        }
+        finally
+        {
+            DB::disableQueryLog();
+        }
+
+        $this->assertCount(15, $greek->filter());
+        $this->assertCount(15, $english->filter());
+
+        // The entries and their slugs: two queries, whatever the row count.
+        $this->assertLessThanOrEqual(
+            2,
+            $queries,
+            "Reading fifteen entries and both of their slugs took {$queries} queries."
+        );
+    }
+
+    public function test_slug_for_still_answers_on_a_model_loaded_without_them(): void
+    {
+        $entry = $this->rooms->entries()->create(['data' => ['title' => 'x']]);
+        $entry->slugs()->create([
+            'module_id' => $this->rooms->id,
+            'language_code' => 'el',
+            'slug' => 'thea',
+        ]);
+
+        // No eager load anywhere: the convenience has to keep working, it
+        // just must not be the only way to use it.
+        $this->assertSame('thea', Entry::query()->findOrFail($entry->id)->slugFor('el'));
+        $this->assertNull(Entry::query()->findOrFail($entry->id)->slugFor('fr'));
     }
 }

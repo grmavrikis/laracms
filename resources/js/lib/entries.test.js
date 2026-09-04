@@ -7,13 +7,23 @@ import {
     slugsToMap,
     slugsForPayload,
     reorderedIds,
+    entryPayload,
 } from './entries';
 
 describe('statuses', () => {
     it('comes from the generated file rather than being written here', () => {
-        expect(STATUSES).toContain(STATUS_DRAFT);
-        expect(STATUSES).toContain(STATUS_PUBLISHED);
+        expect(Object.values(STATUSES)).toContain(STATUS_DRAFT);
+        expect(Object.values(STATUSES)).toContain(STATUS_PUBLISHED);
         expect(STATUS_DRAFT).not.toBe(STATUS_PUBLISHED);
+    });
+
+    it('reads them by name, so a third state cannot silently reassign one', () => {
+        // Positional reads - STATUSES[0], STATUSES[1] - would survive
+        // ['draft', 'scheduled', 'published'] with the build green and
+        // STATUS_PUBLISHED quietly meaning 'scheduled' (TASKS.md #79).
+        expect(STATUSES.draft).toBe(STATUS_DRAFT);
+        expect(STATUSES.published).toBe(STATUS_PUBLISHED);
+        expect(Array.isArray(STATUSES)).toBe(false);
     });
 
     it('recognises a published entry', () => {
@@ -105,5 +115,59 @@ describe('reorderedIds', () => {
     it('copes with an empty or missing list', () => {
         expect(reorderedIds([], 1, 1)).toEqual([]);
         expect(reorderedIds(undefined, 1, 1)).toEqual([]);
+    });
+});
+
+describe('entryPayload', () => {
+    const base = { data: { title: 'x' }, slugs: { el: 'thea' } };
+
+    it('sends the status when creating, because the author just chose it', () => {
+        const payload = entryPayload({
+            ...base,
+            status: STATUS_PUBLISHED,
+            initialStatus: STATUS_DRAFT,
+            isEdit: false,
+        });
+
+        expect(payload.status).toBe(STATUS_PUBLISHED);
+        expect(payload.slugs).toEqual({ el: 'thea' });
+    });
+
+    it('leaves the status out of an edit that did not touch it', () => {
+        // The form held whatever it loaded when it opened. Resending that
+        // reverts a publish made elsewhere, and the live page disappears with
+        // nothing said (TASKS.md #86). The rule is `sometimes`, so omitting
+        // it is already how "I did not change this" is expressed.
+        const payload = entryPayload({
+            ...base,
+            status: STATUS_DRAFT,
+            initialStatus: STATUS_DRAFT,
+            isEdit: true,
+        });
+
+        expect('status' in payload).toBe(false);
+    });
+
+    it('sends the status when the author did change it', () => {
+        const payload = entryPayload({
+            ...base,
+            status: STATUS_PUBLISHED,
+            initialStatus: STATUS_DRAFT,
+            isEdit: true,
+        });
+
+        expect(payload.status).toBe(STATUS_PUBLISHED);
+    });
+
+    it('still drops an empty slug, so clearing a box removes the URL', () => {
+        const payload = entryPayload({
+            data: {},
+            slugs: { el: 'thea', en: '  ' },
+            status: STATUS_DRAFT,
+            initialStatus: STATUS_DRAFT,
+            isEdit: true,
+        });
+
+        expect(payload.slugs).toEqual({ el: 'thea' });
     });
 });
