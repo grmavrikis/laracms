@@ -38,9 +38,14 @@ Route::middleware('auth:sanctum')->group(function ()
         Route::get('/modules/{module}/entries', [EntryController::class, 'index']);
         Route::post('/modules/{module}/entries', [EntryController::class, 'store']);
 
-        // Before {entry}, or the binding would try to resolve an Entry called
-        // "order". Reordering is one request for the whole list rather than
-        // one per row, so dragging three rows is not three round trips.
+        // Both before {entry}, or the binding would try to resolve an Entry
+        // called "order" - which is a 404 rather than an error that says so.
+        //
+        // Reordering is one request for the whole list rather than one per
+        // row, so dragging three rows is not three round trips. The GET is
+        // what makes that possible from a paginated table: the panel holds
+        // fifteen rows and the order it sends has to cover the module.
+        Route::get('/modules/{module}/entries/order', [EntryController::class, 'order']);
         Route::put('/modules/{module}/entries/order', [EntryController::class, 'reorder']);
         Route::get('/modules/{module}/entries/{entry}', [EntryController::class, 'show']);
         Route::put('/modules/{module}/entries/{entry}', [EntryController::class, 'update']);

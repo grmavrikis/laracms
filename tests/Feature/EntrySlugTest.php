@@ -3,6 +3,8 @@
 namespace Tests\Feature;
 
 use App\Models\Entry;
+use App\Models\EntrySlug;
+use App\Models\Language;
 use App\Models\Module;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -34,6 +36,11 @@ class EntrySlugTest extends TestCase
 
         $this->owner = User::factory()->create();
         $this->rooms = $this->makeModule('rooms');
+
+        // A slug key is a language, so the languages have to exist for one to
+        // be written at all - see the key rules below.
+        Language::create(['name' => 'Greek', 'code' => 'el', 'is_default' => true]);
+        Language::create(['name' => 'English', 'code' => 'en']);
     }
 
     private function makeModule(string $slug): Module
@@ -239,5 +246,134 @@ class EntrySlugTest extends TestCase
     public function test_an_unknown_slug_resolves_to_nothing(): void
     {
         $this->assertNull(Entry::forSlug($this->rooms, 'el', 'den-yparxei')->first());
+    }
+
+    // -------------------------------------------------- the key is a language
+
+    /**
+     * `entry_slugs.language_code` is `varchar(5)`, and nothing validated the
+     * key - so a longer one passed validation and MySQL answered **500**
+     * (TASKS.md #76):
+     *
+     *   SQLSTATE[22001]: 1406 Data too long for column 'language_code'
+     *
+     * The suite runs on SQLite, which does not enforce varchar limits, so no
+     * assertion on the response body could have caught it. What can be pinned
+     * here is the rule that makes it impossible: the key has to be one of the
+     * site's active languages, and every active code fits the column.
+     */
+    public function test_a_slug_key_longer_than_the_column_is_rejected(): void
+    {
+        $this->createEntry($this->rooms, ['en-GB-oxendict' => 'probe'])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('slugs');
+
+        $this->assertDatabaseCount('entry_slugs', 0);
+    }
+
+    /**
+     * The other half of the same hole: `{"zz": "about"}` was accepted and
+     * created a public URL in a language the site does not have.
+     */
+    public function test_a_slug_key_that_is_not_a_language_is_rejected(): void
+    {
+        $this->createEntry($this->rooms, ['zz' => 'about'])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('slugs');
+
+        $this->assertDatabaseCount('entry_slugs', 0);
+    }
+
+    public function test_a_slug_key_for_a_deactivated_language_is_rejected(): void
+    {
+        Language::where('code', 'en')->update(['is_active' => false]);
+
+        $this->createEntry($this->rooms, ['en' => 'sea-view'])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('slugs');
+    }
+
+    public function test_an_active_language_is_still_accepted(): void
+    {
+        $this->createEntry($this->rooms, ['el' => 'thea', 'en' => 'sea-view'])
+            ->assertCreated();
+
+        $this->assertDatabaseCount('entry_slugs', 2);
+    }
+
+    // -------------------------------------------- one write, or none of it
+
+    /**
+     * `syncSlugs` deleted every row and then inserted the new ones, with
+     * nothing wrapping the pair (TASKS.md #77). A failed insert therefore left
+     * the entry with **no URLs at all**: the author saw a 500 and two live
+     * pages went dead.
+     *
+     * The failure is forced on the insert itself rather than through a
+     * particular constraint, because what has to hold is "the write happens
+     * whole or not at all" - not "this one collision is handled". The
+     * collisions the rules already catch never reach here; a race on the
+     * unique index, or any constraint the rules do not restate, does.
+     */
+    private function makeTheSlugInsertFail(): void
+    {
+        EntrySlug::creating(function (): void
+        {
+            throw new \RuntimeException('the slug insert failed');
+        });
+    }
+
+    public function test_a_failed_slug_write_leaves_the_existing_urls_alone(): void
+    {
+        $this->createEntry($this->rooms, ['el' => 'thea', 'en' => 'sea-view'])->assertCreated();
+        $entry = Entry::sole();
+
+        $this->makeTheSlugInsertFail();
+        $this->withoutExceptionHandling();
+
+        try
+        {
+            $this->actingAs($this->owner)->putJson(
+                "/api/modules/{$this->rooms->slug}/entries/{$entry->id}",
+                ['data' => ['title' => 'x'], 'slugs' => ['el' => 'thea-nea']]
+            );
+            $this->fail('The slug insert was supposed to throw.');
+        }
+        catch (\RuntimeException $e)
+        {
+            // Expected.
+        }
+
+        $this->assertSame(
+            ['el' => 'thea', 'en' => 'sea-view'],
+            $entry->fresh()->slugs->pluck('slug', 'language_code')->all(),
+            "A failed slug write must not take the entry's live URLs with it."
+        );
+    }
+
+    /**
+     * The same shape on create: the entry row was committed before the slugs
+     * were written, so a slug failure left a saved entry the client was never
+     * told about.
+     */
+    public function test_a_failed_slug_write_does_not_leave_a_half_created_entry(): void
+    {
+        $this->makeTheSlugInsertFail();
+        $this->withoutExceptionHandling();
+
+        try
+        {
+            $this->actingAs($this->owner)->postJson(
+                "/api/modules/{$this->rooms->slug}/entries",
+                ['data' => ['title' => 'New'], 'slugs' => ['el' => 'thea']]
+            );
+            $this->fail('The slug insert was supposed to throw.');
+        }
+        catch (\RuntimeException $e)
+        {
+            // Expected.
+        }
+
+        $this->assertSame(0, $this->rooms->entries()->count());
     }
 }

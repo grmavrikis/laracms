@@ -51,6 +51,21 @@ class Entry extends Model
         );
     }
 
+    /**
+     * The order the admin listing is in.
+     *
+     * A scope because two endpoints have to agree on it: the paginated listing
+     * and the id list the panel reorders against. If those two ever disagreed,
+     * a move would swap an entry with a neighbour it is not next to on screen.
+     */
+    public function scopeInListOrder(Builder $query): Builder
+    {
+        return $query
+            ->orderBy('sort_order')
+            ->orderByDesc('created_at')
+            ->orderByDesc('id');
+    }
+
     public function module(): BelongsTo
     {
         return $this->belongsTo(Module::class);

@@ -43,22 +43,34 @@ export const slugsForPayload = (map) =>
     );
 
 /**
- * Move one entry up or down a list, returning the ids in their new order.
+ * Move one entry up or down the module's order, returning the ids in their
+ * new order.
  *
- * The whole order goes to the server in one request, so this works out what
- * the list should look like rather than what changed - which is also what
- * makes the move a no-op at either end instead of an error.
+ * It takes ids rather than the rows the table is showing, because the table
+ * only ever holds one page of fifteen. Reordering a page renumbered it over
+ * everything above it (TASKS.md #75), and the endpoint now refuses anything
+ * that is not the module's whole set - so the panel fetches that set and
+ * moves within it. A row can therefore swap with a neighbour on another page,
+ * which a page-local list could not express at all.
  */
-export const reorderedIds = (entries, index, direction) => {
-    const ids = (entries ?? []).map((entry) => entry.id);
+export const reorderedIds = (ids, entryId, direction) => {
+    const order = Array.isArray(ids) ? [...ids] : [];
+    const index = order.indexOf(entryId);
     const target = index + direction;
 
-    if (index < 0 || index >= ids.length || target < 0 || target >= ids.length) {
-        return ids;
+    if (index < 0 || target < 0 || target >= order.length) {
+        return order;
     }
 
-    const next = [...ids];
-    [next[index], next[target]] = [next[target], next[index]];
+    [order[index], order[target]] = [order[target], order[index]];
 
-    return next;
+    return order;
 };
+
+/**
+ * Where an entry sits in the module's order, or -1 if the order has not
+ * arrived yet. The arrows use it to know they are at an end - which is a
+ * question about the module, not about the page on screen.
+ */
+export const positionInOrder = (ids, entryId) =>
+    Array.isArray(ids) ? ids.indexOf(entryId) : -1;

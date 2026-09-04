@@ -215,6 +215,111 @@ class EntryOrderingTest extends TestCase
             ->assertUnauthorized();
     }
 
+    /**
+     * The table holds one page of fifteen, so before this the panel could only
+     * ever send fifteen ids - and the endpoint numbered exactly those 1..N,
+     * writing page 2's rows straight over page 1's (TASKS.md #75).
+     *
+     * Every other case in this file happens to send the module's whole set,
+     * which is why the suite was green while the browser was wrong. This one
+     * sends a subset on purpose.
+     */
+    public function test_a_subset_of_the_module_is_refused(): void
+    {
+        $this->createEntry('A')->assertCreated();
+        $this->createEntry('B')->assertCreated();
+        $this->createEntry('C')->assertCreated();
+
+        $ids = $this->idsOf(['C', 'B', 'A']);
+
+        $this->reorder([$ids[0], $ids[1]])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('ids');
+
+        // Nothing was renumbered: all three are still unpositioned.
+        foreach ($ids as $id)
+        {
+            $this->assertNull($this->module->entries()->find($id)->sort_order);
+        }
+    }
+
+    /**
+     * The same id twice would consume two positions and write one row, which
+     * is the subset problem wearing a different hat.
+     */
+    public function test_a_repeated_id_is_refused(): void
+    {
+        $this->createEntry('A')->assertCreated();
+        $this->createEntry('B')->assertCreated();
+
+        $ids = $this->idsOf(['A', 'B']);
+
+        $this->reorder([$ids[0], $ids[0]])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('ids');
+    }
+
+    /**
+     * What makes the whole-set rule usable from a paginated table: the panel
+     * asks for every id before a move rather than reordering the page it can
+     * see. One `select id` on a list somebody hand-orders.
+     */
+    public function test_the_whole_order_can_be_fetched(): void
+    {
+        $this->createEntry('Third', 3)->assertCreated();
+        $this->createEntry('First', 1)->assertCreated();
+        $this->createEntry('Second', 2)->assertCreated();
+
+        $this->assertSame(
+            $this->idsOf(['First', 'Second', 'Third']),
+            $this->actingAs($this->owner)
+                ->getJson("/api/modules/{$this->module->slug}/entries/order")
+                ->assertOk()
+                ->json('ids')
+        );
+    }
+
+    /**
+     * The arrows swap an entry with the row above it *on screen*, so the id
+     * list and the listing have to be the same order. If they drifted, a move
+     * would swap the entry with a neighbour it is not next to.
+     */
+    public function test_the_fetched_order_matches_the_listing_across_pages(): void
+    {
+        foreach (range(1, 20) as $n)
+        {
+            $this->createEntry("Entry {$n}")->assertCreated();
+        }
+
+        $listed = array_merge(
+            $this->listedIds(1),
+            $this->listedIds(2),
+        );
+
+        $this->assertCount(20, $listed);
+        $this->assertSame(
+            $listed,
+            $this->actingAs($this->owner)
+                ->getJson("/api/modules/{$this->module->slug}/entries/order")
+                ->assertOk()
+                ->json('ids')
+        );
+    }
+
+    private function listedIds(int $page): array
+    {
+        return $this->actingAs($this->owner)
+            ->getJson("/api/modules/{$this->module->slug}/entries?page={$page}")
+            ->assertOk()
+            ->json('data.*.id');
+    }
+
+    public function test_fetching_the_whole_order_requires_authentication(): void
+    {
+        $this->getJson("/api/modules/{$this->module->slug}/entries/order")
+            ->assertUnauthorized();
+    }
+
     public function test_a_position_that_is_not_a_whole_number_is_rejected(): void
     {
         $this->actingAs($this->owner)

@@ -15,8 +15,11 @@ in the MVP. Three of them were, and are now done.
 
 **Exception, added 2026-09-02: `## P0` in the findings section is first, ahead
 of everything.** It is fourteen defects in #56/#57/#58 — work finished the same
-day — and three of them are wrong in the browser right now. They are not old
-debt to be weighed against the MVP; they are the MVP shipping broken.
+day — and three of them were wrong in the browser. They are not old debt to be
+weighed against the MVP; they are the MVP shipping broken.
+
+**The three are fixed (#75, #76, #77 — CHANGELOG §17). Eleven remain**, and
+`## P0` still comes before #59.
 
 Numbering is continuous and stable so commits and comments can cite it. It does
 not imply order or priority.
@@ -565,9 +568,12 @@ Three were verified live against MySQL with a `zz-review` probe module rather
 than argued from reading — those say so. **The test suite cannot catch #76**:
 it runs on SQLite, which does not enforce `varchar` limits.
 
-### The three that are wrong in the browser
+**Status, 2026-09-02: #75, #76 and #77 are done** (CHANGELOG §17). The
+remaining eleven — #78–#88 — are open and still come before #59.
 
-#### 75. Reordering renumbers only the ids it is sent, so pages collide
+### The three that are wrong in the browser — DONE
+
+#### 75. Reordering renumbers only the ids it is sent, so pages collide — DONE
 
 `EntryController::reorder` assigns positions `1..N` to exactly the ids in the
 body. `EntriesTable` only ever holds one page — `paginate(15)` — so
@@ -594,7 +600,14 @@ Two possible fixes, and the choice is a product decision:
 The second is the real answer. A list somebody wants to hand-order is a slider
 or a menu, so it is small — fetching every id is one cheap query.
 
-#### 76. A `slugs` key is never validated, and MySQL answers 500
+**Done.** The second was chosen, with the server enforcing it: a new
+`GET .../entries/order` returns every id in listing order, and `PUT .../order`
+refuses a body that is not the module's complete set (which also rejects a
+repeated id). The panel reorders within that list, so an arrow now reaches a
+neighbour on another page. Both endpoints share `Entry::inListOrder()`, pinned
+equal across two pages by a test. CHANGELOG §17.
+
+#### 76. A `slugs` key is never validated, and MySQL answers 500 — DONE
 
 `ValidatesStructuralFields` validates every slug *value* and no slug *key*,
 while `entry_slugs.language_code` is `varchar(5)`.
@@ -615,7 +628,13 @@ Two holes, one fix: validate the key. Length, and membership in the active
 languages — `{"zz": "about"}` currently creates a public URL in a language the
 site does not have. `Rule::in` over the active language codes covers both.
 
-#### 77. `syncSlugs` deletes before it inserts, outside a transaction
+**Done.** A closure on `slugs` checks each key against the active languages —
+a closure rather than `Rule::in` on `slugs.*` because Laravel's wildcard
+reaches values, not keys. `EntrySlugTest` now creates the languages, since a
+slug key is one. **Still owed: a live run against MySQL** — Laragon was not
+running (see the note at the end of CHANGELOG §17). CHANGELOG §17.
+
+#### 77. `syncSlugs` deletes before it inserts, outside a transaction — DONE
 
 `EntryController::syncSlugs` runs `$entry->slugs()->delete()` and then creates
 the new rows with nothing wrapping the pair.
@@ -631,7 +650,17 @@ runs, so a slug failure leaves a saved entry the client was never told about.
 Wrap the write — entry and slugs together — in one `DB::transaction`. Fixing
 #76 makes the common trigger go away; it does not make this correct.
 
-### The rest, in the order they were ranked
+**Done.** Both `store()` and `update()` wrap the entry and `syncSlugs` in one
+transaction. The tests force the failure on the insert itself rather than
+through a constraint, because every collision the request rules already catch
+never reaches the write. CHANGELOG §17.
+
+### The rest, in the order they were ranked — all still open
+
+#78 is the natural companion to #75 and is now the cheapest of them: the panel
+holds the module's order, so applying a move to it optimistically is a few
+lines. #84's duplicate-id half is already closed by #75's completeness rule;
+the query count is not.
 
 #### 78. Rapid ↑/↓ clicks race on a stale `entries` array
 

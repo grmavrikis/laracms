@@ -92,6 +92,19 @@ User (1:N) Module (1:N) Entry
   — `/el/rooms/about` and `/el/pages/about` are different pages — and so the
   lookup is one indexed read. `Entry::forSlug()` is a scope, so the public side
   composes `forSlug(...)->published()`.
+
+  **The key of a slug is a language the site actually has.** `slugs` arrives as
+  a map keyed by language code, and `ValidatesStructuralFields` checks those
+  keys against the active `languages` rather than only the values. Both halves
+  matter: `language_code` is `varchar(5)`, so an unchecked key was a **500**
+  on MySQL rather than a 422, and an unchecked *unknown* key created a public
+  URL in a language nothing would ever serve (CHANGELOG.md §17).
+
+  **An entry and its slugs are one write.** `store()` and `update()` wrap the
+  entry row and `syncSlugs()` in a single `DB::transaction`. `syncSlugs`
+  deletes the whole set before inserting the new one — that is what "sending
+  `slugs` replaces them" means — so without the transaction a failed insert
+  committed the delete on its own and took every live URL with it.
 - **Language** — `id, name, code, is_default, is_active`.
 
 **Translation model** (decided; see CHANGELOG.md §3): translatable content
@@ -310,14 +323,35 @@ to a different Module is a 404 before any controller code runs; a Module
 owned by a different user is a 403 from the policy. Modules are addressed
 by slug only — numeric ids are not accepted.
 
-**Listing** is paginated at 15 per page, ordered by `sort_order` ascending,
-then `created_at` **and `id`** descending. Drafts are included: this is the
+**Listing** is paginated at 15 per page, ordered by `Entry::inListOrder()` —
+`sort_order` ascending, then `created_at` **and `id`** descending. Drafts are included: this is the
 admin, and an author has to see what they have not published. The `id` is not decoration: entries saved in the same
 second tie on `created_at`, and without a total order the database may
 return them differently between requests, so a paginated list can repeat
 or skip rows. On the client, `lib/pagination.js` reduces the paginator
 envelope and `EntriesTable` renders the controls; a page past the end
 falls back to the last page.
+
+**Reordering is one request for the module's whole order**, and the endpoint
+enforces that:
+
+```
+GET /api/modules/{module}/entries/order   → {"ids": [...]}  every id, in listing order
+PUT /api/modules/{module}/entries/order   ← {"ids": [...]}  the order it should end up in
+```
+
+Both are routed **before** `{entry}`, or the binding tries to resolve an Entry
+called "order". `PUT` writes positions `1..N` over exactly the ids it is sent,
+so a body that is not the module's complete set is a 422 rather than a
+renumbering — which also rejects a repeated id, since that would consume two
+positions and write one row. The table holds one page of fifteen, so it asks
+`GET .../order` for the whole order and moves within that; a row can therefore
+swap with a neighbour on another page. Before this, a move on page 2 wrote
+positions 1–5 straight over page 1 (CHANGELOG.md §17).
+
+Both endpoints order through the same `inListOrder()` scope on purpose: the
+arrows swap an entry with the row above it *on screen*, so the id list and the
+listing have to be the same order.
 
 The listing takes **no language parameter**. An entry carries all of its
 translations and `EntriesTable` chooses one to display, which is what

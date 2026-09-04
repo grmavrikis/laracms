@@ -4,6 +4,7 @@ namespace App\Http\Requests\Concerns;
 
 use App\Models\Entry;
 use App\Models\EntrySlug;
+use App\Models\Language;
 use App\Models\Module;
 use Illuminate\Validation\Rule;
 
@@ -36,7 +37,7 @@ trait ValidatesStructuralFields
 
             // Sending the key at all replaces the whole set, so an empty map
             // is "this entry has no URLs" rather than "leave them alone".
-            'slugs' => ['sometimes', 'array'],
+            'slugs' => ['sometimes', 'array', $this->keysAreActiveLanguages()],
             'slugs.*' => [
                 'nullable',
                 'string',
@@ -47,6 +48,45 @@ trait ValidatesStructuralFields
                 $this->slugIsFree($module, $entry),
             ],
         ];
+    }
+
+    /**
+     * The key of a slug is a language, and only a language the site has.
+     *
+     * Nothing checked it, which was two holes in one (TASKS.md #76):
+     *
+     *   - `entry_slugs.language_code` is `varchar(5)`, so a longer key passed
+     *     validation and MySQL threw `1406 Data too long` - a **500** where
+     *     the author should get a 422. SQLite, which the suite runs on, has
+     *     no varchar limits, so no test could have found it;
+     *   - `{"zz": "about"}` created a public URL in a language the site does
+     *     not have, and nothing would ever read it.
+     *
+     * Membership in the active languages closes both: every code the site has
+     * fits the column, because `languages.code` is `varchar(5)` as well.
+     *
+     * Written as a closure rather than `Rule::in` on `slugs.*` because it is
+     * the *key* being checked, and Laravel's wildcard reaches values only.
+     */
+    private function keysAreActiveLanguages(): callable
+    {
+        return function (string $attribute, mixed $value, callable $fail): void
+        {
+            if (!is_array($value))
+            {
+                return;
+            }
+
+            $active = Language::query()->where('is_active', true)->pluck('code')->all();
+
+            foreach (array_keys($value) as $language)
+            {
+                if (!in_array((string) $language, $active, true))
+                {
+                    $fail("'{$language}' is not one of this site's languages.");
+                }
+            }
+        };
     }
 
     /**

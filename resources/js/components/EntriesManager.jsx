@@ -11,6 +11,7 @@ export default function EntriesManager({ module, onBack }) {
     const [viewLangCode, setViewLangCode] = useState(null);
     const [entries, setEntries] = useState([]);
     const [pagination, setPagination] = useState(null);
+    const [orderIds, setOrderIds] = useState([]);
     const [page, setPage] = useState(1);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -67,6 +68,32 @@ export default function EntriesManager({ module, onBack }) {
             })
             .finally(() => setLoading(false));
     }, [module.slug, refreshKey, view, page]);
+
+    // The order of the whole module, which the table reorders against.
+    //
+    // The table holds one page of fifteen, and the endpoint takes the order of
+    // the module - so a move computed from the page renumbered it over
+    // everything above (TASKS.md #75). Refetched alongside the listing, since
+    // a create or a delete changes it. One `select id`.
+    useEffect(() => {
+        if (view !== 'list') return;
+
+        let current = true;
+
+        api.get(`/modules/${module.slug}/entries/order`)
+            .then(({ data }) => {
+                if (current) setOrderIds(Array.isArray(data?.ids) ? data.ids : []);
+            })
+            .catch((err) => {
+                console.error(err);
+                // Not an error banner of its own: the listing still works and
+                // the arrows stay disabled, which is honest about what the
+                // panel can do without knowing the module's order.
+                if (current) setOrderIds([]);
+            });
+
+        return () => { current = false; };
+    }, [module.slug, refreshKey, view]);
 
     const handleEdit = async (entry) => {
         setLoading(true);
@@ -204,6 +231,7 @@ export default function EntriesManager({ module, onBack }) {
                 <EntriesTable
                     schema={module.schema ?? []}
                     entries={entries}
+                    orderIds={orderIds}
                     onEdit={handleEdit}
                     onReorder={handleReorder}
                     languages={languages}

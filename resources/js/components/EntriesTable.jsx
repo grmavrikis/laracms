@@ -1,13 +1,14 @@
 import { isRichTextField, docToText } from '../lib/richText';
 import { isGalleryField, galleryPreview } from '../lib/gallery';
 import { getLangCode } from '../lib/languages';
-import { isPublished, reorderedIds } from '../lib/entries';
+import { isPublished, reorderedIds, positionInOrder } from '../lib/entries';
 
 export default function EntriesTable({
     schema,
     entries,
     onEdit,
     onReorder,
+    orderIds = [],
     languages = [],
     currentLangCode = 'en',
     onLanguageChange,
@@ -86,7 +87,7 @@ export default function EntriesTable({
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-100 bg-white">
-                                    {entries.map((entry, index) => (
+                                    {entries.map((entry) => (
                                         <tr key={entry.id} className="group hover:bg-gray-50/50 transition-colors duration-150">
                                             <td className="whitespace-nowrap px-6 py-4 font-medium text-gray-900">
                                                 #{entry.id}
@@ -166,28 +167,39 @@ export default function EntriesTable({
                                                     request, so a move is one
                                                     round trip rather than two
                                                     writes that could half-fail. */}
-                                                {onReorder && (
-                                                    <>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => onReorder(reorderedIds(entries, index, -1))}
-                                                            disabled={index === 0}
-                                                            title="Move up"
-                                                            className="inline-flex items-center rounded-md px-2 py-1.5 text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                                                        >
-                                                            ↑
-                                                        </button>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => onReorder(reorderedIds(entries, index, 1))}
-                                                            disabled={index === entries.length - 1}
-                                                            title="Move down"
-                                                            className="inline-flex items-center rounded-md px-2 py-1.5 text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                                                        >
-                                                            ↓
-                                                        </button>
-                                                    </>
-                                                )}
+                                                {onReorder && (() => {
+                                                    // Position in the module,
+                                                    // not on the page: the row
+                                                    // above the first one here
+                                                    // may be on the page before
+                                                    // (TASKS.md #75). Until the
+                                                    // order arrives, -1 leaves
+                                                    // both arrows disabled.
+                                                    const at = positionInOrder(orderIds, entry.id);
+
+                                                    return (
+                                                        <>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => onReorder(reorderedIds(orderIds, entry.id, -1))}
+                                                                disabled={at <= 0}
+                                                                title="Move up"
+                                                                className="inline-flex items-center rounded-md px-2 py-1.5 text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                                            >
+                                                                ↑
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => onReorder(reorderedIds(orderIds, entry.id, 1))}
+                                                                disabled={at < 0 || at === orderIds.length - 1}
+                                                                title="Move down"
+                                                                className="inline-flex items-center rounded-md px-2 py-1.5 text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                                            >
+                                                                ↓
+                                                            </button>
+                                                        </>
+                                                    );
+                                                })()}
                                                 <button
                                                     onClick={() => onEdit(entry)}
                                                     className="inline-flex items-center gap-1 rounded-md px-3 py-1.5 text-indigo-600 hover:bg-indigo-50 hover:text-indigo-900 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 opacity-0 group-hover:opacity-100 focus:opacity-100"

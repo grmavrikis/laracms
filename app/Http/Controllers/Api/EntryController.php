@@ -43,19 +43,45 @@ class EntryController extends Controller
         //
         // Drafts are listed. This is the admin, and an author has to be able to
         // see what they have not published yet.
-        return $module->entries()
-            ->orderBy('sort_order')
-            ->latest()
-            ->orderByDesc('id')
-            ->paginate(15);
+        return $module->entries()->inListOrder()->paginate(15);
+    }
+
+    /**
+     * Every id in the module, in listing order.
+     *
+     * The panel reorders against this rather than against the page it can
+     * see. `paginate(15)` means the table holds fifteen rows at most, and
+     * `reorder` takes the order of the whole module - so without this the
+     * panel could only ever describe one page of it, and a move on page 2
+     * wrote positions 1..5 straight over page 1 (TASKS.md #75).
+     *
+     * One `select id`. A list somebody hand-orders is a menu or a set of
+     * rooms, so it is small by the nature of the thing.
+     */
+    public function order(Module $module)
+    {
+        $this->authorize('view', $module);
+
+        return response()->json([
+            'ids' => $module->entries()->inListOrder()->pluck('id'),
+        ]);
     }
 
     public function store(StoreEntryRequest $request, Module $module)
     {
         // Authorized by StoreEntryRequest::authorize().
-        $entry = $module->entries()->create($this->attributes($request, $module));
+        //
+        // The entry and its URLs are one write. Without the transaction the
+        // entry row was committed first, so a slug failure left a saved entry
+        // the client had been told nothing about (TASKS.md #77).
+        $entry = DB::transaction(function () use ($request, $module)
+        {
+            $entry = $module->entries()->create($this->attributes($request, $module));
 
-        $this->syncSlugs($entry, $request, $module);
+            $this->syncSlugs($entry, $request, $module);
+
+            return $entry;
+        });
 
         return response()->json($entry, 201);
     }
@@ -71,9 +97,17 @@ class EntryController extends Controller
     public function update(UpdateEntryRequest $request, Module $module, Entry $entry)
     {
         // Authorized by UpdateEntryRequest::authorize().
-        $entry->update($this->attributes($request, $module, $entry));
+        //
+        // The same single write as store(), and here it is what keeps the
+        // entry's live pages alive: syncSlugs deletes before it inserts, so
+        // an insert that failed used to commit the delete on its own and take
+        // every existing public URL with it (TASKS.md #77).
+        DB::transaction(function () use ($request, $module, $entry)
+        {
+            $entry->update($this->attributes($request, $module, $entry));
 
-        $this->syncSlugs($entry, $request, $module);
+            $this->syncSlugs($entry, $request, $module);
+        });
 
         return response()->json($entry);
     }
@@ -95,8 +129,20 @@ class EntryController extends Controller
     {
         $this->authorize('update', $module);
 
+        // Positions are written 1..N over exactly what arrives, so the body
+        // has to be the whole module or the numbering means nothing: a page
+        // of fifteen sent on its own renumbered itself over everything above
+        // it. Requiring the complete set makes that a 422 instead of a
+        // silent rearrangement - and covers duplicates for free, since the
+        // same id twice would consume two positions and write one row.
+        //
+        // It also gives the honest answer when somebody else has added or
+        // deleted an entry meanwhile: the list the panel is describing no
+        // longer exists, so refuse it rather than apply a stale order.
+        $existing = $module->entries()->orderBy('id')->pluck('id')->all();
+
         $validated = $request->validate([
-            'ids' => ['present', 'array'],
+            'ids' => ['present', 'array', $this->coversTheWholeModule($existing)],
             'ids.*' => [
                 'integer',
                 Rule::exists('entries', 'id')->where('module_id', $module->id),
@@ -112,6 +158,28 @@ class EntryController extends Controller
         });
 
         return response()->noContent();
+    }
+
+    /**
+     * @param array<int, int> $existing every id in the module, ascending.
+     */
+    private function coversTheWholeModule(array $existing): callable
+    {
+        return function (string $attribute, mixed $value, callable $fail) use ($existing): void
+        {
+            if (!is_array($value))
+            {
+                return;
+            }
+
+            $given = array_map(fn(mixed $id) => (int) $id, array_values($value));
+            sort($given);
+
+            if ($given !== $existing)
+            {
+                $fail('The order must list every entry in this module exactly once. Reload the list and try again.');
+            }
+        };
     }
 
     public function destroy(Module $module, Entry $entry)
@@ -173,6 +241,9 @@ class EntryController extends Controller
         StoreEntryRequest|UpdateEntryRequest $request,
         Module $module
     ): void {
+        // Called inside the transaction store() and update() open: the delete
+        // below has to be undone with the insert that follows it, or a failure
+        // halfway leaves the entry with no URLs at all.
         $validated = $request->validated();
 
         if (!array_key_exists('slugs', $validated))

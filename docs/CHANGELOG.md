@@ -1363,3 +1363,116 @@ lesson worth keeping: **the tests being green was never the check.** Two of the
 three serious findings are invisible to the suite by construction, one because
 of the database it runs on and one because every test happened to exercise the
 whole list.
+
+---
+
+## 17. The three P0 findings that were wrong in the browser
+
+`TASKS.md` → `## P0` holds fourteen findings against §16, and three of them
+were wrong in the browser rather than merely untidy. Those three are closed
+here; the other eleven are not, and §16 still should not be read as a
+description of working code until they are.
+
+### Reordering renumbered only the ids it was sent
+
+`PUT .../entries/order` writes positions `1..N` over exactly the ids in the
+body, and its docblock said "the whole list". `EntriesTable` holds one page —
+`paginate(15)` — so the panel could only ever describe fifteen of them. On a
+module of twenty: order page 1 and those fifteen take positions 1–15; page to
+the last five, press ↑, and they take 1–5. They now sort ahead of and
+interleaved with page 1, in an order nobody chose.
+
+The endpoint was not computing anything wrongly. **It was accepting a promise
+the client could not keep**, which is why every test in `EntryOrderingTest`
+passed: each one happened to send the module's whole set.
+
+**Two answers were possible and the choice was a product decision.** Offsetting
+by `($page - 1) * 15` is one line and wrong the moment a filter or a different
+page size exists, and it cannot express a move across a page boundary at all.
+The other is for the panel to describe the whole module. That was chosen, with
+an addition: **the server now enforces it.**
+
+- `GET /modules/{module}/entries/order` returns every id in listing order. One
+  `select id`. A list somebody hand-orders is a menu or a set of rooms, so it
+  is small by the nature of the thing.
+- `PUT .../order` refuses anything that is not the complete set — a 422, not a
+  silent rearrangement. That also covers a repeated id for free, since the same
+  id twice would consume two positions and write one row.
+- The panel fetches the order alongside the listing and moves within it, so the
+  arrows now reach a neighbour on the previous or next page. `reorderedIds`
+  takes ids and an entry id rather than a page of rows; `positionInOrder` tells
+  each arrow whether it is at an end **of the module**, not of the page.
+
+Enforcement is the part that matters beyond the fix. The completeness rule
+makes the defect impossible to reintroduce quietly, and it gives the honest
+answer when somebody else has added or deleted an entry meanwhile: the list
+being described no longer exists, so refuse it rather than apply a stale order.
+
+Both endpoints order through one `Entry::inListOrder()` scope, because the
+arrows swap an entry with the row above it *on screen* — if the two ever
+disagreed, a move would target a neighbour it is not next to. A test pins them
+equal across two pages.
+
+### A slug key was never validated, and MySQL answered 500
+
+`ValidatesStructuralFields` validated every slug *value* — shape, length,
+collision — and no slug *key*. `entry_slugs.language_code` is `varchar(5)`, so
+`{"slugs": {"en-GB-oxendict": "probe"}}` passed validation and MySQL threw
+`SQLSTATE[22001] 1406 Data too long`: a 500 where the author should get a 422.
+
+The same hole in its other direction: `{"zz": "about"}` was accepted and
+created a public URL in a language the site does not have.
+
+The key is now checked for membership in the active languages, which closes
+both — every code the site has fits the column, because `languages.code` is
+`varchar(5)` too. It is written as a closure rather than `Rule::in` on
+`slugs.*` because Laravel's wildcard reaches values, not keys.
+
+**No test could have caught the first half.** The suite runs on SQLite, which
+does not enforce varchar limits; the trap is recorded in CLAUDE.md under
+Environment and was walked into anyway. What the suite *can* pin is the rule
+that makes it unreachable, and that is what the new tests do — plus the
+languages themselves, which `EntrySlugTest` now creates, because a slug key is
+a language and the tests should say so.
+
+### A failed slug write destroyed the entry's live URLs
+
+`syncSlugs` runs `$entry->slugs()->delete()` and then creates the new rows,
+with nothing wrapping the pair. "Sending `slugs` replaces the whole set" is the
+intended behaviour, so the delete is right — but an insert that threw left the
+delete committed on its own. An entry live at `/el/rooms/thea` and
+`/en/rooms/sea-view` came back with **no URLs at all**: the author saw a 500
+and two pages went dead. `store()` had the same shape one step earlier, the
+entry row committed before the slugs, so a slug failure left a saved entry the
+client was never told about.
+
+`store()` and `update()` now wrap the entry and its slugs in one
+`DB::transaction`. Fixing the key check removes the common trigger; it does not
+make the sequence correct, and a race on the unique index still reaches it.
+
+The tests force the failure **on the insert itself** rather than through a
+particular constraint, because what has to hold is "the write happens whole or
+not at all". Every collision the request rules already catch never reaches the
+write, so testing one of those would have passed without the transaction.
+
+### Checked
+
+Failing test first for all three, each confirmed to fail for the stated reason
+— the subset returning 204, the over-long key returning 201, the entry coming
+back with `[]` where two URLs had been. Afterwards the fixes were mutated back
+out one at a time: removing the completeness rule, the ordering scope, the key
+check and the transaction each failed the tests that name them, so none of the
+eight new tests is decorative.
+
+221 PHP tests, 122 JS tests, build clean.
+
+**Not verified live.** Everything above is the suite and a reading of the code.
+The dev environment could not be reached at the time: `mini-cms.test` is served
+by Laravel Herd's nginx, which answers "Site not found", and MySQL is not
+listening on 3306 — Laragon was not running. The MySQL half of the slug-key
+finding is therefore still argued rather than demonstrated on this side of the
+fix, and a probe script is ready to run against `mini_cms` once the environment
+is up. CLAUDE.md's Environment section says Apache at `mini-cms.test`; on this
+machine Herd currently holds port 80, which is worth knowing before the two are
+started together.
+

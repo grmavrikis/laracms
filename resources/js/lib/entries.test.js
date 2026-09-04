@@ -67,31 +67,43 @@ describe('slugsForPayload', () => {
 });
 
 describe('reorderedIds', () => {
-    const entries = [{ id: 10 }, { id: 20 }, { id: 30 }];
+    // The whole module's order, not the page the table happens to show. The
+    // endpoint now refuses anything else (TASKS.md #75).
+    const order = [10, 20, 30, 40];
 
     it('moves an entry up', () => {
-        expect(reorderedIds(entries, 2, -1)).toEqual([10, 30, 20]);
+        expect(reorderedIds(order, 30, -1)).toEqual([10, 30, 20, 40]);
     });
 
     it('moves an entry down', () => {
-        expect(reorderedIds(entries, 0, 1)).toEqual([20, 10, 30]);
+        expect(reorderedIds(order, 10, 1)).toEqual([20, 10, 30, 40]);
+    });
+
+    it('moves an entry the table cannot see', () => {
+        // The point of taking ids rather than a page of rows: the row above
+        // the first one on page 2 is on page 1, and the arrow has to reach it.
+        expect(reorderedIds(order, 40, -1)).toEqual([10, 20, 40, 30]);
     });
 
     it('returns the order unchanged at either end', () => {
         // The buttons are disabled there, and a no-op is the right answer if
         // one ever is not.
-        expect(reorderedIds(entries, 0, -1)).toEqual([10, 20, 30]);
-        expect(reorderedIds(entries, 2, 1)).toEqual([10, 20, 30]);
+        expect(reorderedIds(order, 10, -1)).toEqual([10, 20, 30, 40]);
+        expect(reorderedIds(order, 40, 1)).toEqual([10, 20, 30, 40]);
     });
 
     it('returns the whole order, not just what moved', () => {
-        // The endpoint takes the list it should end up as, so a partial answer
-        // would renumber the page wrongly.
-        expect(reorderedIds(entries, 1, -1)).toHaveLength(3);
+        // The endpoint takes the list the module should end up as, so a
+        // partial answer is now a 422 rather than a silent renumbering.
+        expect(reorderedIds(order, 20, -1)).toHaveLength(4);
+    });
+
+    it('leaves the order alone for an id it does not hold', () => {
+        expect(reorderedIds(order, 999, 1)).toEqual([10, 20, 30, 40]);
     });
 
     it('copes with an empty or missing list', () => {
-        expect(reorderedIds([], 0, 1)).toEqual([]);
-        expect(reorderedIds(undefined, 0, 1)).toEqual([]);
+        expect(reorderedIds([], 1, 1)).toEqual([]);
+        expect(reorderedIds(undefined, 1, 1)).toEqual([]);
     });
 });
