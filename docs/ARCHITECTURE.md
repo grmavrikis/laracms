@@ -405,6 +405,58 @@ makes switching language instant and free. Filtering server-side would
 mean flattening `title: {en, el}` into one value — a different response
 shape, and the edit form needs every language at once anyway.
 
+## 5a. The public site
+
+Blade, served from this same application, reading through Eloquent. There is
+no public API and no client-side rendering (CHANGELOG.md §21, and TASKS.md →
+Decisions).
+
+```
+/                          302 to the default language
+/{lang}                    the home page
+/{lang}/{module}           a module's published entries
+/{lang}/{module}/{slug}    one entry
+/sitemap.xml
+```
+
+**The language prefix is not optional, the default language included.** One
+page therefore has exactly one address, nothing is served twice under
+different URLs, and the hreflang set is symmetric. `/` redirects rather than
+serving the home page itself.
+
+Routes live in `routes/web.php` and the admin route is declared **first**,
+because the public routes end in a bare `/{language}` segment and order is
+what decides. The `language` pattern — two letters, optionally with a region —
+is what keeps a bare segment from swallowing `admin` or `sitemap.xml`; the
+code is then checked against the **active** languages, so a well-shaped but
+unknown one is a 404.
+
+**Everything is cached, and the lookup comes before the database.** Each
+action hands `PageCache` a path and a closure; the closure — which resolves
+the language, the module and the entry — runs only on a miss. A cache hit
+touches the database not at all, which is what #59 asked for and is pinned by
+a test that counts queries.
+
+Invalidation is **by version, not by key or tag**: `CACHE_STORE` is
+`database`, whose driver has no tag support, so a counter is embedded in every
+key and publishing increments it. That is O(1), needs no key bookkeeping, and
+is correct for the case key-based invalidation cannot handle — a **renamed
+slug**, whose old URL is not computable afterwards because the row that held
+it is gone. The version is site-wide, which is the price of keying on the path
+alone: without touching the database there is nothing to say which module a
+path belongs to.
+
+A `PageCacheObserver` on `Entry` and `Module` bumps it. **Model events do not
+cover everything** — `EntryController::reorder` writes one mass `UPDATE`,
+which fires none, so it invalidates by hand.
+
+`EntryPresenter` turns a Module's schema into something a template can loop
+over, resolved to the language being rendered: rich text through
+`RichTextRenderer` (so no template writes `{!! !!}`), a gallery as a list of
+images, everything else as escaped text. The templates in `resources/views/site/`
+are deliberately plain — the bought theme replaces them in #62, and what has
+to be right now is the head.
+
 ## 6. File uploads
 
 `POST /api/upload` (`UploadController::store`) → validates

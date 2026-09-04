@@ -1851,3 +1851,130 @@ filed as `TASKS.md` #94.
 
 240 PHP tests, 143 JS tests, build clean.
 
+---
+
+## 21. Content reaches the public
+
+#59. The CMS now serves the site it holds: Blade from this same application,
+reading through Eloquent, with no API in between. Phase 1's last mechanism.
+
+### The addresses
+
+```
+/                          302 to the default language
+/{lang}                    the home page
+/{lang}/{module}           a module's published entries
+/{lang}/{module}/{slug}    one entry
+/sitemap.xml
+```
+
+**The language prefix is not optional, the default language included**, and
+`/` redirects rather than serving the home page itself. Both follow from the
+same rule: one page, one address. Serving Greek at `/rooms/thea` *and*
+`/el/rooms/thea` would put the same content at two URLs and split whatever
+ranking it earned, which is the opposite of what the hreflang work is for.
+
+A draft is a 404. So is a slug asked for under the wrong language, an entry
+with no slug in the language asked for, and a language that exists but is not
+active — each of them a way the same page could otherwise have been reachable
+twice or reachable when it should not be.
+
+### hreflang, which is the point rather than a detail
+
+Every page declares the languages it **actually exists in**, and no others. An
+entry translated only into Greek does not claim an English alternate, because
+that would point a search engine at a 404.
+
+`x-default` points at the default language. The sitemap carries the same
+alternates as `xhtml:link` elements, built from the same array the page's own
+`<link>` tags come from — so the two cannot disagree.
+
+Without this Google does not know the Greek and English pages are one piece of
+content in two languages, and the multilingual advantage — the entire sales
+argument in this market — is invisible to it.
+
+### The cache, and the requirement that shaped it
+
+The first version looked the entry up and *then* cached the render. It passed
+every test that asked "is the page cached", and it was wrong: a hit still cost
+three indexed queries, while #59 asks for finished HTML **without a query**.
+
+So the lookup comes first. Each action hands `PageCache` a path and a closure,
+and the closure — which resolves language, module and entry — runs only on a
+miss. A test counts queries on a warm page and asserts **zero**; the earlier
+shape fails it.
+
+**Invalidation is by version, not by key or tag.** `CACHE_STORE` is
+`database`, and that driver has no tag support, so "forget everything under
+this module" cannot be expressed. Tracking keys instead is a list to maintain
+and a second thing to get wrong. Instead every key carries a counter and
+publishing increments it: O(1), no bookkeeping, and correct for the case
+key-based invalidation gets wrong — a **renamed slug**, whose old URL nobody
+can compute afterwards because the row that held it is gone. A test pins
+exactly that: rename a slug, and the old address is a 404 while the new one
+serves.
+
+The counter is site-wide, and that is a **trade rather than an oversight**.
+Keying on the path alone is what buys the zero-query hit, and a path on its
+own does not say which module it belongs to without a query. So any write
+drops every page. For an accommodation site — a few dozen pages, edited a few
+times a month — a handful of re-renders costs far less than three queries on
+every visit for ever. A catalogue with thousands of pages would want finer
+invalidation, and a catalogue is a domain module rather than this path
+(Decisions, 2026-09-05).
+
+**Model events do not cover everything.** `EntryController::reorder` writes
+one mass `UPDATE`, which fires none, so the observer never runs — the listing
+would have kept its old order until the cache expired. The endpoint
+invalidates by hand, and a test reorders through the API and reads the public
+listing back.
+
+### The templates, deliberately thin
+
+`resources/views/site/` is plain HTML with a few dozen lines of CSS. The bought
+theme replaces all of it in #62, so anything decorative written now would be
+thrown away. What had to be right today is the head — canonical, hreflang,
+`lang` — and the mechanism underneath.
+
+`EntryPresenter` is what lets a template loop over a schema it has never seen:
+it resolves each field to the language being rendered and says what kind it is
+— rich text as an `HtmlString` the renderer produced, a gallery as a list of
+images, everything else as escaped text. The type rules stay in PHP, so no
+public template writes `{!! !!}`.
+
+### Two pieces of Laravel scaffolding removed
+
+`welcome.blade.php` is gone — 72 KB with an inlined Tailwind stylesheet that
+cost about 36k tokens to read, kept only because `/` needed something. `/` now
+redirects.
+
+`ExampleTest` went with it. It asserted `/` answers 200, which is now wrong by
+design, and it has no database so it answered 500. It was the stock placeholder
+and covered nothing; `PublicPageTest` covers `/` with two tests that say what
+the redirect is for.
+
+### Checked
+
+Failing tests first: 17 for the pages and 11 for the cache, every one of them
+failing for the stated reason before the code existed.
+
+The cache tests change the row **behind the model's back** before asserting the
+page is unchanged. A test that only checked "the page shows the new value"
+would pass with no cache at all.
+
+Verified live over real HTTP against MySQL and the `database` cache store,
+which the suite does not exercise — it runs on `array`:
+
+- every route answers as it should, `/admin` included, which is what the route
+  ordering is for;
+- an entry page carries its canonical, both alternates and `x-default`, and
+  renders its rich text as `<p>` with the Greek intact;
+- a draft is absent from the page, the listing and the sitemap;
+- warm the cache, rewrite the row straight in the table, and the old title is
+  still served; save through the model and the new one appears — the version
+  going 5 to 6.
+
+The probe module was removed and the cache flushed.
+
+267 PHP tests, 143 JS tests, build clean.
+

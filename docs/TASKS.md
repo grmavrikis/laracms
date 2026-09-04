@@ -62,7 +62,7 @@ profitability.
 - [x] #57 manual ordering *(done — CHANGELOG §16)*
 - [x] #58 per-language entry slugs *(done — CHANGELOG §16)*
 - [x] **#75–#88 the review of #56/#57/#58** *(done — CHANGELOG §17 and §19)*
-- [ ] #59 public Blade routes, page cache cleared on publish, sitemap + hreflang
+- [x] #59 public Blade routes, page cache cleared on publish, sitemap + hreflang *(done — CHANGELOG §21)*
 - [ ] #60 `singleton` modules
 - [ ] #61 core/site boundary drawn
 - [x] #68 gallery field — several images on one entry *(done — CHANGELOG §14)*
@@ -116,8 +116,8 @@ behind would have shipped the change half-done.
 
 ### Phase 1 — content reaches the public (6–8 days)
 
-**Done: #68, #55, #56, #57, #58, and the #75–#88 review of them.** Remaining:
-**#59, #60, #61, #66, #67.**
+**Done: #68, #55, #56, #57, #58, the #75–#88 review of them, and #59.**
+Remaining: **#60, #61, #66, #67.**
 
 **#75–#88 came before #59 and there was no judgement call in it.** #59 is the
 public read path, and it is built on exactly the four things the review found
@@ -133,9 +133,11 @@ its own bugs.
 
 #68 went first because it changed the field-type system, and anything built
 before it would have had to be revisited. #56, #57 and #58 were one piece of
-work as expected — three indexed columns and a table. **#59 now has everything
-it needs**: the renderer turns a document into HTML, `published()` says what a
-page may show, and `Entry::forSlug()` resolves a URL.
+work as expected — three indexed columns and a table. #59 then had everything
+it needed: the renderer turns a document into HTML, `published()` says what a
+page may show, and `Entry::forSlug()` resolves a URL — and it used all three
+**without changing any of them**, which is the clearest evidence the P0 block
+was worth closing first.
 
 ### Phase 2 — the demo site, as client #0 (3–5 days)
 
@@ -468,7 +470,7 @@ entry_slugs: entry_id, language_code, slug
 This is the storage complaint's valid core in miniature: the rule is not
 "everything in tables", it is **"whatever you search by goes in a table"**.
 
-### 59. Public rendering in Blade, with a cache cleared on publish
+### 59. Public rendering in Blade, with a cache cleared on publish — DONE
 
 Public routes and templates in the per-client layer, reading entries through
 Eloquent — there is no API in between (see Decisions). Pages are cached; the
@@ -484,6 +486,22 @@ own item because they are part of publishing a page at all. Without `hreflang`,
 Google does not understand that the Greek and English pages are the same
 content in two languages — which wastes the multilingual advantage that is the
 entire sales argument for this market.
+
+**Done, 2026-09-05** (CHANGELOG §21). Routes, templates, `sitemap.xml` and
+hreflang, with the page cache invalidated on publish. Two decisions worth
+knowing before touching it:
+
+- **The cache lookup comes before the database.** The first version resolved
+  the entry and *then* cached the render, which passed every "is it cached"
+  test and still cost three queries a hit. #59 says *without a query*, so the
+  key is the path alone and a test counts queries on a warm page.
+- **Invalidation is by version, and site-wide.** `CACHE_STORE=database` has no
+  tag support, and a path on its own cannot say which module it belongs to
+  without a query — so any write drops every page. Right for a few dozen pages
+  edited a few times a month; a catalogue would want finer, and a catalogue is
+  a domain module.
+
+`welcome.blade.php` and the stock `ExampleTest` went with it.
 
 ### 60. `singleton` modules
 

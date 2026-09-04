@@ -7,6 +7,7 @@ use App\Http\Requests\StoreEntryRequest;
 use App\Http\Requests\UpdateEntryRequest;
 use App\Models\Entry;
 use App\Models\Module;
+use App\Services\PageCache;
 use App\Services\RichTextDocument;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -22,8 +23,10 @@ use Illuminate\Support\Facades\DB;
  */
 class EntryController extends Controller
 {
-    public function __construct(private readonly RichTextDocument $richText)
-    {
+    public function __construct(
+        private readonly RichTextDocument $richText,
+        private readonly PageCache $pages,
+    ) {
     }
 
     public function index(Module $module)
@@ -223,6 +226,11 @@ class EntryController extends Controller
                     ->update(['sort_order' => DB::raw("CASE id{$cases} END")]);
             });
         }
+
+        // The write above is one mass UPDATE, which fires no model events - so
+        // the observer that drops the public cache never runs and the listing
+        // would keep its old order until the cache expired (TASKS.md #59).
+        $this->pages->invalidate();
 
         return response()->noContent();
     }
