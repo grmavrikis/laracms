@@ -1466,13 +1466,98 @@ eight new tests is decorative.
 
 221 PHP tests, 122 JS tests, build clean.
 
-**Not verified live.** Everything above is the suite and a reading of the code.
-The dev environment could not be reached at the time: `mini-cms.test` is served
-by Laravel Herd's nginx, which answers "Site not found", and MySQL is not
-listening on 3306 — Laragon was not running. The MySQL half of the slug-key
-finding is therefore still argued rather than demonstrated on this side of the
-fix, and a probe script is ready to run against `mini_cms` once the environment
-is up. CLAUDE.md's Environment section says Apache at `mini-cms.test`; on this
-machine Herd currently holds port 80, which is worth knowing before the two are
-started together.
+### Verified live against MySQL
+
+Laragon was down when the fixes landed, so this was done once it was up, on
+2026-09-04. Requests were dispatched **through the HTTP kernel in-process**
+rather than over HTTP, because `mini-cms.test` is served by Laravel Herd's
+nginx on this machine and answers "Site not found" — the connection under test
+is the dev `mini_cms` MySQL one either way, which is the whole point.
+
+- **#76, the half no test can reach.** A raw insert of a 14-character
+  `language_code` answers `SQLSTATE[22001]: 1406 Data too long` on MySQL — the
+  error the review reported, reproduced. The same key through `POST /entries`
+  now answers **422**: `'en-GB-oxendict' is not one of this site's languages.`
+  `{"zz": "about"}` likewise; an active language still returns 201.
+- **#75.** Nineteen entries over two pages. `GET .../order` returned all
+  nineteen. Sending only the page-2 tail — four ids — answered 422 and left
+  every entry unpositioned. The complete set reversed answered 204, read back
+  reversed, and the listing across both pages matched the order endpoint id for
+  id. A duplicated id answered 422.
+- **#77, both ways round, on InnoDB.** With the transaction: the forced insert
+  failure returns 500 and the entry keeps `{"gr":"zz-live-url"}`, with no
+  transaction left open. With the transaction mutated out and nothing else
+  changed: the same 500, and the entry's slugs come back **`[]`**. The defect
+  reproduces on the real engine, and the fix is what stops it.
+
+The probe module was removed and no rows were left behind.
+
+**What the probe turned up on the side** is recorded as `TASKS.md` #89: this
+database's Greek is coded `gr`, not `el`, and the default language is English.
+The code is doing as it is told — the language list has no write API (#52), so
+it is whatever was typed into MySQL by hand. It is worth settling before #59
+turns the code into the first segment of every public URL.
+
+---
+
+## 18. Greek is `el`, and it is the default
+
+Found while verifying §17 against MySQL, and settled before #59 rather than
+after. The dev database held `gr`, `en`, `fr`, with **English** flagged as the
+default.
+
+`gr` is not the code for Greek. ISO 639-1 is `el`; `gr` is the ISO 3166 code
+for the *country*. This was never a code defect — the seeder writes `el` and
+carries a comment saying why, `DatabaseSeederTest` asserts it, and the
+languages migration gives `el` as its own example. Only the database had
+drifted, which is exactly what #52 predicts: with no write API for languages,
+the list is whatever somebody typed into MySQL by hand.
+
+### Why it could not wait
+
+The language code stopped being cosmetic when §17 landed. It is now the
+**key of a slug**, validated against this table, and #59 is about to make it
+the **first path segment of every public URL**. A demo site would have shipped
+`/gr/rooms/…`, with `hreflang="gr"` — not a valid value, so search engines
+ignore it. Changing that after launch breaks every indexed link.
+
+The cheapest moment was this one: `entry_slugs` was empty, so not one public
+URL existed yet.
+
+### It was not three lines of SQL
+
+`entry_slugs` was empty, but **23 entries carried `gr` as a translation key**
+inside `data`. A blind search-and-replace over the JSON would have been wrong:
+`gr` is a plausible *value* as well as a key, and a Tiptap document is full of
+short keys — a first scan turned up `type`, `text`, `level` and `iii` alongside
+the real language codes.
+
+So the rename is driven from each **Module's schema**, which knows the only two
+shapes that carry a language key:
+
+```
+translatable field   data.{field}.{lang}
+gallery alt text     data.{field}[].alt.{lang}
+```
+
+The value under the key is never inspected — it may be a string or an entire
+Tiptap document, and neither needs touching. Run as a dry run first, it
+reported the same 23 entries the blind scan had found: no more, which would
+have meant over-reach, and no fewer, which would have meant a missed shape.
+
+Greek was flagged default in the same transaction, with every other row
+cleared, because nothing in the application enforces "exactly one default"
+(#49) and doing it in two statements could leave two.
+
+### Checked
+
+`mysqldump` of `entries`, `languages` and `entry_slugs` taken first. Afterwards:
+zero entries hold a `gr` key and 23 hold `el`; exactly one language is flagged
+default and it is Greek; `GET /api/languages` returns `el` first with
+`is_default: true`; a sampled entry's rich-text document is intact under its
+new key. A slug written in `el` is accepted, and one written in `gr` is now
+refused by §17's own rule — `'gr' is not one of this site's languages.`
+
+There is no artisan command for any of this. Editing languages is a hand-run
+script by design until #52 gives them a writer.
 

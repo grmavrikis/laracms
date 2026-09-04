@@ -631,8 +631,8 @@ site does not have. `Rule::in` over the active language codes covers both.
 **Done.** A closure on `slugs` checks each key against the active languages —
 a closure rather than `Rule::in` on `slugs.*` because Laravel's wildcard
 reaches values, not keys. `EntrySlugTest` now creates the languages, since a
-slug key is one. **Still owed: a live run against MySQL** — Laragon was not
-running (see the note at the end of CHANGELOG §17). CHANGELOG §17.
+slug key is one. **Verified live on MySQL, 2026-09-04**: the raw insert still
+answers `1406 Data too long`, the endpoint now answers 422. CHANGELOG §17.
 
 #### 77. `syncSlugs` deletes before it inserts, outside a transaction — DONE
 
@@ -937,6 +937,47 @@ one language carries it — two rows flagged and `defaultLanguage()` silently
 picks whichever comes first. Both need a writer, which has no home until #52.
 Downgraded from P1 accordingly: it is no longer wrong on a fresh install, only
 unmanageable.
+
+### 89. The dev database's Greek is `gr`, and the default is English — DONE
+
+Found while verifying #76 live against MySQL, 2026-09-04. The `languages` table
+on this machine holds:
+
+```
+#1  gr  Greek    default=no   active=yes
+#2  en  English  default=yes  active=yes
+#3  fr  French   default=no   active=yes
+```
+
+**`gr` is not the code for Greek.** ISO 639-1 is `el`; `gr` is the ISO 3166
+*country* code for Greece. The seeder writes `el`, `DatabaseSeederTest` asserts
+`el`, and every example in the docs says `el`. Only this database disagrees,
+which is what #52 predicts: with no write API, the language list is whatever
+was typed into MySQL by hand.
+
+It matters more than a spelling. The code is now the **key of a slug**,
+validated against this table, and #59 is about to make it the **first segment
+of every public URL** — so the demo site would ship `/gr/rooms/...`, and
+changing it afterwards breaks every link and every `hreflang` already indexed.
+`hreflang="gr"` is not a valid value either, so search engines would ignore it.
+
+That the default is English is the second half. For a Greek accommodation
+market the panel should open on Greek, and `defaultLanguage()` reads exactly
+this flag.
+
+Neither is a code defect — the code does what it is told. It is a data
+decision that has never been made deliberately, and the cheapest moment to
+make it is **before #59**, while the `entry_slugs` table is empty (it is: zero
+rows across all ten modules, so nobody has written a slug through the panel
+yet). Renaming a code afterwards means rewriting every slug row and every
+translation key inside `data`.
+
+**Done, 2026-09-04** (CHANGELOG §18). `gr` → `el` and Greek is the default. It
+was not three lines of SQL: **23 entries carried `gr` as a translation key**
+inside `data`, so the rename was driven from each Module's schema rather than
+by searching the JSON. The application code needed no change — the seeder
+already writes `el`, with a comment saying why. Only this database had drifted,
+which is what #52 predicts.
 
 ---
 
