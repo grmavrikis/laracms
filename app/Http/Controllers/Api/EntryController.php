@@ -73,7 +73,11 @@ class EntryController extends Controller
     {
         $this->authorize('view', $module);
 
-        $ids = $module->entries()->inListOrder()->pluck('id');
+        // One id more than the cap allows is enough to answer both questions,
+        // and it bounds the query: without the limit a module of fifty
+        // thousand entries hydrated all fifty thousand ids on every listing
+        // load, only to discard them and return an empty list.
+        $ids = $module->entries()->inListOrder()->limit(Entry::MAX_REORDER + 1)->pluck('id');
         $reorderable = $ids->count() <= Entry::MAX_REORDER;
 
         return response()->json([

@@ -1811,3 +1811,43 @@ intact, a reorder leaves every `updated_at` unchanged while writing positions
 verified by reading, like #78 before it — reproducing it needs a second client
 deleting an entry mid-flight.
 
+### And four the cloud review of §20 found
+
+Twenty-nine agents over the four fixes above. One was a real defect **created
+by one of them**; the other three were quality.
+
+**The error banner appeared for one frame.** The refetch added to
+`handleReorder`'s catch was the fix for a stuck panel — and the entries effect
+it triggers opens with `setError(null)`. So the message announcing the failure
+was cleared by the very refetch that announced it, one commit after being
+added.
+
+The two concerns were sharing one `error` variable: the listing clears it on
+every run by design, and the reorder path deliberately causes a run. Splitting
+them into `error` and `orderError` makes the collision impossible rather than
+merely fixed. The message now also says the list was reloaded, since it was.
+
+**`reorderable` was returned and never read.** §20 justified the flag with
+"the flag is there so the panel can say *why*" — and the panel read only
+`ids`, so an oversized module still looked like an empty one. It is now read,
+and the table says the module is too long to order by hand. A claim in a
+changelog is not an implementation.
+
+**`order()` still hydrated every id before counting them.** The cap was added
+to stop oversized modules being reordered, and the query that decides it had
+no limit — so a module of fifty thousand pulled fifty thousand ids on every
+listing load, to discard them and return `[]`. One id past the cap answers both
+questions, so the query takes `limit(MAX_REORDER + 1)`. A test asserts the
+compiled SQL carries a limit, and removing it fails that test.
+
+**`initialSlugs` was rebuilt on every render** rather than captured once like
+the `slugs` state beside it. Harmless — the comparison is by content — but it
+read as memoised when it was not.
+
+The lesson worth keeping: **the one real defect was in the fix, not in the
+code the fix was about.** Three of the four review findings before it were
+also in the panel's wiring rather than in the pure helpers, which is now
+filed as `TASKS.md` #94.
+
+240 PHP tests, 143 JS tests, build clean.
+

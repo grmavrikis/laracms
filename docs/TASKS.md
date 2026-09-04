@@ -1308,12 +1308,16 @@ Fetch it when a reorder is actually attempted, or not at all above a threshold
 
 ### 94. The panel has no component-test harness
 
-Three defects in a row now sit in `EntriesManager`/`EntryForm` and are verified
+Four defects in a row now sit in `EntriesManager`/`EntryForm` and are verified
 by reading rather than by a test: the in-flight queue (#78), the refetch after
-a failed reorder, and the two payload omissions (#86 and its slug twin, both in
-CHANGELOG §20). The pure helpers underneath them are well covered —
+a failed reorder, the two payload omissions (#86 and its slug twin), and the
+error banner that the refetch cleared one frame after showing it — all in
+CHANGELOG §20. The pure helpers underneath them are well covered —
 `latestWriteQueue`, `entryPayload`, `sortByOrder` — and every time the bug has
 been in the **wiring**, not in the helper.
+
+The last of them was introduced *by a fix for the one before it*, and found by
+a review rather than by the suite. That is the clearest argument yet.
 
 That is the shape of a missing test layer, not bad luck. Vitest is already
 here; what is missing is a renderer and a way to fake `api`.

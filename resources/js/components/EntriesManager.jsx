@@ -31,6 +31,17 @@ export default function EntriesManager({ module, onBack }) {
     const [page, setPage] = useState(1);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+
+    // Reordering reports separately from the listing, and not for tidiness:
+    // the listing effect clears `error` every time it runs, and the failure
+    // path deliberately triggers that effect to refetch. Sharing one variable
+    // meant the message was wiped one frame after it appeared.
+    const [orderError, setOrderError] = useState(null);
+
+    // False when the module is past Entry::MAX_REORDER, which is why the
+    // arrows are disabled - without it an oversized module is indistinguishable
+    // from one whose order simply has not loaded.
+    const [reorderable, setReorderable] = useState(true);
     const [refreshKey, setRefreshKey] = useState(0);
 
     const [view, setView] = useState('list');
@@ -107,6 +118,7 @@ export default function EntriesManager({ module, onBack }) {
                 const ids = Array.isArray(data?.ids) ? data.ids : [];
 
                 setOrderIds(ids);
+                setReorderable(data?.reorderable !== false);
                 savedOrder.current = ids;
             })
             .catch((err) => {
@@ -155,7 +167,7 @@ export default function EntriesManager({ module, onBack }) {
      * presses are two requests and three places moved.
      */
     const handleReorder = async (ids) => {
-        setError(null);
+        setOrderError(null);
         setOrderIds(ids);
 
         try {
@@ -173,7 +185,7 @@ export default function EntriesManager({ module, onBack }) {
             // module.
             setOrderIds(savedOrder.current);
             setRefreshKey((n) => n + 1);
-            setError('Failed to save the new order.');
+            setOrderError('Failed to save the new order. The list has been reloaded.');
         }
     };
 
@@ -275,6 +287,14 @@ export default function EntriesManager({ module, onBack }) {
 
             {languagesError && <p className="text-sm text-red-600">{languagesError}</p>}
             {error && <p className="text-sm text-red-600">{error}</p>}
+            {orderError && <p className="text-sm text-red-600">{orderError}</p>}
+            {!reorderable && (
+                <p className="text-sm text-gray-500">
+                    This module has too many entries to be ordered by hand, so the
+                    arrows are off. Ordering is for short lists — a menu, a set of
+                    rooms, the slides on a home page.
+                </p>
+            )}
 
             {loading ? (
                 <div className="py-12 text-center text-sm text-gray-500">Loading entries...</div>

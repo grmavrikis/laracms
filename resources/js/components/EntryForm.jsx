@@ -85,7 +85,11 @@ export default function EntryForm({ moduleSlug, schema, languages, onSaved, onCa
 
     // What the entry's URLs were when this form opened. Saving must not
     // replace the set unless the author edited one of the boxes.
-    const initialSlugs = slugsToMap(initialData?.slugs);
+    //
+    // Captured once, like the `slugs` state above it rather than like
+    // `initialStatus` below - that one is a primitive and rebuilding it costs
+    // nothing, while this walks an array on every keystroke.
+    const [initialSlugs] = useState(() => slugsToMap(initialData?.slugs));
 
     // Field errors keyed by attribute path, plus the messages that belong to
     // no field and would otherwise never be shown.

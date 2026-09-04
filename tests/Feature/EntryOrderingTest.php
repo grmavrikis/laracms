@@ -434,6 +434,36 @@ class EntryOrderingTest extends TestCase
         $this->assertSame([], $response->json('ids'));
     }
 
+    /**
+     * The answer needs one id more than the cap allows and nothing beyond it.
+     * Without the limit, a module of fifty thousand hydrated fifty thousand
+     * ids on every listing load only to discard them.
+     */
+    public function test_the_order_query_is_bounded_by_the_cap(): void
+    {
+        $this->createEntry('A')->assertCreated();
+
+        $this->actingAs($this->owner);
+
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+
+        try
+        {
+            $this->getJson("/api/modules/{$this->module->slug}/entries/order")->assertOk();
+            $sql = collect(DB::getQueryLog())
+                ->pluck('query')
+                ->first(fn(string $q) => str_contains($q, 'select "id"') || str_contains($q, 'select `id`'));
+        }
+        finally
+        {
+            DB::disableQueryLog();
+        }
+
+        $this->assertNotNull($sql, 'The order endpoint no longer selects ids on its own.');
+        $this->assertStringContainsString('limit', strtolower($sql));
+    }
+
     public function test_a_module_within_the_cap_is_reorderable(): void
     {
         $this->createEntry('A')->assertCreated();
