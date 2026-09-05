@@ -10,4 +10,6 @@
             <li><a href="{{ url('/' . $current->code . '/' . $module->slug) }}">{{ $module->name }}</a></li>
         @endforeach
     </ul>
+
+    @include('theme::enquiry')
 @endsection

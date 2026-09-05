@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Web\EnquiryController;
 use App\Http\Controllers\Web\PageController;
 use App\Http\Controllers\Web\SitemapController;
 use Illuminate\Support\Facades\Route;
@@ -95,6 +96,17 @@ $protected();
  * The names are `web.*`: since #61, `site.` belongs to the client, and a
  * client naming a route `site.contact` should not collide with core.
  */
+/*
+ * The one address an anonymous visitor may write to (TASKS.md #66).
+ *
+ * A web route rather than an API one, because it is posted from a Blade form:
+ * that gives it the session, the CSRF token and `back()` with the errors for
+ * free. Its own limiter, far below the `api` one - see AppServiceProvider.
+ */
+Route::post('/{language}/enquiries', [EnquiryController::class, 'store'])
+    ->middleware('throttle:enquiries')
+    ->name('web.enquiries.store');
+
 Route::get('/', [PageController::class, 'root'])->name('web.root');
 
 Route::get('/{language}', [PageController::class, 'home'])->name('web.home');

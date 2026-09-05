@@ -2455,3 +2455,84 @@ records what a person *has* checked and points at #94 for what still needs one.
 305 PHP tests, 155 JS tests, build clean. Every public route and the admin
 answer live.
 
+---
+
+## 25. Enquiries, and the first inbound path in the application
+
+#66. Until now the public side could receive **nothing**: every write sat
+behind `auth:sanctum`, so the demo was a brochure. This is the one route an
+anonymous visitor may POST to, and the item was right that it brings validation,
+rate limiting, spam handling and GDPR with it.
+
+A hand-written table rather than a Module's JSON schema, by the rule in
+Decisions: it needs a chronological listing, deletion in bulk when the
+retention period bites, and it grows without limit.
+
+### The order of operations is the design
+
+**The row is written first.** An accommodation owner who loses an enquiry loses
+a booking and blames the website, so nothing downstream may cost it: the owner
+notification is wrapped, its failure logged, and a mail server that is down
+produces a stored enquiry and a quiet log line rather than a 500 the visitor
+reads as "it did not send" — after which they send it again, or give up.
+
+Nobody having configured a notification address is the same case: the enquiry
+is the record, the email is a courtesy on top of it.
+
+### A honeypot, and why it is not a rule
+
+Checked in the controller rather than validated, so a filled trap answers
+**exactly as a real submission does**. A validation error naming a hidden field
+is precisely how a bot learns to stop filling it, and a visitor with an
+over-eager autofill would get an error they could not act on.
+
+A captcha was rejected in the item itself: at this volume it costs conversions
+and buys nothing.
+
+### GDPR, decided rather than assumed
+
+Consent is stored as **the moment it was given**, not a boolean somebody could
+flip afterwards — without it there is no lawful basis for the row, so there is
+no row.
+
+The retention period is **24 months**, chosen because it covers two seasons:
+last summer's visitor is still on file when they write again. It is stated on
+the form, and `enquiries:prune` enforces it daily — a stated period that
+nothing keeps is a claim made to every visitor who ticked the box.
+
+Deletion from the panel is **permanent, with a confirmation**. A "deleted"
+enquiry still sitting in the table is hard to explain to anybody asking what
+happened to their data; the confirmation is what catches the wrong click.
+
+### The defect the live probe found
+
+Posting the real form against MySQL answered **419**, and the suite was green.
+
+The public pages are cached whole (§21), and a CSRF token belongs to one
+session — so the cached HTML carried the first visitor's token and everybody
+after them was refused. **A form that silently never works**, which for an
+enquiry form means the owner never learns the enquiries are not arriving.
+
+The suite could not see it: it renders each page fresh, so the token always
+matched. The test that pins it now asks for the page twice with the session
+flushed between.
+
+`PageController` replaces any `_token` value with a placeholder on the way into
+the cache and with the current session's on the way out. Done in core rather
+than by giving themes a special directive, because a theme writing `@csrf` out
+of habit would then break the form for everybody but the first visitor after a
+cache clear — a fault that looks intermittent and is not.
+
+### Checked
+
+22 tests written first, 20 of them failing because nothing existed. Then the
+whole path over real HTTP against MySQL, with a session and a token read out of
+the served page: a real submission stored with its Greek intact, the honeypot
+answering 302 and storing nothing, a submission without consent refused — one
+row in the table at the end, and a POST with no token answering 419.
+
+327 PHP tests, 155 JS tests, build clean.
+
+**The panel screen needs a human.** There is still no component harness (#94),
+so the inbox and its delete confirmation are verified by reading.
+

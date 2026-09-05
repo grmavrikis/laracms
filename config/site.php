@@ -22,4 +22,20 @@ return [
 
     'routes' => env('SITE_ROUTES', base_path('site/routes.php')),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Where an enquiry is announced (TASKS.md #66)
+    |--------------------------------------------------------------------------
+    |
+    | The address the owner reads. Per installation, like everything else in
+    | this file, and null is a valid answer - the enquiry is still stored, and
+    | the email is a courtesy on top of the record rather than the record.
+    |
+    | This moves into the database with #67, where the owner can change it
+    | without an editor.
+    |
+    */
+
+    'enquiries_to' => env('ENQUIRY_NOTIFY'),
+
 ];

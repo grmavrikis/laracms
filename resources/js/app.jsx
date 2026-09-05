@@ -6,6 +6,7 @@ import Login from './components/Login';
 import ModulesList from './components/ModulesList';
 import EntriesManager from './components/EntriesManager';
 import ModuleBuilder from './components/ModuleBuilder';
+import EnquiriesManager from './components/EnquiriesManager';
 
 export default function App() {
     const [user, setUser] = useState(null);
@@ -32,7 +33,20 @@ export default function App() {
         <div>
             <header className="bg-gray-800 text-white p-4 flex justify-between items-center">
                 <h1 className="font-bold">Admin Panel</h1>
-                <button onClick={handleLogout} className="text-sm bg-red-600 px-3 py-1 rounded">Logout</button>
+                <div className="flex items-center gap-3">
+                    {/* Enquiries are a domain module: written once in core and
+                        reached from the chrome rather than through the module
+                        list, which holds content types (TASKS.md #66). */}
+                    <button
+                        onClick={() => setView({ type: view.type === 'enquiries' ? 'list' : 'enquiries' })}
+                        className={`text-sm px-3 py-1 rounded transition-colors ${view.type === 'enquiries'
+                            ? 'bg-white text-gray-900'
+                            : 'bg-gray-700 hover:bg-gray-600'}`}
+                    >
+                        Enquiries
+                    </button>
+                    <button onClick={handleLogout} className="text-sm bg-red-600 px-3 py-1 rounded">Logout</button>
+                </div>
             </header>
 
             <main className="p-6">
@@ -44,6 +58,9 @@ export default function App() {
                 )}
                 {view.type === 'entries' && (
                     <EntriesManager module={view.data} onBack={() => setView({ type: 'list' })} />
+                )}
+                {view.type === 'enquiries' && (
+                    <EnquiriesManager onBack={() => setView({ type: 'list' })} />
                 )}
                 {view.type === 'list' && (
                     <ModulesList

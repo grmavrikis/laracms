@@ -534,6 +534,37 @@ images, everything else as escaped text. The templates in `resources/views/site/
 are deliberately plain — the bought theme replaces them in #62, and what has
 to be right now is the head.
 
+## 5b. Enquiries — the one thing an anonymous visitor may write
+
+`POST /{lang}/enquiries` (`Web\EnquiryController`) is the only route in the
+application that accepts a write without a session (TASKS.md #66, CHANGELOG
+§25). Everything else sits behind `auth:sanctum`.
+
+A **web** route rather than an API one, because it is posted from a Blade form
+and that gives it the session, the CSRF token and `back()` with the errors.
+
+- **The row is written first.** Notifying the owner is wrapped and its failure
+  logged: a mail server that is down must not turn a stored enquiry into a 500
+  the visitor reads as "it did not send".
+- **A honeypot, not a captcha.** Checked in the controller rather than by a
+  rule, so a filled trap answers exactly as a real submission does — an error
+  naming a hidden field is how a bot learns to stop filling it.
+- **Its own limiter**, `throttle:enquiries`, five an hour per address, keyed on
+  the address alone because the throttle middleware runs before validation.
+- **Consent is a timestamp**, not a flag: a record of when it was given.
+- **Read and delete only.** There is no update route, so a PUT is a 405.
+- **`enquiries:prune`** enforces the retention period the form states, daily
+  from `routes/console.php`.
+
+> **A cached page cannot carry a session's CSRF token.** `PageController`
+> replaces any `_token` value with a placeholder on the way into the cache and
+> with this session's own on the way out. Without it every visitor after the
+> first got somebody else's token and every submission answered 419 — a form
+> that silently never works. It is done in core rather than by asking themes
+> for a special directive, because a theme writing `@csrf` out of habit would
+> otherwise break the form for everybody but the first visitor after a cache
+> clear.
+
 ## 6. File uploads
 
 `POST /api/upload` (`UploadController::store`) → validates

@@ -66,7 +66,7 @@ profitability.
 - [x] #60 `singleton` modules *(done — CHANGELOG §23)*
 - [x] #61 core/site boundary drawn *(done — CHANGELOG §24)*
 - [x] #68 gallery field — several images on one entry *(done — CHANGELOG §14)*
-- [ ] #66 enquiries
+- [x] #66 enquiries *(done — CHANGELOG §25)*
 - [ ] #67 site settings
 - [ ] #65 booking hand-off form
 - [ ] #62 the demo site: live, two languages, bought theme
@@ -116,8 +116,8 @@ behind would have shipped the change half-done.
 
 ### Phase 1 — content reaches the public (6–8 days)
 
-**Done: #68, #55, #56, #57, #58, the #75–#88 review of them, #59, #60 and
-#61.** Remaining: **#66, #67.**
+**Done: #68, #55, #56, #57, #58, the #75–#88 review of them, #59, #60, #61 and
+#66.** Remaining: **#67**, and Phase 1 is closed.
 
 **#75–#88 came before #59 and there was no judgement call in it.** #59 is the
 public read path, and it is built on exactly the four things the review found
@@ -650,7 +650,7 @@ One form and a URL template per client. It is in the MVP because it is what
 makes the demo credible to an accommodation owner, and because it costs almost
 nothing.
 
-### 66. Enquiries — and the first inbound path in the application
+### 66. Enquiries — and the first inbound path in the application — DONE
 
 A contact / availability-request form whose submissions are **stored in the
 admin**, not merely emailed. Email is lost in spam folders, and an accommodation
@@ -674,6 +674,27 @@ designing once, deliberately, rather than adding in a hurry when a client asks.
 - GDPR: a consent checkbox and a stated retention period
 
 Feeds #63 — an enquiry becomes a booking in one action.
+
+**Done, 2026-09-05** (CHANGELOG §25). A hand-written table by the Decisions
+rule, its own `throttle:enquiries` limiter at five an hour per address, a
+honeypot checked in the controller so a filled trap answers as success, consent
+stored as a timestamp, and read-and-delete-only in the panel with a
+confirmation.
+
+Two decisions were yours: **24 months** retention, enforced by
+`enquiries:prune` daily, and **permanent deletion** rather than a recoverable
+bin.
+
+> **The defect worth remembering.** Posting the live form answered **419** with
+> the suite green: the public pages are cached whole (#59) and a CSRF token
+> belongs to one session, so every visitor after the first got somebody else's
+> and every submission was refused — a form that silently never works.
+> `PageController` now swaps the token for a placeholder on the way into the
+> cache and back on the way out. Anything else cached that carries session
+> state will have the same problem.
+
+The notification address is `config/site.php` → `enquiries_to` for now; **#67
+moves it into the database**, where the owner can change it without an editor.
 
 ### 67. Site settings
 

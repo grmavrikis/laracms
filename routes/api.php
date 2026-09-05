@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\LanguageController;
 use App\Http\Controllers\Api\ModuleController;
+use App\Http\Controllers\Api\EnquiryController;
 use App\Http\Controllers\Api\EntryController;
 use App\Http\Controllers\UploadController;
 use Illuminate\Support\Facades\Route;
@@ -51,6 +52,14 @@ Route::middleware('auth:sanctum')->group(function ()
         Route::put('/modules/{module}/entries/{entry}', [EntryController::class, 'update']);
         Route::delete('/modules/{module}/entries/{entry}', [EntryController::class, 'destroy']);
     });
+
+    /*
+     * The owner's enquiry inbox (TASKS.md #66). Read and delete only - there
+     * is no update route, because an enquiry is a record of what was sent
+     * rather than a document to revise, and the absence is the enforcement.
+     */
+    Route::get('/enquiries', [EnquiryController::class, 'index']);
+    Route::delete('/enquiries/{enquiry}', [EnquiryController::class, 'destroy']);
 
     // Upload Route
     Route::post('/upload', [UploadController::class, 'store']);

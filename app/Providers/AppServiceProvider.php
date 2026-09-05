@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use Illuminate\Cache\RateLimiting\Limit;
+use App\Models\Enquiry;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
@@ -77,6 +78,17 @@ class AppServiceProvider extends ServiceProvider
         // value the client actually supplied.
         RateLimiter::for('api', fn (Request $request) => Limit::perMinute(self::API_PER_MINUTE)
             ->by($request->user()?->id ?? $request->ip()));
+
+        // The public enquiry form. Open to the internet, so far below the
+        // `api` limit - a visitor with a genuine question sends one, and an
+        // open write endpoint is otherwise somebody's afternoon.
+        //
+        // Keyed on the address alone. The throttle middleware runs **before**
+        // validation, so anything read out of the payload here is whatever
+        // the client sent - that trap cost a 500 on the login limiter once
+        // already, and there is nothing in this payload worth keying on.
+        RateLimiter::for('enquiries', fn (Request $request) => Limit::perHour(Enquiry::PER_HOUR)
+            ->by($request->ip()));
 
         // Signing in gets its own, far tighter limit, declared on the route.
         RateLimiter::for('login', function (Request $request)
