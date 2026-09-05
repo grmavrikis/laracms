@@ -12,15 +12,50 @@ inside here — a test enforces it: `tests/Feature/CoreSiteBoundaryTest.php`.
 | | |
 |---|---|
 | `theme/` | the Blade templates for the public site, reached as `theme::layout`, `theme::entry` and so on |
-| `routes.php` | routes this one site needs, loaded after the core routes |
+| `routes.php` | routes this one site needs |
 
-Assets belonging to the theme go alongside it when there are any.
+### The templates core expects
 
-## What does not
+Core renders these by name, so a theme has to provide all of them. The test
+reads the list out of core's own render calls, so it cannot drift:
+
+`layout`, `home`, `module`, `entry`.
+
+Anything else a theme wants is its own business — a partial, an extra page
+rendered from `routes.php`, whatever the design needs.
+
+### Routes
+
+`routes.php` is loaded **before** the core pages, so a route here wins. That is
+what makes a hand-written contact page possible where the generic entry page is
+not enough. The admin panel is declared ahead of it and cannot be taken over.
+
+`route:cache` freezes the file — run `route:clear` after editing it on a cached
+deployment.
+
+### Assets — not wired up yet
+
+**A stylesheet or script placed here is not built and not served.** Vite's
+inputs are `resources/css/app.css` and `resources/js/app.jsx`; nothing compiles
+`site/`, and nothing under it is web-reachable.
+
+Today the public layout carries a small inline `<style>` block, which is why
+this has not mattered. It becomes real work in **#62**, when a bought theme
+arrives with its own CSS: either add `site/theme` to the Vite input, or put the
+theme's built assets under `public/` and reference them directly. Decide it
+there rather than discovering it.
+
+Tailwind is already told to scan `site/theme` (`resources/css/app.css`), so
+utility classes written in these templates survive a production build.
+
+## What does not live here
 
 - **The public rendering machinery** — `app/Http/Controllers/Web`,
   `PageCache`, `EntryPresenter`. Those are the same for everybody, and they
   render whatever this theme provides.
+- **`sitemap.xml`.** Its structure is fixed by sitemaps.org and by the hreflang
+  work, not by anybody's design, and a theme that mangled it would break
+  indexing silently. It is core: `resources/views/sitemap.blade.php`.
 - **Domain modules** — bookings, invoicing, a catalogue. Those are written
   **once in core** and enabled per installation
   (`docs/TASKS.md` → Decisions, 2026-09-05). If a client needs one, it is core
@@ -29,7 +64,8 @@ Assets belonging to the theme go alongside it when there are any.
 
 ## The test to remember
 
-`CoreSiteBoundaryTest` fails if anything in `app/` names a path or namespace
-inside `site/`. When it does fail, the fix is almost never to loosen the test:
-it is that something client-specific has been written into core, where the
-next client will inherit it.
+`CoreSiteBoundaryTest` fails if anything in core names a path or namespace
+inside `site/`, outside the two mount points that make this directory
+reachable at all. When it does fail, the fix is almost never to loosen it: it
+is that something client-specific has been written into core, where the next
+client will inherit it.

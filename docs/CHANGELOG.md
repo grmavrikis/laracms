@@ -2314,3 +2314,71 @@ were cleared.
 `CLAUDE.md` gained the line as its own short section, since a fresh session
 needs it before touching either side.
 
+### Eleven the review of the line found
+
+None broke anything today. Three undermined the boundary the commit had just
+drawn, which is worse in the way that only shows up later.
+
+**The sitemap was in the theme.** It moved with the page templates, so every
+client's theme became responsible for emitting valid sitemaps.org XML - and
+the contract test *required* them to. A theme is a client's design; a sitemap's
+structure is fixed by a protocol and by the hreflang work, and a theme that
+mangled it would break indexing silently, the one failure invisible from inside
+the panel. It is core now, in `resources/views`, where a client cannot reach
+it.
+
+**Site routes were loaded last, so they could never win.** The comment called
+that "additional rather than a replacement" without saying how little was left:
+`/{language}/{module}` claims `/el/epikoinonia` before a hand-written contact
+page ever sees it, and any two-letter first segment is taken outright. A
+client's own side of the line that could only add addresses nobody had thought
+of is a poor kind of ownership. The file is loaded **before** the core pages
+now - after the admin panel, which a client may not take over.
+
+**Nothing checked that the routes mount works.** The views half was proved by
+resolving `theme::layout`; the routes half was a `require` that no test
+exercised, so deleting it would have left the suite green while a client's
+routes silently stopped existing. It is now proved the only way a file read at
+boot can be: give it a route, rebuild the application, ask for the route.
+
+### The rest
+
+- **The contract test read comments.** `theme::` matched anywhere in a file, so
+  a name written in prose became a requirement and a requirement outlived the
+  call that made it. It matches `view('theme::x')` now.
+- **The boundary scan covered only `app/` and `routes/`.** A seeder reading a
+  client's file, or a config default pointing into it, welds core to one
+  installation exactly as a controller would. `bootstrap/`, `config/` and
+  `database/` are scanned too.
+- **Core route names still took the `site.` prefix** - the same word collision
+  the commit fixed by renaming the controller namespace. They are `web.*`, and
+  the boundary test now fails if any core route claims `site.`.
+- **`site/README.md` promised theme assets that nothing builds.** Vite's inputs
+  are under `resources/`; nothing compiles `site/` and nothing under it is
+  web-reachable. It says so plainly now, and names #62 as where that gets
+  decided - which is the item that will trip over it.
+- Tailwind is told to scan `site/theme` explicitly rather than relying on
+  automatic detection, since a purged utility class renders unstyled in
+  production while looking right in dev.
+- The unused `Route` import went, `route:cache` is documented, `File::allFiles`
+  replaces a hand-rolled directory walk, and the `SITE` constant is used
+  everywhere it applies rather than beside three hardcoded copies.
+
+### Checked
+
+Three new tests written first, each failing for its own reason, then each fix
+mutated back out: moving the routes mount after the core pages, deleting it
+entirely, and putting the `site.` prefix back all fail the tests that name
+them.
+
+**One mutation did not bite and no test was manufactured for it.** Loosening
+the contract regex back to matching `theme::` anywhere still passes, because
+the only such string in a comment names `layout`, which exists. The trap is
+latent rather than sprung: a comment naming a template that does *not* exist
+would fail the suite, and a requirement would outlive its render call. Writing
+a misleading comment to prove it would cost more than it is worth, so it is
+recorded here instead.
+
+303 PHP tests, 155 JS tests, build clean. Every public route and the admin
+still answer live after the sitemap moved back to core.
+

@@ -45,8 +45,14 @@ and so on; `site/routes.php` holds anything that one site alone needs. Client
 Core may name the *location* of the site side at exactly two mount points, and
 nowhere else: `AppServiceProvider` registers the view namespace and
 `routes/web.php` loads the routes file. `tests/Feature/CoreSiteBoundaryTest.php`
-fails if anything else in `app/` or `routes/` names it, and also checks that
-the theme provides every `theme::` template core renders.
+fails if anything else in `app/`, `routes/`, `bootstrap/`, `config/` or
+`database/` names it, checks that the theme provides every `theme::` template
+core renders, and checks that both mounts actually work.
+
+`site/routes.php` loads **before** the core pages so a client route can take
+one over; the admin panel is declared ahead of it and cannot be. Core route
+names are `web.*` — `site.` belongs to the client. **`sitemap.xml` is core**,
+not theme: its shape is a protocol, not a design.
 
 When that test fails, the fix is almost never to loosen it: it means something
 client-specific has been written into core, where the next client inherits it.

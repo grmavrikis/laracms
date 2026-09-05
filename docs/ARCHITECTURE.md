@@ -453,7 +453,17 @@ points name the directory — `AppServiceProvider` registers the `theme` view
 namespace, `routes/web.php` requires the routes file — and both do it by
 location rather than by naming a file inside. Everything else in core refers to
 the theme only through `theme::`, which is a **contract**: every theme provides
-`layout`, `home`, `module`, `entry` and `sitemap`.
+`layout`, `home`, `module` and `entry`.
+
+`site/routes.php` is loaded **before** the core pages, so a client route takes
+precedence — `/{language}/{module}` would otherwise claim `/el/epikoinonia`
+before a hand-written page saw it. The admin panel is declared ahead of both
+and cannot be taken over. Core route names are `web.*`, leaving `site.` to the
+client.
+
+**`sitemap.xml` is core**, not theme: its structure is fixed by sitemaps.org
+rather than by design, and a theme that mangled it would break indexing with
+nothing visible from the panel.
 
 `CoreSiteBoundaryTest` enforces both halves: nothing outside the two mount
 points may name `site/`, and the theme must provide every `theme::` template

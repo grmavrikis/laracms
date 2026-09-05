@@ -2,6 +2,8 @@
 
 namespace Tests\Feature;
 
+use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Route;
 use Tests\TestCase;
 
 /**
@@ -9,101 +11,167 @@ use Tests\TestCase;
  * (TASKS.md #61).
  *
  * **Core** is everything that ships to every installation unchanged: the admin
- * panel, the API, the schema system, the public rendering machinery. **Site**
- * is what differs per client: the theme, the menu, any routes this one site
+ * panel, the API, the schema system, the public rendering machinery, and
+ * anything whose shape is fixed by a protocol rather than by taste. **Site**
+ * is what differs per client: the theme, the menu, the routes this one site
  * needs. Client #2 is a copy of `site/` against the same core.
  *
  * The line is what makes that copy mechanical, and a line nothing checks is a
- * convention people drift across. So it is checked here:
+ * convention people drift across. So it is checked here, in both directions:
  *
- *   - core must not name the site side. The moment `app/` refers to a
- *     particular client's template or route, the two are welded together and
- *     the second client needs a fork rather than a directory;
- *   - the site side must exist and be reachable, or the boundary is a story
- *     rather than a structure.
+ *   - core must not name the site side, except at the mount points that make
+ *     it reachable at all;
+ *   - both mounts must actually work, and the theme must provide every
+ *     template core renders.
  *
- * Deliberately mechanical: it greps. A boundary held by discipline is one
- * nobody notices breaking.
+ * Deliberately mechanical. A boundary held by discipline is one nobody
+ * notices breaking.
  */
 class CoreSiteBoundaryTest extends TestCase
 {
     private const SITE = 'site';
 
+    /**
+     * The directories that ship to every installation.
+     *
+     * `app/` and `routes/` are the obvious ones; the rest are here because a
+     * seeder that reads a client's file, or a config default pointing into
+     * their directory, welds core to one installation exactly as a controller
+     * would.
+     */
+    private const CORE = ['app', 'routes', 'bootstrap', 'config', 'database'];
+
+    /**
+     * The two places core is allowed to say where the client's side is. Both
+     * name the *location* and neither names anything inside it.
+     */
+    private const MOUNTS = [
+        'app/Providers/AppServiceProvider.php',
+        'routes/web.php',
+    ];
+
     /** @return array<int, string> */
     private function phpFilesIn(string $directory): array
     {
-        $files = [];
-
-        $iterator = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator(base_path($directory), \FilesystemIterator::SKIP_DOTS)
-        );
-
-        foreach ($iterator as $file)
-        {
-            if ($file->isFile() && $file->getExtension() === 'php')
-            {
-                $files[] = $file->getPathname();
-            }
-        }
-
-        return $files;
+        return collect(File::allFiles(base_path($directory)))
+            ->filter(fn($file) => $file->getExtension() === 'php')
+            ->map(fn($file) => $file->getPathname())
+            ->values()
+            ->all();
     }
+
+    private function relative(string $path): string
+    {
+        return str_replace('\\', '/', str_replace(base_path() . DIRECTORY_SEPARATOR, '', $path));
+    }
+
+    // ---------------------------------------------------------- the shape
 
     public function test_the_site_side_exists(): void
     {
         $this->assertDirectoryExists(base_path(self::SITE), 'The per-client side of the line is missing.');
         $this->assertDirectoryExists(base_path(self::SITE . '/theme'));
         $this->assertFileExists(base_path(self::SITE . '/README.md'), 'A boundary nobody can read is not a boundary.');
+        $this->assertFileExists(base_path(self::SITE . '/routes.php'));
     }
 
     /**
-     * The theme is reached through a namespace, so core templates and a
-     * client's cannot collide and the client's directory can be swapped whole.
+     * The sitemap is not a theme.
+     *
+     * Its structure is fixed by sitemaps.org and by the hreflang work, not by
+     * anybody's design, and a client theme that mangled or omitted it would
+     * break indexing silently - the one failure invisible from inside the
+     * panel. It stays where a client cannot reach it.
      */
+    public function test_the_sitemap_is_core_rather_than_theme(): void
+    {
+        $this->assertFileExists(resource_path('views/sitemap.blade.php'));
+        $this->assertFileDoesNotExist(base_path(self::SITE . '/theme/sitemap.blade.php'));
+    }
+
+    // --------------------------------------------------------- the mounts
+
     public function test_the_theme_is_registered_under_its_own_namespace(): void
     {
         $this->assertTrue(
             view()->exists('theme::layout'),
-            "The theme namespace is not registered, so `theme::` resolves nowhere."
+            'The theme namespace is not registered, so `theme::` resolves nowhere.'
         );
     }
 
     /**
-     * The one rule that matters, and its exception.
+     * The other half of the mount, which nothing checked: `routes/web.php`
+     * requires the site's routes, and deleting that line would leave every
+     * test green while a client's routes silently stopped existing.
      *
+     * Proved by giving the file a route and rebuilding the application, which
+     * is the only way to exercise a file read at boot.
+     */
+    public function test_the_sites_routes_are_loaded_and_take_precedence(): void
+    {
+        $path = base_path(self::SITE . '/routes.php');
+        $original = file_get_contents($path);
+
+        try
+        {
+            file_put_contents($path, <<<'PHP'
+                <?php
+
+                use Illuminate\Support\Facades\Route;
+
+                Route::get('/zz-boundary-probe', fn() => 'mounted');
+
+                // Deliberately shaped like a core page, to prove a site route
+                // can take one over rather than being shadowed by it.
+                Route::get('/el/zz-probe-module', fn() => 'overridden');
+                PHP);
+
+            $this->refreshApplication();
+
+            $this->get('/zz-boundary-probe')->assertOk()->assertSee('mounted');
+            $this->get('/el/zz-probe-module')->assertOk()->assertSee('overridden');
+        }
+        finally
+        {
+            file_put_contents($path, $original);
+            $this->refreshApplication();
+        }
+    }
+
+    // ----------------------------------------------------------- the rule
+
+    /**
      * Core has to know **where the door is** - something must register the
      * view namespace and load the site's routes, or nothing on the client's
-     * side is reachable at all. Those two mount points are named here, and
-     * nowhere else in core may name the directory.
+     * side is reachable. Those two mount points are named here, and nowhere
+     * else in core may name the directory.
      *
      * Rendering `theme::entry` is not naming the directory: it is the
      * *contract* every theme fulfils, checked below.
      */
     public function test_only_the_mount_points_name_the_site_directory(): void
     {
-        $mounts = [
-            'app' . DIRECTORY_SEPARATOR . 'Providers' . DIRECTORY_SEPARATOR . 'AppServiceProvider.php',
-            'routes' . DIRECTORY_SEPARATOR . 'web.php',
-        ];
-
         $offenders = [];
 
-        foreach (array_merge($this->phpFilesIn('app'), $this->phpFilesIn('routes')) as $file)
+        foreach (self::CORE as $directory)
         {
-            $relative = str_replace(base_path() . DIRECTORY_SEPARATOR, '', $file);
-
-            if (in_array($relative, $mounts, true))
+            foreach ($this->phpFilesIn($directory) as $file)
             {
-                continue;
-            }
+                $relative = $this->relative($file);
 
-            $contents = file_get_contents($file);
+                if (in_array($relative, self::MOUNTS, true))
+                {
+                    continue;
+                }
 
-            if (str_contains($contents, "'site/")
-                || str_contains($contents, '"site/')
-                || str_contains($contents, 'App\\Site\\'))
-            {
-                $offenders[] = $relative;
+                $contents = file_get_contents($file);
+
+                if (str_contains($contents, "'" . self::SITE . '/')
+                    || str_contains($contents, '"' . self::SITE . '/')
+                    || str_contains($contents, 'App\\' . ucfirst(self::SITE) . '\\'))
+                {
+                    $offenders[] = $relative;
+                }
             }
         }
 
@@ -119,22 +187,29 @@ class CoreSiteBoundaryTest extends TestCase
     /**
      * The contract, made checkable.
      *
-     * Core renders `theme::layout`, `theme::entry` and the rest. A theme that
-     * does not provide one of them is a site that 500s on a page nobody
-     * thought to open - and the author of the next client's theme has no list
-     * of what they owe. This is that list, read out of core itself.
+     * The list is read out of core's **render calls** rather than out of its
+     * text: matching `theme::` anywhere in a file made a name written in a
+     * comment into a requirement, and left a requirement standing for a call
+     * that had been deleted.
      */
     public function test_the_theme_provides_every_template_core_renders(): void
     {
         $required = [];
 
-        foreach ($this->phpFilesIn('app') as $file)
+        foreach (self::CORE as $directory)
         {
-            preg_match_all('#theme::([a-z0-9_.-]+)#i', file_get_contents($file), $matches);
-
-            foreach ($matches[1] as $name)
+            foreach ($this->phpFilesIn($directory) as $file)
             {
-                $required[$name] = true;
+                preg_match_all(
+                    '#view\(\s*[\'"]theme::([a-z0-9_.-]+)[\'"]#i',
+                    file_get_contents($file),
+                    $matches
+                );
+
+                foreach ($matches[1] as $name)
+                {
+                    $required[$name] = true;
+                }
             }
         }
 
@@ -150,18 +225,21 @@ class CoreSiteBoundaryTest extends TestCase
     }
 
     /**
-     * The counterpart: nothing in `app/` should still be pointing at where the
-     * theme used to be, or the move left half the application behind.
+     * Nothing in core should still point at where the theme used to be, or the
+     * move left half the application behind.
      */
     public function test_core_no_longer_renders_the_old_view_path(): void
     {
         $offenders = [];
 
-        foreach ($this->phpFilesIn('app') as $file)
+        foreach (self::CORE as $directory)
         {
-            if (preg_match('#view\(\s*[\'"]site\.#', file_get_contents($file)))
+            foreach ($this->phpFilesIn($directory) as $file)
             {
-                $offenders[] = str_replace(base_path() . DIRECTORY_SEPARATOR, '', $file);
+                if (preg_match('#view\(\s*[\'"]site\.#', file_get_contents($file)))
+                {
+                    $offenders[] = $this->relative($file);
+                }
             }
         }
 
@@ -169,15 +247,27 @@ class CoreSiteBoundaryTest extends TestCase
     }
 
     /**
-     * "Site" now means the client's side of the line, so a core namespace must
-     * not claim the word - the public controllers are core machinery that
-     * ships to everyone.
+     * "Site" means the client's side of the line, so core must not claim the
+     * word - not as a namespace, and not as a route name a client would
+     * reasonably reach for.
      */
-    public function test_no_core_namespace_claims_the_word_site(): void
+    public function test_core_does_not_claim_the_word_site(): void
     {
         $this->assertDirectoryDoesNotExist(
             app_path('Http/Controllers/Site'),
             'A core controller directory called Site contradicts what `site/` means.'
+        );
+
+        $claimed = collect(Route::getRoutes()->getRoutesByName())
+            ->keys()
+            ->filter(fn(string $name) => str_starts_with($name, 'site.'))
+            ->values()
+            ->all();
+
+        $this->assertSame(
+            [],
+            $claimed,
+            'Core route names take the `site.` prefix a client would use: ' . implode(', ', $claimed)
         );
     }
 }

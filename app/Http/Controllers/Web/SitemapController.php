@@ -11,6 +11,11 @@ use App\Services\PageCache;
 /**
  * `sitemap.xml`, generated from the entries rather than maintained by hand.
  *
+ * The template is **core**, not part of the theme: its structure is fixed by
+ * sitemaps.org and by the hreflang work, not by anybody's design, and a client
+ * theme that mangled or omitted it would break indexing silently - the one
+ * failure invisible from inside the panel.
+ *
  * Every URL carries its translations as `xhtml:link` alternates. That is not
  * decoration: without them Google does not know the Greek and English pages
  * are the same content in two languages, and the multilingual advantage - the
@@ -74,7 +79,7 @@ class SitemapController extends Controller
                 }
             }
 
-            return ['html' => view('theme::sitemap', ['urls' => $urls])->render()];
+            return ['html' => view('sitemap', ['urls' => $urls])->render()];
         });
 
         return response($xml['html'])->header('Content-Type', 'application/xml');
