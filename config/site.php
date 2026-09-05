@@ -8,9 +8,10 @@ return [
     |--------------------------------------------------------------------------
     |
     | Core knows where the client's directory is and nothing about what is in
-    | it. These two paths are the whole of that knowledge - the view namespace
-    | and the routes file - and they live here rather than being written into
-    | `routes/web.php` so a test can point them somewhere else.
+    | it. These three paths are the whole of that knowledge - the view
+    | namespace, the routes file and the theme's own translations - and they
+    | live here rather than being written into `routes/web.php` so a test can
+    | point them somewhere else.
     |
     | That matters more than it looks: proving the routes file is really loaded
     | means loading one, and without this the only way to do that was to
@@ -21,6 +22,17 @@ return [
     'theme' => env('SITE_THEME', base_path('site/theme')),
 
     'routes' => env('SITE_ROUTES', base_path('site/routes.php')),
+
+    /*
+    | The theme's own labels (TASKS.md #96). What a form calls its fields is a
+    | design decision, so it belongs to the client exactly as the templates do.
+    |
+    | Merged into the same JSON namespace as core's `lang/`, which means a key
+    | written on both sides is resolved by whichever the loader reads last.
+    | `TranslationTest` fails if the two ever claim the same one.
+    */
+
+    'lang' => env('SITE_LANG', base_path('site/lang')),
 
     /*
     |--------------------------------------------------------------------------

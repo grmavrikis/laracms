@@ -55,6 +55,12 @@ class AppServiceProvider extends ServiceProvider
         // repository's own files.
         $this->loadViewsFrom(config('site.theme'), 'theme');
 
+        // The theme's labels, on the same terms as its templates (#96). A JSON
+        // path rather than a namespace, so a template writes `__('Name')` and
+        // an untranslated language falls back to the key - which is the
+        // English text - instead of printing `theme::form.name` at a visitor.
+        $this->loadJsonTranslationsFrom(config('site.lang'));
+
         $this->registerRateLimiters();
         $this->secureMarkdownMail();
     }

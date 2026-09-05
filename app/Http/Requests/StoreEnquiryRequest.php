@@ -56,11 +56,16 @@ class StoreEnquiryRequest extends FormRequest
         ];
     }
 
+    /**
+     * The only core text an anonymous visitor ever reads, so it is translated
+     * into the language of the address they wrote from (TASKS.md #96). The
+     * `locale` middleware on the route has already set it.
+     */
     public function messages(): array
     {
         return [
-            'consent.accepted' => 'Please agree to us keeping your details so we can reply.',
-            'departs_on.after' => 'The departure date has to come after the arrival date.',
+            'consent.accepted' => __('Please agree to us keeping your details so we can reply.'),
+            'departs_on.after' => __('The departure date has to come after the arrival date.'),
         ];
     }
 }

@@ -4,7 +4,7 @@
     <h1>{{ $module->name }}</h1>
 
     @if ($rows->isEmpty())
-        <p>Nothing published here yet.</p>
+        <p>{{ __('Nothing published here yet.') }}</p>
     @else
         <ul class="entries">
             @foreach ($rows as $row)

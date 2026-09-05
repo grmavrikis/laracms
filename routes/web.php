@@ -104,11 +104,19 @@ $protected();
  * free. Its own limiter, far below the `api` one - see AppServiceProvider.
  */
 Route::post('/{language}/enquiries', [EnquiryController::class, 'store'])
-    ->middleware('throttle:enquiries')
+    ->middleware(['throttle:enquiries', 'locale'])
     ->name('web.enquiries.store');
 
 Route::get('/', [PageController::class, 'root'])->name('web.root');
 
-Route::get('/{language}', [PageController::class, 'home'])->name('web.home');
-Route::get('/{language}/{module}', [PageController::class, 'index'])->name('web.module');
-Route::get('/{language}/{module}/{slug}', [PageController::class, 'show'])->name('web.entry');
+/*
+ * `locale` sets the language from the address before anything renders
+ * (TASKS.md #96). It resolves nothing, so the cache-before-database rule
+ * above still holds.
+ */
+Route::middleware('locale')->group(function ()
+{
+    Route::get('/{language}', [PageController::class, 'home'])->name('web.home');
+    Route::get('/{language}/{module}', [PageController::class, 'index'])->name('web.module');
+    Route::get('/{language}/{module}/{slug}', [PageController::class, 'show'])->name('web.entry');
+});

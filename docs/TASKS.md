@@ -101,6 +101,26 @@ down, not by drift. Every amendment is recorded here with its reason.
 
 Rejected for the MVP at the same time, with reasons, as #69, #70 and #71.
 
+**2026-09-05 — added #96, #97, #98 (+5 days).** Three things the owner raised
+at a stop before #67, all of which #62 would otherwise build on top of and have
+to be redone.
+
+- **#96 translated interfaces** — every message in PHP and JavaScript is
+  hardcoded English, and `App::setLocale()` is called nowhere in the
+  application. A Greek hotel owner opens a panel in English, and the theme's
+  labels are written `Όνομα / Name *`, which is not bilingual but a hack that
+  breaks on the third language. A multilingual CMS whose own interface is
+  monolingual does not demonstrate the one thing it is better at.
+- **#97 static HTML pages** — measured, a cache *hit* costs four queries and
+  the home page nine (see Decisions, below). The requirement was always
+  "finished HTML without a query"; this delivers it literally, by serving a
+  file before PHP starts.
+- **#98 one source for a number** — an audit found the enquiry field widths
+  written in three unconnected places, two of them exactly at the column
+  limit. That is #76 waiting to happen again, and SQLite cannot see it.
+
+#96 goes first: #97 bakes HTML, and it should bake translated HTML.
+
 ## Phases
 
 ### Phase 0 — blocks everything (half a day) — **done**
@@ -117,7 +137,10 @@ behind would have shipped the change half-done.
 ### Phase 1 — content reaches the public (6–8 days)
 
 **Done: #68, #55, #56, #57, #58, the #75–#88 review of them, #59, #60, #61 and
-#66.** Remaining: **#67**, and Phase 1 is closed.
+#66.** Remaining: **#96, #97, #98 and #67**, in that order, and Phase 1 is
+closed. The first three were added on 2026-09-05 (see Amendments) and cost
+about five days; they come before #67 and #62 because both would be built on
+top of them.
 
 **#75–#88 came before #59 and there was no judgement call in it.** #59 is the
 public read path, and it is built on exactly the four things the review found
@@ -147,11 +170,10 @@ so that client #1 is a copy with a different theme and different content rather
 than a fresh start. The demo is simultaneously the sales sample and the first
 template in the library.
 
-One decision the theme makes without meaning to: **a page with the enquiry
-form on it is not cached** (CHANGELOG §25), because a form is session state.
-The present theme includes the form on the home page, so the home page renders
-on every visit. Fine at this size; if the bought theme is heavy, give the form
-a page of its own and the home page keeps its cache.
+Waits for #96 and #97. The theme's labels are translated per language rather
+than written `Ελληνικά / English` in one string, and its forms use the shared
+submitter so the page stays a static file. Building the theme before either one
+means building it twice.
 
 Note that **rooms, facilities and the home-page slider need no engineering at
 all**: they are modules built in the existing builder, and the slider gets its
@@ -408,6 +430,98 @@ meant.
 > that shape of rule. It needs `SchemaRuleBuilder` to know the entry's status,
 > which changes its signature and every caller, and it is not on the MVP list.
 > Filed as #95.
+
+## Decisions taken (2026-09-05, third)
+
+A stop called by the owner after #66, on four things in the code rather than in
+the plan. Three became work items; the fourth was a question answered.
+
+### The public site becomes files on disk, not rows in a cache table
+
+The claim in ARCHITECTURE was that a cache hit "touches the database not at
+all". It was measured and it is **false in production**. A real request through
+the HTTP kernel against the real `.env`:
+
+| Page | Queries |
+|---|---|
+| a module page, cache **hit** | **4** — `sessions` read, `cache` read ×2, `sessions` write |
+| the home page (uncached, it carries a form) | **9** — plus `languages` ×4 and `modules` |
+
+The test that says otherwise runs under `CACHE_STORE=array` and
+`SESSION_DRIVER=array` from `phpunit.xml`. **The suite was measuring an
+environment that exists nowhere.** Same shape as #76 (SQLite does not enforce
+what MySQL does) and as the CSRF defect in §25 (the suite renders fresh, the
+deployment serves cached) — the third time a green assertion has described a
+world the app does not run in.
+
+**Decided: the rendered page is written to a file under `public/`, and the web
+server serves it before PHP starts.** Not a faster cache — no PHP at all. The
+requirement in #59 was always "finished HTML without a query", and this is that
+sentence taken literally.
+
+Two consequences that are gains rather than costs:
+
+- **Invalidation gets more precise, not less.** The version counter exists
+  because "without touching the database there is nothing to say which module a
+  path belongs to" — true when a *visitor* asks, irrelevant when an *author*
+  saves. At save time the entry and its slugs are in hand, so the pages to
+  rewrite are computable, the renamed slug included: the old address comes from
+  `getOriginal()` before the write. That is the one case the counter could not
+  handle, and with files it is three lines. `PageCache` is replaced, not
+  extended.
+- **The site survives its own database.** A hotel whose MySQL falls over in
+  August still serves every page.
+
+### Forms become one JS island, and the public site sets no cookie
+
+A static file cannot carry a CSRF token, so the rule from §25 — a page with a
+form is not cached — would mean the home page is never static, which is the
+page that matters most.
+
+**Decided: the form markup stays server-rendered; only the submit is
+JavaScript.** On first interaction it calls `/sanctum/csrf-cookie`, which
+already exists and is the same ordering `api.js` uses to sign in, then posts
+with the `X-XSRF-TOKEN` header and renders the answer from JSON.
+
+**One mechanism, not one per form.** The owner's reason for choosing this is
+that a client's home page will carry several — an enquiry, a newsletter box, a
+search — so the thing being built is a small shared submitter that any theme
+form opts into, not a script belonging to the enquiry.
+
+The cost is that the forms need JavaScript, where today they do not. Accepted
+for this market. The gain beyond caching: **no session and no cookie on the
+public site at all**, which makes #70 (cookie consent) smaller than it was.
+
+### The panel's language is a different axis from the site's
+
+`languages` rows are the languages the *content* is translated into. The
+language a person reads the *interface* in is not the same question — a German
+owner may well run a Greek and English site — and using one table for both
+would tie them together permanently.
+
+**Decided: content languages are rows; interface locales are files.** Adding
+German to the panel means adding `lang/de.json`, with no migration and no
+rebuild — which requires that the server sends only the active locale's strings
+to the page rather than the bundle carrying every locale.
+
+The theme's own labels are the **client's**, not core's, so they live in
+`site/lang/{code}.json` beside the theme (#61). Core ships `lang/`; a client
+ships their own.
+
+JSON translations rather than keyed PHP arrays, so an untranslated string falls
+back to readable English instead of `panel.enquiries.confirm`. That is what
+makes translating incrementally possible.
+
+### Tests build their own languages on purpose
+
+Asked why `EnquiryTest::setUp` creates Greek and English when the database
+already has them: because it does not. Tests run on **SQLite in memory**, and
+`RefreshDatabase` migrates without seeding, so every test starts on an empty
+schema. A test that read the languages from the development machine would pass
+or fail according to what somebody last typed into the panel.
+
+What is wrong is only that **eight test files write the same two rows by
+hand**. That is a shared helper, not a seeder — folded into #98.
 
 ## Deferred deliberately
 
@@ -712,6 +826,94 @@ change their own phone number without calling you.** That contradicts the one
 promise the product makes, and it is the kind of call that arrives on a Sunday.
 Half a day, and it removes a category of support permanently.
 
+### 96. Translated interfaces, panel and public — *public side done*
+
+Every user-facing string in the application is hardcoded English and
+`App::setLocale()` is called nowhere. Three audiences, and they are not the
+same problem:
+
+- **The panel.** ~13 sentences in `app/` (validation messages, the singleton
+  refusal, `StoreEnquiryRequest::messages()`) and ~39 in the React components
+  and `apiErrors.js`. The client's staff read this, and in the first market
+  they read Greek. `php artisan lang:publish` brings the framework's own
+  messages; ours become `__()` keys against `lang/{locale}.json`.
+- **The public theme.** Written `Όνομα / Name *` today — two languages jammed
+  into one label, which fails the moment a third is active. Strings move to
+  `site/lang/{code}.json` and `PageController` calls `App::setLocale()` from
+  the URL's language. The cache key already carries the language, so cached
+  pages stay correct.
+- **Email.** The owner's notification follows the owner's locale.
+
+The React side gets its strings the way it already gets field types and
+statuses — from JSON the server produces — but **injected per request rather
+than bundled**, so adding a locale needs no `npm run build`. A user's choice
+lives in `users.locale`, defaulting from #67.
+
+A test asserts every locale file carries the same keys as the reference, which
+is what catches a half-translated release before a client does.
+
+**Done so far — the public side.** `SetLocale` on the public routes, the third
+mount point in `config/site.php`, `lang/` and `site/lang/`, the theme's labels
+and the enquiry form's refusals. Verified live in `el`, `en` and an untranslated
+`fr`, which correctly falls back to English. ARCHITECTURE §5a describes it.
+
+**Left: the panel.** The PHP messages, the React strings, `users.locale`, and
+the per-request injection that keeps a new locale from needing a rebuild. The
+CHANGELOG entry waits for that — the item is not a decision until it is whole.
+
+### 97. Static HTML pages, served before PHP starts
+
+Replaces `PageCache`. See Decisions (2026-09-05, third) for the measurement
+that prompted it and for the two design choices it rests on.
+
+- **Where.** `public/cache/{lang}/…​.html`, with the path built **only from
+  resolved database rows** — language code, module slug, entry slug — and never
+  from the request path. Writing files inside `public/` from something a
+  visitor controls is how a crafted URL writes a file somewhere it should not.
+- **The switch.** The web server serves whatever file exists; the setting
+  controls only whether files are *written*. Off means flush and stop writing,
+  so an empty directory sends everything to PHP — and the fast path reads no
+  config and runs no query. `PAGE_CACHE` in `.env` for development, a button in
+  #67 for the client.
+- **Filling it.** Lazily by the first visitor, or all at once with
+  `pages:warm` and a button. `pages:flush` empties it.
+- **Emptying one page.** On save, the entry's own URLs in every language it has
+  a slug in, plus the module index, the home page and the sitemap. The old URLs
+  come from `getOriginal()` before the write.
+- **A form on a page** no longer stops it being cached, because of #97's other
+  half: one shared client-side submitter, CSRF fetched on first interaction,
+  the answer rendered from JSON.
+
+**The deployment dependency has to fail loudly.** `.htaccess` covers Apache;
+nginx needs `try_files` in the server block, which `.htaccess` cannot reach. A
+missing rewrite does not break the site — it silently serves every page through
+PHP, which looks like nothing at all. `pages:doctor` asks for a page known to
+be cached and reports whether the answer came from PHP.
+
+### 98. One source for a number
+
+An audit of `app/` for magic numbers found one real hazard and several
+irritations. The hazard: the enquiry field widths are written in the migration,
+the FormRequest and the Blade template, unconnected, and `phone` (40) and
+`source_url` (512) sit **exactly at the column limit**. Relaxing the validation
+without a migration is a MySQL 1406 and a 500 — which is #76, and the SQLite
+the suite runs on cannot see it.
+
+The widths become constants on the model that the migration, the request and
+the template all read, plus a test that reads the **actual** column definition
+— because editing a constant does not alter a column that already exists.
+
+The rest: `paginate(15)` and `paginate(20)` are two different page sizes for no
+stated reason; `EnquiriesManager.jsx` writes "Kept for 24 months" as a literal
+while the Blade template reads it from `Enquiry::RETENTION_MONTHS`; `max:2048`
+in `UploadController` is anonymous; `max:255` appears three times while
+`ModuleController::SLUG_MAX_LENGTH` exists. Findings are recorded per file in
+ARCHITECTURE, so a later pass knows what has been looked at.
+
+Folded in: **eight test files create the same two `Language` rows by hand.** A
+shared helper. Not a seeder — see Decisions for why tests build their own
+world.
+
 ### 69. Redirects *(first real client)*
 
 When a client's existing website is replaced, its old URLs must redirect to the
@@ -727,6 +929,10 @@ first client who does, which will be most of them.
 Analytics will be added, and in the EU the script may not run before consent.
 Small, and far cheaper to have ready than to retrofit inside a client's
 deadline.
+
+**Smaller than it was after #97**: the public site sets no cookie of its own
+once the forms are a JS island, so this covers only what a client chooses to
+add on top.
 
 ### 71. Relations between entries *(after the first client)*
 

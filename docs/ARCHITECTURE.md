@@ -510,9 +510,16 @@ unknown one is a 404.
 
 **Everything is cached, and the lookup comes before the database.** Each
 action hands `PageCache` a path and a closure; the closure — which resolves
-the language, the module and the entry — runs only on a miss. A cache hit
-touches the database not at all, which is what #59 asked for and is pinned by
-a test that counts queries.
+the language, the module and the entry — runs only on a miss.
+
+**A hit costs four queries, not none** — and the test that counts them says
+none because `phpunit.xml` sets `CACHE_STORE=array` and `SESSION_DRIVER=array`,
+while the deployment uses `database` for both. Measured on a module page: one
+`sessions` read, two `cache` reads (the version, then the page), one `sessions`
+write. What the cache removes is the *content* queries — the language, the
+module and the entry — and that part is real. #97 replaces this whole mechanism
+with files the web server serves before PHP starts, which is what #59 asked
+for; until then, do not repeat the "no queries" claim.
 
 Invalidation is **by version, not by key or tag**: `CACHE_STORE` is
 `database`, whose driver has no tag support, so a counter is embedded in every
@@ -546,6 +553,44 @@ over, resolved to the language being rendered: rich text through
 images, everything else as escaped text. The templates in `resources/views/site/`
 are deliberately plain — the bought theme replaces them in #62, and what has
 to be right now is the head.
+
+## 5a. Translations (TASKS.md #96 — public side done, panel not yet)
+
+**The address decides the language, not a header.** `SetLocale`, aliased as
+`locale` and declared on the public routes, calls `App::setLocale()` with the
+`{language}` segment. A page whose text changed with `Accept-Language` would
+exist at one URL in several versions, which is what the language prefix is for.
+
+It **resolves nothing** — no query, not even to check the language exists. That
+is the controller's question, asked after the cache. `PageCacheTest`'s
+zero-query test runs over a route this middleware is on, so a lookup added here
+fails it.
+
+Strings are **JSON translations keyed by their English text**, in two
+directories with two owners:
+
+| Directory | Ships to | Holds |
+|---|---|---|
+| `lang/{locale}.json` | every installation | core's own messages |
+| `site/lang/{locale}.json` | one client | the theme's labels |
+
+The second is the third mount point in `config/site.php`, beside `theme` and
+`routes` (#61) — the theme calls a field "Name" or "Όνομα" for the same reason
+it decides where the form goes.
+
+Two consequences of that shape, both tested in `TranslationTest`:
+
+- The loader **merges both into one namespace**, so a key written on both sides
+  is won by whichever it reads last. A test fails when they collide.
+- A locale with no file falls back to the key, which is English. So a client
+  who activates Italian gets an English theme, not `theme.form.name` in front
+  of a visitor. A second test keeps every locale file carrying the same keys as
+  `en.json`, which is what catches a half-translated release.
+
+Laravel's own messages come from `lang/{locale}/*.php` (`lang:publish`), where
+a missing key falls back per-key to `APP_FALLBACK_LOCALE`. A partial Greek
+`validation.php` is therefore legitimate and does not need finishing to be
+correct.
 
 ## 5b. Enquiries — the one thing an anonymous visitor may write
 

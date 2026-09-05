@@ -15,11 +15,11 @@
 @php($enquiryLanguage = ($current ?? \App\Models\Language::default())?->code)
 
 <section id="enquiry">
-    <h2>Ρωτήστε μας / Ask us</h2>
+    <h2>{{ __('Ask us') }}</h2>
 
     @if (session('enquiry') === 'sent')
         <p role="status" class="sent">
-            Ευχαριστούμε — το μήνυμά σας στάλθηκε. Thank you, we have your message.
+            {{ __('Thank you, we have your message.') }}
         </p>
     @endif
 
@@ -39,56 +39,53 @@
              `display:none` rather than an off-screen trick, because some bots
              now check for that. --}}
         <div style="display:none" aria-hidden="true">
-            <label>Website<input type="text" name="website" tabindex="-1" autocomplete="off"></label>
+            <label>{{ __('Website') }}<input type="text" name="website" tabindex="-1" autocomplete="off"></label>
         </div>
 
         <p>
-            <label for="enq-name">Όνομα / Name *</label>
+            <label for="enq-name">{{ __('Name') }} *</label>
             <input id="enq-name" type="text" name="name" required maxlength="120" value="{{ old('name') }}">
         </p>
 
         <p>
-            <label for="enq-email">Email *</label>
+            <label for="enq-email">{{ __('Email') }} *</label>
             <input id="enq-email" type="email" name="email" required maxlength="180" value="{{ old('email') }}">
         </p>
 
         <p>
-            <label for="enq-phone">Τηλέφωνο / Phone</label>
+            <label for="enq-phone">{{ __('Phone') }}</label>
             <input id="enq-phone" type="tel" name="phone" maxlength="40" value="{{ old('phone') }}">
         </p>
 
         <p>
-            <label for="enq-arrives">Άφιξη / Arrival</label>
+            <label for="enq-arrives">{{ __('Arrival') }}</label>
             <input id="enq-arrives" type="date" name="arrives_on" value="{{ old('arrives_on') }}">
 
-            <label for="enq-departs">Αναχώρηση / Departure</label>
+            <label for="enq-departs">{{ __('Departure') }}</label>
             <input id="enq-departs" type="date" name="departs_on" value="{{ old('departs_on') }}">
 
-            <label for="enq-guests">Άτομα / Guests</label>
+            <label for="enq-guests">{{ __('Guests') }}</label>
             <input id="enq-guests" type="number" name="guests" min="1" max="99" value="{{ old('guests') }}">
         </p>
 
         <p>
-            <label for="enq-message">Μήνυμα / Message *</label>
+            <label for="enq-message">{{ __('Message') }} *</label>
             <textarea id="enq-message" name="message" required maxlength="4000" rows="5">{{ old('message') }}</textarea>
         </p>
 
         {{-- The retention period is stated because the form asks for consent,
              and consent to "we keep this indefinitely" is not consent. The
-             number comes from the model, so the promise and the command that
-             enforces it cannot drift apart. --}}
+             number is passed in from the model, so the promise and the command
+             that enforces it cannot drift apart in any language. --}}
         <p>
             <label>
                 <input type="checkbox" name="consent" value="1" required @checked(old('consent'))>
-                Συμφωνώ να κρατήσετε τα στοιχεία μου για να μου απαντήσετε.
-                Διαγράφονται μετά από {{ \App\Models\Enquiry::RETENTION_MONTHS }} μήνες.
-                <span lang="en">I agree to you keeping my details in order to reply.
-                They are deleted after {{ \App\Models\Enquiry::RETENTION_MONTHS }} months.</span>
+                {{ __('I agree to you keeping my details in order to reply. They are deleted after :months months.', ['months' => \App\Models\Enquiry::RETENTION_MONTHS]) }}
             </label>
         </p>
 
         <input type="hidden" name="source_url" value="{{ url()->current() }}">
 
-        <button type="submit">Αποστολή / Send</button>
+        <button type="submit">{{ __('Send') }}</button>
     </form>
 </section>

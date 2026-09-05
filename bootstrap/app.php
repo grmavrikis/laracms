@@ -44,6 +44,11 @@ return Application::configure(basePath: dirname(__DIR__))
             );
         }
 
+        // Named so the public routes can declare it and a client's own
+        // routes can opt in (#61): a page under `/{language}` that a client
+        // writes wants the same locale the core pages get.
+        $middleware->alias(['locale' => \App\Http\Middleware\SetLocale::class]);
+
         // Entry payloads carry rich-text documents. A mark splits a sentence
         // into several text nodes, and the spaces between words sit at the
         // edges of those nodes ("Κάτι ", "έντονο", " εδώ"). Trimming each

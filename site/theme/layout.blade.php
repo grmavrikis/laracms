@@ -37,7 +37,7 @@
                 {{ strtoupper($language->code) }}
             </a>
         @endforeach
-        <a href="{{ url('/' . $current->code) }}" style="margin-left:auto">Home</a>
+        <a href="{{ url('/' . $current->code) }}" style="margin-left:auto">{{ __('Home') }}</a>
     </nav>
 
     @yield('content')
