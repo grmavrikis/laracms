@@ -4,21 +4,22 @@ import api from '../lib/api';
 import { errorSummary } from '../lib/apiErrors';
 import fieldTypes from '../lib/fieldTypes.json';
 import { isGalleryField } from '../lib/gallery';
+import { t } from '../lib/i18n';
 
 // Which types exist is the backend's decision, so the values come from the
 // generated file rather than being listed again here. Labels are UI wording and
 // stay put; a type with no label shown gets its own name capitalised, so adding
 // one on the backend surfaces in this form without a second edit.
 const TYPE_LABELS = {
-    string: 'String',
-    text: 'Text',
-    integer: 'Integer',
-    boolean: 'Boolean',
-    date: 'Date',
-    datetime: 'Datetime',
-    select: 'Select',
-    image: 'Image',
-    gallery: 'Gallery',
+    string: t('String'),
+    text: t('Text'),
+    integer: t('Integer'),
+    boolean: t('Boolean'),
+    date: t('Date'),
+    datetime: t('Datetime'),
+    select: t('Select'),
+    image: t('Image'),
+    gallery: t('Gallery'),
 };
 
 const FIELD_TYPES = fieldTypes.supported.map((value) => ({
@@ -97,7 +98,7 @@ export default function ModuleBuilder({ onCreated, onCancel }) {
             setFields([{ _id: nextId.current++, ...emptyField() }]);
         } catch (err) {
             console.error(err);
-            setErrors(errorSummary(err, 'Failed to save the module.'));
+            setErrors(errorSummary(err, t('Could not save the module.')));
         } finally {
             setSubmitting(false);
         }
@@ -113,8 +114,8 @@ export default function ModuleBuilder({ onCreated, onCancel }) {
                         </svg>
                     </div>
                     <div>
-                        <h2 className="text-xl font-bold tracking-tight text-gray-900">New Module</h2>
-                        <p className="text-sm text-gray-500">Define your module name, slug, and schema fields.</p>
+                        <h2 className="text-xl font-bold tracking-tight text-gray-900">{t('New module')}</h2>
+                        <p className="text-sm text-gray-500">{t('Give it a name, a slug and the fields its entries hold.')}</p>
                     </div>
                 </div>
             </div>
@@ -127,10 +128,10 @@ export default function ModuleBuilder({ onCreated, onCancel }) {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div>
-                    <label className="block text-sm font-semibold text-gray-900 mb-1.5">Module Name</label>
+                    <label className="block text-sm font-semibold text-gray-900 mb-1.5">{t('Module name')}</label>
                     <input
                         type="text"
-                        placeholder="e.g. Products"
+                        placeholder={t('e.g. Rooms')}
                         value={name}
                         onChange={(e) => setName(e.target.value)}
                         className="w-full rounded-lg border border-gray-300 px-3.5 py-2 text-sm text-gray-900 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
@@ -139,17 +140,17 @@ export default function ModuleBuilder({ onCreated, onCancel }) {
                 </div>
                 <div>
                     <label className="block text-sm font-semibold text-gray-900 mb-1.5">
-                        Slug <span className="font-normal text-gray-500">(optional)</span>
+                        {t('Slug')} <span className="font-normal text-gray-500">{t('(optional)')}</span>
                     </label>
                     <input
                         type="text"
-                        placeholder="generated from the name"
+                        placeholder={t('generated from the name')}
                         value={slug}
                         onChange={(e) => setSlug(e.target.value)}
                         className="w-full rounded-lg border border-gray-300 px-3.5 py-2 text-sm font-mono text-gray-900 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
                     />
                     <p className="mt-1.5 text-xs text-gray-500">
-                        Leave blank to let the server build it from the name.
+                        {t('Leave blank to let the server build it from the name.')}
                     </p>
                 </div>
             </div>
@@ -167,11 +168,10 @@ export default function ModuleBuilder({ onCreated, onCancel }) {
                     />
                     <span>
                         <span className="block text-sm font-semibold text-gray-900">
-                            This module is a single page
+                            {t('This module is a single page')}
                         </span>
                         <span className="block text-xs text-gray-500">
-                            One entry rather than a list of them &mdash; About, Contact.
-                            Opens straight into its content, with no list to manage.
+                            {t('One entry rather than a list of them — About, Contact. Opens straight into its content, with no list to manage.')}
                         </span>
                     </span>
                 </label>
@@ -180,15 +180,15 @@ export default function ModuleBuilder({ onCreated, onCancel }) {
             <div className="space-y-4 pt-4 border-t border-gray-200">
                 <div className="flex justify-between items-center">
                     <div>
-                        <h3 className="text-base font-semibold text-gray-900">Schema Fields</h3>
-                        <p className="text-sm text-gray-500">Add the data structure for this module.</p>
+                        <h3 className="text-base font-semibold text-gray-900">{t('Fields')}</h3>
+                        <p className="text-sm text-gray-500">{t('What each entry in this module holds.')}</p>
                     </div>
                     <button
                         type="button"
                         onClick={addField}
                         className="inline-flex items-center justify-center rounded-lg bg-gray-900 px-3.5 py-2 text-sm font-semibold text-white shadow-sm hover:bg-gray-800 transition-all"
                     >
-                        + Add Field
+                        + {t('Add field')}
                     </button>
                 </div>
 
@@ -197,10 +197,10 @@ export default function ModuleBuilder({ onCreated, onCancel }) {
                         <div key={field._id} className="bg-gray-50/50 border border-gray-200 rounded-xl p-4 space-y-3 transition-all hover:border-gray-300">
                             <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center">
                                 <div className="sm:col-span-3">
-                                    <label className="block text-xs font-medium text-gray-500 mb-1 sm:hidden">Name</label>
+                                    <label className="block text-xs font-medium text-gray-500 mb-1 sm:hidden">{t('Field name')}</label>
                                     <input
                                         type="text"
-                                        placeholder="field_name"
+                                        placeholder={t('field_name')}
                                         value={field.name}
                                         onChange={(e) => updateField(field._id, 'name', e.target.value)}
                                         className="w-full rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-900 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 font-mono text-xs"
@@ -208,7 +208,7 @@ export default function ModuleBuilder({ onCreated, onCancel }) {
                                     />
                                 </div>
                                 <div className="sm:col-span-3">
-                                    <label className="block text-xs font-medium text-gray-500 mb-1 sm:hidden">Type</label>
+                                    <label className="block text-xs font-medium text-gray-500 mb-1 sm:hidden">{t('Type')}</label>
                                     <select
                                         value={field.type}
                                         onChange={(e) => updateField(field._id, 'type', e.target.value)}
@@ -218,7 +218,7 @@ export default function ModuleBuilder({ onCreated, onCancel }) {
                                     </select>
                                 </div>
                                 <div className="sm:col-span-4">
-                                    <label className="block text-xs font-medium text-gray-500 mb-1 sm:hidden">Validation</label>
+                                    <label className="block text-xs font-medium text-gray-500 mb-1 sm:hidden">{t('Validation')}</label>
                                     <input
                                         type="text"
                                         placeholder="required|max:60"
@@ -234,7 +234,7 @@ export default function ModuleBuilder({ onCreated, onCancel }) {
                                             : 'text-gray-700 cursor-pointer'
                                             }`}
                                         title={isGalleryField(field)
-                                            ? 'A gallery is one set of images for every language; only the alt text is translated.'
+                                            ? t('A gallery is one set of images for every language; only the alt text is translated.')
                                             : undefined}
                                     >
                                         <input
@@ -244,7 +244,7 @@ export default function ModuleBuilder({ onCreated, onCancel }) {
                                             onChange={(e) => updateField(field._id, 'translatable', e.target.checked)}
                                             className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 disabled:opacity-40"
                                         />
-                                        <span className="text-xs font-medium">Lang</span>
+                                        <span className="text-xs font-medium">{t('Lang')}</span>
                                     </label>
                                     {/* Beats asking someone to type "required" into the
                                         validation box, which no field ever did. */}
@@ -255,7 +255,7 @@ export default function ModuleBuilder({ onCreated, onCancel }) {
                                             onChange={(e) => updateField(field._id, 'required', e.target.checked)}
                                             className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
                                         />
-                                        <span className="text-xs font-medium">Req</span>
+                                        <span className="text-xs font-medium">{t('Req')}</span>
                                     </label>
                                 </div>
                                 <div className="sm:col-span-1 flex justify-end">
@@ -264,7 +264,7 @@ export default function ModuleBuilder({ onCreated, onCancel }) {
                                         onClick={() => removeField(field._id)}
                                         disabled={fields.length === 1}
                                         className="inline-flex items-center justify-center p-2 text-gray-400 hover:text-red-600 rounded-lg transition-colors disabled:opacity-30 disabled:hover:text-gray-400"
-                                        title="Remove Field"
+                                        title={t('Remove field')}
                                     >
                                         <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -277,7 +277,7 @@ export default function ModuleBuilder({ onCreated, onCancel }) {
                                 <div className="pt-2">
                                     <input
                                         type="text"
-                                        placeholder="Comma separated options (e.g. Option 1, Option 2, Option 3)"
+                                        placeholder={t('Comma separated options (e.g. Option 1, Option 2, Option 3)')}
                                         value={field.options || ''}
                                         onChange={(e) => updateField(field._id, 'options', e.target.value)}
                                         className="w-full rounded-lg border border-indigo-200 bg-indigo-50/30 px-3 py-1.5 text-sm text-gray-900 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
@@ -296,7 +296,7 @@ export default function ModuleBuilder({ onCreated, onCancel }) {
                         onClick={onCancel}
                         className="inline-flex items-center justify-center rounded-lg bg-white px-4 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 transition-all"
                     >
-                        Cancel
+                        {t('Cancel')}
                     </button>
                 )}
                 <button
@@ -304,7 +304,7 @@ export default function ModuleBuilder({ onCreated, onCancel }) {
                     disabled={submitting}
                     className="inline-flex items-center justify-center rounded-lg bg-indigo-600 px-5 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:opacity-50 transition-all"
                 >
-                    {submitting ? 'Saving...' : 'Create Module'}
+                    {submitting ? t('Saving…') : t('Create module')}
                 </button>
             </div>
         </form>

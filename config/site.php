@@ -36,6 +36,26 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Which language the panel opens in (TASKS.md #96)
+    |--------------------------------------------------------------------------
+    |
+    | The installation's default, used until a person picks their own - and on
+    | the login screen, where there is no person yet. Null falls back to
+    | `app.fallback_locale`.
+    |
+    | Per installation, like the rest of this file: the first market is Greek,
+    | and a panel that opens in English because nobody filled in a column is
+    | the demo failing at its first screen. Moves into the database with #67.
+    |
+    | It is a locale, not a language row - `InterfaceLocales` explains why the
+    | two are different axes.
+    |
+    */
+
+    'locale' => env('SITE_LOCALE'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Where an enquiry is announced (TASKS.md #66)
     |--------------------------------------------------------------------------
     |

@@ -49,6 +49,15 @@ return Application::configure(basePath: dirname(__DIR__))
         // writes wants the same locale the core pages get.
         $middleware->alias(['locale' => \App\Http\Middleware\SetLocale::class]);
 
+        // The panel's half of the same question (#96). Appended to the group
+        // rather than declared per route, because every error the panel shows
+        // comes from some endpoint here and one that answered in English
+        // would look like a fault rather than a missing translation. It runs
+        // for unauthenticated requests too, where it resolves to the
+        // installation's locale - which is what /admin was rendered in, so a
+        // refused password is refused in the language of the form.
+        $middleware->api(append: [\App\Http\Middleware\SetPanelLocale::class]);
+
         // Entry payloads carry rich-text documents. A mark splits a sentence
         // into several text nodes, and the spaces between words sit at the
         // edges of those nodes ("Κάτι ", "έντονο", " εδώ"). Trimming each

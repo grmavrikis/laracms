@@ -8,6 +8,7 @@ import { isGalleryField, emptyGallery, fromStored } from '../lib/gallery';
 import { validationErrors, errorSummary, messagesForField, messagesNotForFields, languagesWithErrors } from '../lib/apiErrors';
 import { getLangCode, defaultLanguage } from '../lib/languages';
 import { STATUS_DRAFT, STATUS_PUBLISHED, slugsToMap, entryPayload } from '../lib/entries';
+import { t } from '../lib/i18n';
 
 const coerce = (type, raw) => {
     if (type === 'integer') return raw === '' || raw === null ? null : Number(raw);
@@ -171,7 +172,7 @@ export default function EntryForm({ moduleSlug, schema, languages, onSaved, onCa
             setSummary(
                 Object.keys(errors).length > 0
                     ? messagesNotForFields(errors, schema.map((f) => f.name))
-                    : errorSummary(err, 'Failed to save the entry.')
+                    : errorSummary(err, t('Could not save the entry.'))
             );
         } finally {
             setSubmitting(false);
@@ -234,7 +235,7 @@ export default function EntryForm({ moduleSlug, schema, languages, onSaved, onCa
                         onChange={(e) => onChange(e.target.checked)}
                         className="h-5 w-5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-600 transition-all cursor-pointer"
                     />
-                    <span className="ml-3 text-sm text-gray-700 cursor-default">Enable this field</span>
+                    <span className="ml-3 text-sm text-gray-700 cursor-default">{t('Enable this field')}</span>
                 </div>
             );
         }
@@ -286,7 +287,7 @@ export default function EntryForm({ moduleSlug, schema, languages, onSaved, onCa
                     // The upload endpoint rejects by type and size, and those
                     // reasons are worth showing rather than replacing with
                     // "failed".
-                    setSummary(errorSummary(err, 'Failed to upload the image.'));
+                    setSummary(errorSummary(err, t('Could not upload the image.')));
                 }
             };
 
@@ -302,7 +303,7 @@ export default function EntryForm({ moduleSlug, schema, languages, onSaved, onCa
                         <div className="relative w-32 h-32 rounded-lg border border-gray-200 overflow-hidden bg-gray-50 flex items-center justify-center shadow-sm">
                             <img
                                 src={value}
-                                alt="Preview"
+                                alt={t('Preview')}
                                 className="object-cover w-full h-full"
                                 onError={(e) => { e.target.style.display = 'none'; }}
                             />
@@ -310,7 +311,7 @@ export default function EntryForm({ moduleSlug, schema, languages, onSaved, onCa
                                 type="button"
                                 onClick={() => onChange('')}
                                 className="absolute top-1 right-1 bg-red-600/80 hover:bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs transition-colors"
-                                title="Remove image"
+                                title={t('Remove image')}
                             >
                                 ✕
                             </button>
@@ -369,7 +370,7 @@ export default function EntryForm({ moduleSlug, schema, languages, onSaved, onCa
                                         key={l.id}
                                         type="button"
                                         onClick={() => setActiveLangId(l.id)}
-                                        title={failed ? 'This translation has errors' : undefined}
+                                        title={failed ? t('This translation has errors') : undefined}
                                         className={`flex items-center gap-1.5 px-5 py-1.5 text-sm font-medium rounded-md transition-all duration-200 ${activeLangId === l.id
                                             ? 'bg-white text-indigo-600 shadow-sm'
                                             : failed
@@ -413,16 +414,16 @@ export default function EntryForm({ moduleSlug, schema, languages, onSaved, onCa
 
                 <div className="mt-10 pt-8 border-t border-gray-100 space-y-6">
                     <div>
-                        <h3 className="text-sm font-semibold text-gray-900">Publication</h3>
+                        <h3 className="text-sm font-semibold text-gray-900">{t('Publication')}</h3>
                         <p className="text-sm text-gray-500">
-                            A draft is saved but never shown on the site.
+                            {t('A draft is saved but never shown on the site.')}
                         </p>
                     </div>
 
                     <div className="flex flex-wrap items-center gap-2">
                         {[
-                            { value: STATUS_DRAFT, label: 'Draft' },
-                            { value: STATUS_PUBLISHED, label: 'Published' },
+                            { value: STATUS_DRAFT, label: t('Draft') },
+                            { value: STATUS_PUBLISHED, label: t('Published') },
                         ].map((option) => (
                             <button
                                 key={option.value}
@@ -448,10 +449,9 @@ export default function EntryForm({ moduleSlug, schema, languages, onSaved, onCa
                     {languages.length > 0 && (
                         <div className="space-y-2">
                             <div>
-                                <h3 className="text-sm font-semibold text-gray-900">Address</h3>
+                                <h3 className="text-sm font-semibold text-gray-900">{t('Address')}</h3>
                                 <p className="text-sm text-gray-500">
-                                    The last part of the URL, per language. Leave a language empty and
-                                    it has no page in it.
+                                    {t('The last part of the URL, per language. Leave a language empty and it has no page in it.')}
                                 </p>
                             </div>
 
@@ -467,7 +467,7 @@ export default function EntryForm({ moduleSlug, schema, languages, onSaved, onCa
                                             type="text"
                                             value={slugs[code] ?? ''}
                                             onChange={(e) => setSlugs((prev) => ({ ...prev, [code]: e.target.value }))}
-                                            placeholder="thea-sti-thalassa"
+                                            placeholder={t('thea-sti-thalassa')}
                                             className={`${inputClasses} font-mono text-xs`}
                                         />
                                     </div>
@@ -486,7 +486,7 @@ export default function EntryForm({ moduleSlug, schema, languages, onSaved, onCa
                         disabled={submitting}
                         className="rounded-md px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200 transition-colors focus:outline-none focus:ring-2 focus:ring-gray-300 disabled:opacity-50"
                     >
-                        Cancel
+                        {t('Cancel')}
                     </button>
                 )}
                 <button
@@ -500,10 +500,10 @@ export default function EntryForm({ moduleSlug, schema, languages, onSaved, onCa
                                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                             </svg>
-                            Saving...
+                            {t('Saving…')}
                         </>
                     ) : (
-                        'Save Entry'
+                        t('Save entry')
                     )}
                 </button>
             </div>

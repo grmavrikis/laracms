@@ -1,3 +1,5 @@
+import { t } from './i18n';
+
 // Turning an axios rejection into something worth showing a person.
 //
 // Every failure used to collapse into one string ("Failed to save."), which
@@ -21,9 +23,9 @@ export const validationErrors = (err) =>
  * wrong. The sign-in form is the case that matters: a 401 there means the
  * credentials were wrong, not that a session expired.
  */
-export const errorSummary = (err, fallback = 'Something went wrong.', overrides = {}) => {
+export const errorSummary = (err, fallback = t('Something went wrong.'), overrides = {}) => {
     if (!err?.response) {
-        return ['Could not reach the server. Check your connection and try again.'];
+        return [t('Could not reach the server. Check your connection and try again.')];
     }
 
     const { status, data } = err.response;
@@ -42,11 +44,11 @@ export const errorSummary = (err, fallback = 'Something went wrong.', overrides 
         return [data?.message || fallback];
     }
 
-    if (status === 401) return ['Your session has ended. Please sign in again.'];
-    if (status === 419) return ['Your session has expired. Please reload the page and retry.'];
-    if (status === 403) return ['You do not have permission to do that.'];
-    if (status === 404) return ['That item no longer exists. It may have been deleted.'];
-    if (status >= 500) return ['The server could not complete the request. Please try again.'];
+    if (status === 401) return [t('Your session has ended. Please sign in again.')];
+    if (status === 419) return [t('Your session has expired. Please reload the page and retry.')];
+    if (status === 403) return [t('You do not have permission to do that.')];
+    if (status === 404) return [t('That item no longer exists. It may have been deleted.')];
+    if (status >= 500) return [t('The server could not complete the request. Please try again.')];
 
     return [fallback];
 };

@@ -117,7 +117,7 @@ class EntryController extends Controller
             if ($module->isSingleton() && $module->entries()->lockForUpdate()->exists())
             {
                 throw ValidationException::withMessages([
-                    'data' => "'{$module->name}' holds a single entry, which already exists. Edit that one instead.",
+                    'data' => __(":module holds a single entry, which already exists. Edit that one instead.", ['module' => $module->name]),
                 ]);
             }
 

@@ -21,6 +21,14 @@ Route::middleware('auth:sanctum')->group(function ()
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/user', [AuthController::class, 'user']);
 
+    /*
+     * The reader's own panel language (TASKS.md #96). A preference rather
+     * than a setting, so it is on the user and each colleague sets their own;
+     * the installation's default is `config('site.locale')`, and #67 moves
+     * that into the database.
+     */
+    Route::put('/user/locale', [AuthController::class, 'setLocale']);
+
     Route::get('/languages', [LanguageController::class, 'index']);
 
 

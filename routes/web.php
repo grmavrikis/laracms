@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Web\EnquiryController;
 use App\Http\Controllers\Web\PageController;
+use App\Http\Controllers\Web\PanelController;
 use App\Http\Controllers\Web\SitemapController;
 use Illuminate\Support\Facades\Route;
 
@@ -31,10 +32,9 @@ use Illuminate\Support\Facades\Route;
  */
 $protected = function ()
 {
-    Route::get('/admin/{any?}', function ()
-    {
-        return view('admin');
-    })->where('any', '.*');
+    Route::get('/admin/{any?}', [PanelController::class, 'show'])
+        ->where('any', '.*')
+        ->name('web.panel');
 
     Route::get('/sitemap.xml', [SitemapController::class, 'show'])->name('web.sitemap');
 };

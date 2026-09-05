@@ -264,8 +264,9 @@ class SchemaRuleBuilder
         }
 
         throw ValidationException::withMessages([
-            $attribute => 'Field name(s) used more than once: ' . implode(', ', $duplicates)
-                . '. A name is the key its value is stored under, so two fields cannot share one.',
+            $attribute => __('Field names used more than once: :names. A name is the key its value is stored under, so two fields cannot share one.', [
+                'names' => implode(', ', $duplicates),
+            ]),
         ]);
     }
 
@@ -344,9 +345,9 @@ class SchemaRuleBuilder
         $name = $field['name'] ?? '(unnamed)';
 
         return ValidationException::withMessages([
-            $attribute => "Field '{$name}' is a gallery and cannot be translatable: that would store a"
-                . ' different set of images for each language. The images are one set - it is their'
-                . ' alt text that is translated, and each image carries its own.',
+            $attribute => __("Field ':name' is a gallery and cannot be translatable: that would store a different set of images for each language. The images are one set - it is their alt text that is translated, and each image carries its own.", [
+                'name' => $name,
+            ]),
         ]);
     }
 
@@ -443,18 +444,20 @@ class SchemaRuleBuilder
             if (in_array($ruleName, self::TYPE_ASSERTING_RULES, true))
             {
                 throw ValidationException::withMessages([
-                    $attribute => "Field '{$name}' has validation rule '{$ruleName}', which asserts a data"
-                        . " type. The field's type already decides that - use validation for constraints"
-                        . ' such as max:60 instead.',
+                    $attribute => __("Field ':name' has validation rule ':rule', which asserts a data type. The field's type already decides that - use validation for constraints such as max:60 instead.", [
+                        'name' => $name,
+                        'rule' => $ruleName,
+                    ]),
                 ]);
             }
 
             if ($isDocument && in_array($ruleName, self::SIZE_RULES, true))
             {
                 throw ValidationException::withMessages([
-                    $attribute => "Field '{$name}' has validation rule '{$ruleName}', which would count"
-                        . ' the nodes of a rich-text document rather than its characters. Size rules do'
-                        . ' not apply to rich text.',
+                    $attribute => __("Field ':name' has validation rule ':rule', which would count the nodes of a rich-text document rather than its characters. Size rules do not apply to rich text.", [
+                        'name' => $name,
+                        'rule' => $ruleName,
+                    ]),
                 ]);
             }
         }
@@ -467,13 +470,17 @@ class SchemaRuleBuilder
         // A missing type and a misspelled one are different mistakes, and
         // "unsupported type 'null'" would describe the first one badly.
         $problem = $type === null
-            ? 'declares no type'
-            : "declares unsupported type '"
-                . (is_scalar($type) ? (string) $type : get_debug_type($type)) . "'";
+            ? __('declares no type')
+            : __("declares unsupported type ':type'", [
+                'type' => is_scalar($type) ? (string) $type : get_debug_type($type),
+            ]);
 
         return ValidationException::withMessages([
-            $attribute => "Module schema field '{$name}' {$problem}."
-                . ' Supported types: ' . implode(', ', self::SUPPORTED_TYPES) . '.',
+            $attribute => __("Module schema field ':name' :problem. Supported types: :types.", [
+                'name' => $name,
+                'problem' => $problem,
+                'types' => implode(', ', self::SUPPORTED_TYPES),
+            ]),
         ]);
     }
 

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import api from '../lib/api';
+import { t } from '../lib/i18n';
 
 export default function ModulesList({ onSelectModule, onCreateModule }) {
     const [modules, setModules] = useState([]);
@@ -13,7 +14,7 @@ export default function ModulesList({ onSelectModule, onCreateModule }) {
             const { data } = await api.get('/modules');
             setModules(Array.isArray(data) ? data : data?.data ?? []);
         } catch (err) {
-            setError('Failed to fetch modules.');
+            setError(t('Could not load the modules.'));
         } finally {
             setLoading(false);
         }
@@ -34,11 +35,11 @@ export default function ModulesList({ onSelectModule, onCreateModule }) {
                             </svg>
                         </div>
                         <div>
-                            <h2 className="text-xl font-bold tracking-tight text-gray-900">Modules</h2>
+                            <h2 className="text-xl font-bold tracking-tight text-gray-900">{t('Modules')}</h2>
                         </div>
                     </div>
                 </div>
-                <div className="py-12 text-center text-sm text-gray-500">Loading modules...</div>
+                <div className="py-12 text-center text-sm text-gray-500">{t('Loading modules…')}</div>
             </div>
         );
     }
@@ -54,7 +55,7 @@ export default function ModulesList({ onSelectModule, onCreateModule }) {
                             </svg>
                         </div>
                         <div>
-                            <h2 className="text-xl font-bold tracking-tight text-gray-900">Modules</h2>
+                            <h2 className="text-xl font-bold tracking-tight text-gray-900">{t('Modules')}</h2>
                         </div>
                     </div>
                 </div>
@@ -73,7 +74,7 @@ export default function ModulesList({ onSelectModule, onCreateModule }) {
                         </svg>
                     </div>
                     <div>
-                        <h2 className="text-xl font-bold tracking-tight text-gray-900">Modules</h2>
+                        <h2 className="text-xl font-bold tracking-tight text-gray-900">{t('Modules')}</h2>
                     </div>
                 </div>
                 <div className="flex items-center gap-3">
@@ -81,29 +82,29 @@ export default function ModulesList({ onSelectModule, onCreateModule }) {
                         onClick={onCreateModule}
                         className="inline-flex items-center justify-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 transition-all"
                     >
-                        + Add Module
+                        + {t('Add module')}
                     </button>
                     <button
                         onClick={fetchModules}
                         className="inline-flex items-center justify-center rounded-lg bg-white px-4 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 transition-all"
                     >
-                        ↻ Refresh
+                        ↻ {t('Refresh')}
                     </button>
                 </div>
             </div>
 
             {modules.length === 0 ? (
                 <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-12 text-center">
-                    <p className="text-sm text-gray-500">No modules available.</p>
+                    <p className="text-sm text-gray-500">{t('No modules yet.')}</p>
                 </div>
             ) : (
                 <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
                     <table className="min-w-full divide-y divide-gray-200 text-sm">
                         <thead className="bg-gray-50">
                             <tr>
-                                <th scope="col" className="py-3.5 pl-6 pr-3 text-left font-semibold text-gray-900">Module Name</th>
-                                <th scope="col" className="py-3.5 px-3 text-left font-semibold text-gray-900">Slug</th>
-                                <th scope="col" className="relative py-3.5 pl-3 pr-6 text-right font-semibold text-gray-900">Actions</th>
+                                <th scope="col" className="py-3.5 pl-6 pr-3 text-left font-semibold text-gray-900">{t('Module name')}</th>
+                                <th scope="col" className="py-3.5 px-3 text-left font-semibold text-gray-900">{t('Slug')}</th>
+                                <th scope="col" className="relative py-3.5 pl-3 pr-6 text-right font-semibold text-gray-900">{t('Actions')}</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-200 bg-white">
@@ -120,7 +121,7 @@ export default function ModulesList({ onSelectModule, onCreateModule }) {
                                             onClick={() => onSelectModule(mod)}
                                             className="inline-flex items-center gap-1.5 text-indigo-600 hover:text-indigo-900 font-semibold text-sm transition-colors"
                                         >
-                                            Entries
+                                            {t('Entries')}
                                             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                                             </svg>

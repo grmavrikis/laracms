@@ -590,7 +590,38 @@ Two consequences of that shape, both tested in `TranslationTest`:
 Laravel's own messages come from `lang/{locale}/*.php` (`lang:publish`), where
 a missing key falls back per-key to `APP_FALLBACK_LOCALE`. A partial Greek
 `validation.php` is therefore legitimate and does not need finishing to be
-correct.
+correct. **There is not one yet** — see TASKS.md #99.
+
+### The panel is the other axis
+
+`languages` rows are the languages the *content* is translated into. The
+language a person reads the *interface* in is a different question — a German
+owner may run a Greek and English site — so **content languages are rows and
+interface locales are files**. `InterfaceLocales` holds that rule and nothing
+else may blur it.
+
+| | Where | Set by |
+|---|---|---|
+| Which locales exist | `lang/*.json` on disk | dropping a file in |
+| A person's choice | `users.locale`, nullable | `PUT /api/user/locale` |
+| The installation's | `config('site.locale')` | `SITE_LOCALE`, then #67 |
+
+`PanelController` resolves the three in that order — each taken only if a file
+for it exists, because both the column and the config are editable outside the
+application — and writes the result plus **the whole catalogue for that
+locale** into `window.miniCms`. `resources/js/lib/i18n.js` reads it and exposes
+`t()`, which is `__()`'s rule in four lines: the key is the English text, and
+`:name` placeholders are replaced longest-first (or `:to` eats `:total`).
+
+**Injected rather than bundled, and that is the point.** Vite never sees these
+strings, so adding a language is a file the owner drops in — no migration and
+no `npm run build`. It is also why the picker reloads the page: a different
+language is a different document.
+
+`SetPanelLocale` does the same for the API, appended to the whole group rather
+than to the authenticated routes: with no user it resolves to the
+installation's locale, which is what the login screen was rendered in, so a
+refused password is refused in the language of the form.
 
 ## 5b. Enquiries — the one thing an anonymous visitor may write
 

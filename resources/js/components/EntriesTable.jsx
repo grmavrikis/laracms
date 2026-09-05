@@ -1,6 +1,7 @@
 import { isRichTextField, docToText } from '../lib/richText';
 import { isGalleryField, galleryPreview } from '../lib/gallery';
 import { getLangCode } from '../lib/languages';
+import { t } from '../lib/i18n';
 import { isPublished, reorderedIds, positionInOrder, sortByOrder, valueForLanguage } from '../lib/entries';
 
 export default function EntriesTable({
@@ -30,9 +31,9 @@ export default function EntriesTable({
             {/* Header section with title/actions and unified language switcher */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 gap-4">
                 <div className="flex items-center gap-2">
-                    <h3 className="text-base font-semibold leading-6 text-gray-900">Entries List</h3>
+                    <h3 className="text-base font-semibold leading-6 text-gray-900">{t('Entries')}</h3>
                     <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-800">
-                        {total} total
+                        {t(':total total', { total })}
                     </span>
                 </div>
 
@@ -64,8 +65,8 @@ export default function EntriesTable({
                     <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
                     </svg>
-                    <h3 className="mt-4 text-sm font-semibold text-gray-900">No entries yet</h3>
-                    <p className="mt-1 text-sm text-gray-500">There is no data available for this module.</p>
+                    <h3 className="mt-4 text-sm font-semibold text-gray-900">{t('No entries yet')}</h3>
+                    <p className="mt-1 text-sm text-gray-500">{t('Nothing has been written in this module.')}</p>
                 </div>
             ) : (
                 <div className="-mx-4 -my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
@@ -76,7 +77,7 @@ export default function EntriesTable({
                                     <tr>
                                         <th scope="col" className="px-6 py-4 font-semibold text-gray-900">ID</th>
                                         <th scope="col" className="px-4 py-4 font-semibold text-gray-900 uppercase tracking-wide text-xs">
-                                            Status
+                                            {t('Status')}
                                         </th>
                                         {schema.map(field => (
                                             <th key={field.name} scope="col" className="px-4 py-4 font-semibold text-gray-900 uppercase tracking-wide text-xs">
@@ -84,10 +85,10 @@ export default function EntriesTable({
                                             </th>
                                         ))}
                                         <th scope="col" className="px-4 py-4 font-semibold text-gray-900 uppercase tracking-wide text-xs">
-                                            Created At
+                                            {t('Created')}
                                         </th>
                                         <th scope="col" className="relative px-6 py-4">
-                                            <span className="sr-only">Actions</span>
+                                            <span className="sr-only">{t('Actions')}</span>
                                         </th>
                                     </tr>
                                 </thead>
@@ -102,7 +103,7 @@ export default function EntriesTable({
                                                     ? 'bg-green-100 text-green-800'
                                                     : 'bg-amber-100 text-amber-800'
                                                     }`}>
-                                                    {isPublished(entry) ? 'Published' : 'Draft'}
+                                                    {isPublished(entry) ? t('Published') : t('Draft')}
                                                 </span>
                                             </td>
                                             {schema.map(field => {
@@ -197,7 +198,7 @@ export default function EntriesTable({
                                                                 type="button"
                                                                 onClick={() => onReorder(reorderedIds(orderIds, entry.id, -1))}
                                                                 disabled={at <= 0}
-                                                                title="Move up"
+                                                                title={t('Move up')}
                                                                 className="inline-flex items-center rounded-md px-2 py-1.5 text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                                                             >
                                                                 ↑
@@ -206,7 +207,7 @@ export default function EntriesTable({
                                                                 type="button"
                                                                 onClick={() => onReorder(reorderedIds(orderIds, entry.id, 1))}
                                                                 disabled={at < 0 || at === orderIds.length - 1}
-                                                                title="Move down"
+                                                                title={t('Move down')}
                                                                 className="inline-flex items-center rounded-md px-2 py-1.5 text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                                                             >
                                                                 ↓
@@ -218,7 +219,7 @@ export default function EntriesTable({
                                                     onClick={() => onEdit(entry)}
                                                     className="inline-flex items-center gap-1 rounded-md px-3 py-1.5 text-indigo-600 hover:bg-indigo-50 hover:text-indigo-900 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 opacity-0 group-hover:opacity-100 focus:opacity-100"
                                                 >
-                                                    Edit
+                                                    {t('Edit')}
                                                 </button>
                                             </td>
                                         </tr>
@@ -233,9 +234,11 @@ export default function EntriesTable({
             {hasPages && (
                 <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                     <p className="text-sm text-gray-500">
-                        Showing <span className="font-medium text-gray-900">{pagination.from}</span>
-                        {' '}to <span className="font-medium text-gray-900">{pagination.to}</span>
-                        {' '}of <span className="font-medium text-gray-900">{pagination.total}</span>
+                        {t('Showing :from–:to of :total', {
+                            from: pagination.from,
+                            to: pagination.to,
+                            total: pagination.total,
+                        })}
                     </p>
 
                     <div className="flex items-center gap-2">
@@ -245,11 +248,14 @@ export default function EntriesTable({
                             disabled={pagination.currentPage <= 1}
                             className="inline-flex items-center rounded-lg bg-white px-3 py-1.5 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
                         >
-                            &larr; Previous
+                            &larr; {t('Previous')}
                         </button>
 
                         <span className="text-sm text-gray-600 px-1">
-                            Page {pagination.currentPage} of {pagination.lastPage}
+                            {t('Page :page of :pages', {
+                                page: pagination.currentPage,
+                                pages: pagination.lastPage,
+                            })}
                         </span>
 
                         <button
@@ -258,7 +264,7 @@ export default function EntriesTable({
                             disabled={pagination.currentPage >= pagination.lastPage}
                             className="inline-flex items-center rounded-lg bg-white px-3 py-1.5 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
                         >
-                            Next &rarr;
+                            {t('Next')} &rarr;
                         </button>
                     </div>
                 </div>

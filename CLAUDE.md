@@ -165,8 +165,8 @@ JS tests sit **beside** their source as `resources/js/lib/*.test.js`.
 ## Commands
 
 ```bash
-php artisan test                    # 342 tests
-npm test                            # 155 tests
+php artisan test                    # 353 tests
+npm test                            # 163 tests
 npm run build
 php artisan schema:sync-field-types # after changing field type constants
 ```
@@ -233,7 +233,7 @@ Started from a repo that would not boot (eight files of merge conflicts).
 Worked through a prioritised list; every item is either done or recorded in
 `CHANGELOG.md` with its reasoning.
 
-- **342 PHP tests, 155 JS tests**, all passing. Build clean.
+- **353 PHP tests, 163 JS tests**, all passing. Build clean.
 - **The project has a commercial goal as of 2026-08-30**, and it now decides
   what gets worked on. A multilingual CMS that feeds client sites, owned
   outright, for a one-person web agency: **one installation per client site**,
@@ -274,17 +274,18 @@ Worked through a prioritised list; every item is either done or recorded in
   called, and recorded in `TASKS.md` → Amendments and → Decisions taken
   (2026-09-05, third). Read those before starting any of them; each rests on a
   decision that is not obvious from the code.
-  - **#96 translated interfaces — the public half is built but not finished**
-    (ARCHITECTURE §5a): `SetLocale` from the address, JSON translations keyed
-    by their English text, `lang/` for core and `site/lang/` for the theme.
-    Content languages are **rows**; interface locales are **files** —
-    different axes, and they must not share the `languages` table.
-    **Two things are left**: the panel (~13 sentences in `app/`, ~39 in the
-    React components, `users.locale`), and **#99–#110**, twelve review
-    findings against the half already written. Read that section before
-    touching translations: a Greek visitor is refused half in English right
-    now (#99), and three of the tests that look like they hold this mechanism
-    do not (#101, #102, #103).
+  - **#96 translated interfaces — both halves are built; the review is not
+    done** (ARCHITECTURE §5a). Public: `SetLocale` from the address, `lang/`
+    for core and `site/lang/` for the theme. Panel: `InterfaceLocales`,
+    `users.locale`, a picker, and the catalogue **injected into the page** so
+    a new locale needs no `npm run build`. Content languages are **rows**;
+    interface locales are **files** — different axes, and they must not share
+    the `languages` table.
+    **What is left is #99–#110**, twelve review findings against the public
+    half. Read that section before touching translations: a Greek visitor is
+    still refused half in English (#99, no `lang/el/validation.php`), and
+    three of the tests that look like they hold this mechanism do not (#101,
+    #102, #103).
   - **#97 static HTML pages.** A cache hit was measured at **four queries**,
     not none: the test that says none runs on `array` stores that exist only in
     `phpunit.xml`. Pages become files the web server serves before PHP boots,

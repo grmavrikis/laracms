@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import '../css/app.css';
 import api from './lib/api';
+import { t, locale, locales } from './lib/i18n';
 import Login from './components/Login';
 import ModulesList from './components/ModulesList';
 import EntriesManager from './components/EntriesManager';
@@ -26,14 +27,39 @@ export default function App() {
         setView({ type: 'list', data: null });
     };
 
-    if (loading) return <div className="p-10 text-center">Loading...</div>;
+    if (loading) return <div className="p-10 text-center">{t('Loading…')}</div>;
     if (!user) return <Login onLogin={(userData) => setUser(userData)} />;
 
     return (
         <div>
             <header className="bg-gray-800 text-white p-4 flex justify-between items-center">
-                <h1 className="font-bold">Admin Panel</h1>
+                <h1 className="font-bold">{t('Admin Panel')}</h1>
                 <div className="flex items-center gap-3">
+                    {/* The panel's own language, which is **not** the content
+                        languages (TASKS.md #96): the list is the files in
+                        `lang/`, and a person's choice is theirs rather than
+                        the site's.
+
+                        Reloading is the point rather than a shortcut. The
+                        catalogue is injected into the document by the server,
+                        so a different language is a different document - and
+                        that is what keeps a new locale from needing a
+                        rebuild. */}
+                    {locales.length > 1 && (
+                        <select
+                            value={locale}
+                            aria-label={t('Panel language')}
+                            onChange={async (event) => {
+                                await api.put('/user/locale', { locale: event.target.value });
+                                window.location.reload();
+                            }}
+                            className="bg-gray-700 text-white text-sm rounded px-2 py-1 border border-gray-600"
+                        >
+                            {locales.map((code) => (
+                                <option key={code} value={code}>{code.toUpperCase()}</option>
+                            ))}
+                        </select>
+                    )}
                     {/* Enquiries are a domain module: written once in core and
                         reached from the chrome rather than through the module
                         list, which holds content types (TASKS.md #66). */}
@@ -43,9 +69,9 @@ export default function App() {
                             ? 'bg-white text-gray-900'
                             : 'bg-gray-700 hover:bg-gray-600'}`}
                     >
-                        Enquiries
+                        {t('Enquiries')}
                     </button>
-                    <button onClick={handleLogout} className="text-sm bg-red-600 px-3 py-1 rounded">Logout</button>
+                    <button onClick={handleLogout} className="text-sm bg-red-600 px-3 py-1 rounded">{t('Logout')}</button>
                 </div>
             </header>
 

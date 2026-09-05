@@ -3,6 +3,7 @@ import api from '../lib/api';
 import EntryForm from './EntryForm';
 import EntriesTable from './EntriesTable';
 import { paginationFrom, rowsFrom, isPastLastPage } from '../lib/pagination';
+import { t } from '../lib/i18n';
 import { defaultLangCode } from '../lib/languages';
 import { createLatestWriteQueue } from '../lib/latestWriteQueue';
 
@@ -65,12 +66,12 @@ export default function EntriesManager({ module, onBack }) {
                     // the endpoint happened to return.
                     setViewLangCode(defaultLangCode(list));
                 } else {
-                    setLanguagesError('No active languages found in the database. Please add a language.');
+                    setLanguagesError(t('No active languages. Add one before writing content.'));
                 }
             })
             .catch((err) => {
                 console.error(err);
-                setLanguagesError('Failed to fetch /api/languages.');
+                setLanguagesError(t('Could not load the languages.'));
             });
     }, []);
 
@@ -96,7 +97,7 @@ export default function EntriesManager({ module, onBack }) {
             })
             .catch((err) => {
                 console.error(err);
-                setError('Failed to load entries.');
+                setError(t('Could not load the entries.'));
             })
             .finally(() => setLoading(false));
     }, [module.slug, refreshKey, view, page]);
@@ -160,7 +161,7 @@ export default function EntriesManager({ module, onBack }) {
             setView('edit');
         } catch (err) {
             console.error(err);
-            setError('Failed to load entry for editing.');
+            setError(t('Could not open that entry.'));
         } finally {
             setLoading(false);
         }
@@ -205,7 +206,7 @@ export default function EntriesManager({ module, onBack }) {
             // module.
             setOrderIds(savedOrder.current);
             setRefreshKey((n) => n + 1);
-            setOrderError('Failed to save the new order. The list has been reloaded.');
+            setOrderError(t('Could not save the new order. The list has been reloaded.'));
         }
     };
 
@@ -264,7 +265,7 @@ export default function EntriesManager({ module, onBack }) {
                         </div>
                         <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
                             <h2 className="text-xl font-bold tracking-tight text-gray-900">
-                                {view === 'edit' ? 'Edit Entry' : 'New Entry'}
+                                {view === 'edit' ? t('Edit entry') : t('New entry')}
                             </h2>
                             <span className="text-gray-300 font-light">/</span>
                             <span className="text-lg font-medium text-gray-600">
@@ -317,7 +318,7 @@ export default function EntriesManager({ module, onBack }) {
                             }}
                             className="inline-flex items-center justify-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 transition-all"
                         >
-                            + Add Entry
+                            + {t('Add entry')}
                         </button>
                     )}
                     {onBack && (
@@ -325,7 +326,7 @@ export default function EntriesManager({ module, onBack }) {
                             onClick={onBack}
                             className="inline-flex items-center justify-center rounded-lg bg-white px-4 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 transition-all"
                         >
-                            &larr; Back to Modules
+                            &larr; {t('Back to modules')}
                         </button>
                     )}
                 </div>
@@ -336,14 +337,12 @@ export default function EntriesManager({ module, onBack }) {
             {orderError && <p className="text-sm text-red-600">{orderError}</p>}
             {!reorderable && (
                 <p className="text-sm text-gray-500">
-                    This module has too many entries to be ordered by hand, so the
-                    arrows are off. Ordering is for short lists — a menu, a set of
-                    rooms, the slides on a home page.
+                    {t('This module has too many entries to be ordered by hand, so the arrows are off. Ordering is for short lists — a menu, a set of rooms, the slides on a home page.')}
                 </p>
             )}
 
             {loading ? (
-                <div className="py-12 text-center text-sm text-gray-500">Loading entries...</div>
+                <div className="py-12 text-center text-sm text-gray-500">{t('Loading entries…')}</div>
             ) : (
                 <EntriesTable
                     schema={module.schema ?? []}

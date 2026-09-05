@@ -72,7 +72,7 @@ class ModuleController extends Controller
             'schema.*.options' => 'nullable|array',
             'schema.*.options.*' => 'string'
         ], [
-            'slug.regex' => 'The slug may only contain lowercase letters, numbers and single hyphens.',
+            'slug.regex' => __('The slug may only contain lowercase letters, numbers and single hyphens.'),
         ]);
 
         // Build the entry rules now and throw them away: a schema that cannot
@@ -104,7 +104,7 @@ class ModuleController extends Controller
         ]);
 
         return response()->json([
-            'message' => 'Module created successfully.',
+            'message' => __('Module created.'),
             'data' => $module
         ], 201);
     }

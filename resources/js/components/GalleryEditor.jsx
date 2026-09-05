@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { uploadImage } from '../lib/api';
 import { errorSummary } from '../lib/apiErrors';
 import { getLangCode } from '../lib/languages';
+import { t } from '../lib/i18n';
 import {
     toGallery,
     galleryItem,
@@ -66,7 +67,10 @@ export default function GalleryEditor({ value, onChange, languages = [], onError
             // worth showing rather than replacing with "failed".
             onError?.(errorSummary(
                 failed[0].reason,
-                `${failed.length} of ${files.length} images could not be uploaded.`
+                t(':failed of :total images could not be uploaded.', {
+                    failed: failed.length,
+                    total: files.length,
+                })
             ));
         }
 
@@ -90,11 +94,11 @@ export default function GalleryEditor({ value, onChange, languages = [], onError
             />
 
             {uploading && (
-                <p className="text-xs text-gray-500">Uploading…</p>
+                <p className="text-xs text-gray-500">{t('Uploading…')}</p>
             )}
 
             {items.length === 0 ? (
-                <p className="text-sm text-gray-400">No images yet.</p>
+                <p className="text-sm text-gray-400">{t('No images yet.')}</p>
             ) : (
                 <ul className="space-y-3">
                     {items.map((item, index) => (
@@ -131,7 +135,7 @@ export default function GalleryEditor({ value, onChange, languages = [], onError
                                                 type="text"
                                                 value={altFor(item, code)}
                                                 onChange={(e) => onChange(withAlt(items, index, code, e.target.value))}
-                                                placeholder="Alt text — what the photo shows"
+                                                placeholder={t('Alt text — what the photo shows')}
                                                 className="block w-full rounded-md border-0 py-1.5 px-3 text-sm text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 outline-none bg-white"
                                             />
                                         </div>
@@ -145,7 +149,7 @@ export default function GalleryEditor({ value, onChange, languages = [], onError
                                     onClick={() => onChange(moveItem(items, index, index - 1))}
                                     disabled={index === 0}
                                     className={buttonClass}
-                                    title="Move up"
+                                    title={t('Move up')}
                                 >
                                     ↑
                                 </button>
@@ -154,7 +158,7 @@ export default function GalleryEditor({ value, onChange, languages = [], onError
                                     onClick={() => onChange(moveItem(items, index, index + 1))}
                                     disabled={index === items.length - 1}
                                     className={buttonClass}
-                                    title="Move down"
+                                    title={t('Move down')}
                                 >
                                     ↓
                                 </button>
@@ -162,7 +166,7 @@ export default function GalleryEditor({ value, onChange, languages = [], onError
                                     type="button"
                                     onClick={() => onChange(withoutItem(items, index))}
                                     className={`${buttonClass} hover:text-red-600 hover:ring-red-300`}
-                                    title="Remove"
+                                    title={t('Remove')}
                                 >
                                     ✕
                                 </button>

@@ -3,8 +3,10 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Services\InterfaceLocales;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rule;
 
 class AuthController extends Controller
 {
@@ -39,7 +41,7 @@ class AuthController extends Controller
             return response()->json(['user' => Auth::user()]);
         }
 
-        return response()->json(['message' => 'Invalid credentials'], 401);
+        return response()->json(['message' => __('Invalid credentials.')], 401);
     }
 
     public function logout(Request $request)
@@ -48,11 +50,29 @@ class AuthController extends Controller
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
-        return response()->json(['message' => 'Logged out']);
+        return response()->json(['message' => __('Logged out.')]);
     }
 
     public function user(Request $request)
     {
         return response()->json($request->user());
+    }
+
+    /**
+     * The reader picks the language they read the panel in (TASKS.md #96).
+     *
+     * Validated against the files on disk rather than a list in code, so the
+     * rule and the picker cannot disagree: whatever `lang/` holds is what may
+     * be chosen. Null is allowed and means "follow the installation".
+     */
+    public function setLocale(Request $request, InterfaceLocales $locales)
+    {
+        $validated = $request->validate([
+            'locale' => ['nullable', 'string', Rule::in($locales->available())],
+        ]);
+
+        $request->user()->update(['locale' => $validated['locale'] ?? null]);
+
+        return response()->json(['locale' => $request->user()->locale]);
     }
 }

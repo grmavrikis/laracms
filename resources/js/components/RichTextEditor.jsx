@@ -4,6 +4,7 @@ import StarterKit from '@tiptap/starter-kit';
 import Highlight from '@tiptap/extension-highlight';
 import TextAlign from '@tiptap/extension-text-align';
 import { emptyDoc } from '../lib/richText';
+import { t } from '../lib/i18n';
 
 const MenuBar = ({ editor }) => {
     const editorState = useEditorState({
@@ -45,14 +46,14 @@ const MenuBar = ({ editor }) => {
             <button type="button" onClick={() => editor.chain().focus().toggleBold().run()} className={btnClass(editorState.isBold)}>B</button>
             <button type="button" onClick={() => editor.chain().focus().toggleItalic().run()} className={btnClass(editorState.isItalic)}>I</button>
             <button type="button" onClick={() => editor.chain().focus().toggleStrike().run()} className={btnClass(editorState.isStrike)}>S</button>
-            <button type="button" onClick={() => editor.chain().focus().toggleHighlight().run()} className={btnClass(editorState.isHighlight)}>Highlight</button>
+            <button type="button" onClick={() => editor.chain().focus().toggleHighlight().run()} className={btnClass(editorState.isHighlight)}>{t('Highlight')}</button>
 
             <div className="w-px bg-gray-300 mx-1"></div>
 
-            <button type="button" onClick={() => editor.chain().focus().setTextAlign('left').run()} className={btnClass(editorState.isAlignLeft)}>Left</button>
-            <button type="button" onClick={() => editor.chain().focus().setTextAlign('center').run()} className={btnClass(editorState.isAlignCenter)}>Center</button>
-            <button type="button" onClick={() => editor.chain().focus().setTextAlign('right').run()} className={btnClass(editorState.isAlignRight)}>Right</button>
-            <button type="button" onClick={() => editor.chain().focus().setTextAlign('justify').run()} className={btnClass(editorState.isAlignJustify)}>Justify</button>
+            <button type="button" onClick={() => editor.chain().focus().setTextAlign('left').run()} className={btnClass(editorState.isAlignLeft)}>{t('Left')}</button>
+            <button type="button" onClick={() => editor.chain().focus().setTextAlign('center').run()} className={btnClass(editorState.isAlignCenter)}>{t('Center')}</button>
+            <button type="button" onClick={() => editor.chain().focus().setTextAlign('right').run()} className={btnClass(editorState.isAlignRight)}>{t('Right')}</button>
+            <button type="button" onClick={() => editor.chain().focus().setTextAlign('justify').run()} className={btnClass(editorState.isAlignJustify)}>{t('Justify')}</button>
         </div>
     );
 };

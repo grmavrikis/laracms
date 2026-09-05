@@ -826,7 +826,7 @@ change their own phone number without calling you.** That contradicts the one
 promise the product makes, and it is the kind of call that arrives on a Sunday.
 Half a day, and it removes a category of support permanently.
 
-### 96. Translated interfaces, panel and public — *public side done*
+### 96. Translated interfaces, panel and public — *built, review open*
 
 Every user-facing string in the application is hardcoded English and
 `App::setLocale()` is called nowhere. Three audiences, and they are not the
@@ -857,10 +857,15 @@ mount point in `config/site.php`, `lang/` and `site/lang/`, the theme's labels
 and the enquiry form's refusals. Verified live in `el`, `en` and an untranslated
 `fr`, which correctly falls back to English. ARCHITECTURE §5a describes it.
 
-**Left: the panel.** The PHP messages, the React strings, `users.locale`, and
-the per-request injection that keeps a new locale from needing a rebuild.
+**The panel is done too** (ARCHITECTURE §5a → *The panel is the other axis*).
+`InterfaceLocales`, `users.locale`, `PUT /api/user/locale`, a picker in the
+header, `SetPanelLocale` on the API group, and 131 strings — every message in
+`app/` and every literal in the nine components — in `lang/en.json` and
+`lang/el.json`. Verified live with a real session: `/admin` served
+`<html lang="el">` with the Greek catalogue inline, and `POST /api/modules`
+was refused in Greek for a Greek reader and in English for an English one.
 
-**And the review of the public half: #99–#110.** Ten of those twelve are
+**What is left is the review: #99–#110.** Ten of those twelve are
 defects in what has just been built rather than debt beside it — a visitor
 refused half in English (#99), a mount test that passes without the mount
 (#101), a parity test that skips the locales a client adds (#102), and a

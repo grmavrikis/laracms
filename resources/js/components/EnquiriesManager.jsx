@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import api from '../lib/api';
 import { errorSummary } from '../lib/apiErrors';
 import { paginationFrom, rowsFrom, isPastLastPage } from '../lib/pagination';
+import { t } from '../lib/i18n';
 
 /**
  * The owner's enquiry inbox (TASKS.md #66).
@@ -42,7 +43,7 @@ export default function EnquiriesManager({ onBack }) {
             })
             .catch((err) => {
                 console.error(err);
-                setErrors(errorSummary(err, 'Could not load the enquiries.'));
+                setErrors(errorSummary(err, t('Could not load the enquiries.')));
             })
             .finally(() => setLoading(false));
     }, [page, refreshKey]);
@@ -57,7 +58,7 @@ export default function EnquiriesManager({ onBack }) {
             setRefreshKey((n) => n + 1);
         } catch (err) {
             console.error(err);
-            setErrors(errorSummary(err, 'Could not delete that enquiry.'));
+            setErrors(errorSummary(err, t('Could not delete that enquiry.')));
         } finally {
             setDeleting(false);
         }
@@ -70,9 +71,12 @@ export default function EnquiriesManager({ onBack }) {
         <div>
             <div className="flex items-center justify-between mb-6">
                 <div>
-                    <h2 className="text-xl font-bold tracking-tight text-gray-900">Enquiries</h2>
+                    <h2 className="text-xl font-bold tracking-tight text-gray-900">{t('Enquiries')}</h2>
                     <p className="text-sm text-gray-500">
-                        {pagination?.total ?? enquiries.length} received. Kept for 24 months, then deleted.
+                        {t(':total received. Kept for :months months, then deleted.', {
+                            total: pagination?.total ?? enquiries.length,
+                            months: 24,
+                        })}
                     </p>
                 </div>
                 {onBack && (
@@ -80,7 +84,7 @@ export default function EnquiriesManager({ onBack }) {
                         onClick={onBack}
                         className="inline-flex items-center rounded-lg bg-white px-4 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 transition-all"
                     >
-                        &larr; Back to Modules
+                        &larr; {t('Back to modules')}
                     </button>
                 )}
             </div>
@@ -92,12 +96,12 @@ export default function EnquiriesManager({ onBack }) {
             )}
 
             {loading ? (
-                <div className="py-12 text-center text-sm text-gray-500">Loading enquiries...</div>
+                <div className="py-12 text-center text-sm text-gray-500">{t('Loading enquiries…')}</div>
             ) : enquiries.length === 0 ? (
                 <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 py-16 text-center">
-                    <h3 className="text-sm font-semibold text-gray-900">No enquiries yet</h3>
+                    <h3 className="text-sm font-semibold text-gray-900">{t('No enquiries yet')}</h3>
                     <p className="mt-1 text-sm text-gray-500">
-                        They arrive here the moment somebody sends the form on the site.
+                        {t('They arrive here the moment somebody sends the form on the site.')}
                     </p>
                 </div>
             ) : (
@@ -125,7 +129,7 @@ export default function EnquiriesManager({ onBack }) {
                                     {day(enquiry.arrives_on) && (
                                         <>{day(enquiry.arrives_on)} → {day(enquiry.departs_on) ?? '—'}</>
                                     )}
-                                    {enquiry.guests ? ` · ${enquiry.guests} guests` : ''}
+                                    {enquiry.guests ? ` · ${t(':count guests', { count: enquiry.guests })}` : ''}
                                 </p>
                             )}
 
@@ -136,19 +140,19 @@ export default function EnquiriesManager({ onBack }) {
 
                                 {confirming === enquiry.id ? (
                                     <span className="flex shrink-0 items-center gap-2 text-sm">
-                                        <span className="text-gray-700">Delete permanently?</span>
+                                        <span className="text-gray-700">{t('Delete permanently?')}</span>
                                         <button
                                             onClick={() => handleDelete(enquiry)}
                                             disabled={deleting}
                                             className="rounded-md bg-red-600 px-3 py-1 font-semibold text-white hover:bg-red-500 disabled:opacity-50"
                                         >
-                                            Delete
+                                            {t('Delete')}
                                         </button>
                                         <button
                                             onClick={() => setConfirming(null)}
                                             className="rounded-md px-2 py-1 text-gray-600 hover:bg-gray-100"
                                         >
-                                            Cancel
+                                            {t('Cancel')}
                                         </button>
                                     </span>
                                 ) : (
@@ -156,7 +160,7 @@ export default function EnquiriesManager({ onBack }) {
                                         onClick={() => setConfirming(enquiry.id)}
                                         className="shrink-0 rounded-md px-3 py-1 text-sm text-gray-500 hover:bg-red-50 hover:text-red-700"
                                     >
-                                        Delete
+                                        {t('Delete')}
                                     </button>
                                 )}
                             </div>
@@ -168,7 +172,11 @@ export default function EnquiriesManager({ onBack }) {
             {(pagination?.lastPage ?? 1) > 1 && (
                 <div className="mt-4 flex items-center justify-between">
                     <p className="text-sm text-gray-500">
-                        Showing {pagination.from}–{pagination.to} of {pagination.total}
+                        {t('Showing :from–:to of :total', {
+                            from: pagination.from,
+                            to: pagination.to,
+                            total: pagination.total,
+                        })}
                     </p>
                     <div className="flex items-center gap-2">
                         <button
@@ -176,17 +184,20 @@ export default function EnquiriesManager({ onBack }) {
                             disabled={pagination.currentPage <= 1}
                             className="rounded-lg bg-white px-3 py-1.5 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 disabled:opacity-40"
                         >
-                            &larr; Previous
+                            &larr; {t('Previous')}
                         </button>
                         <span className="text-sm text-gray-600">
-                            Page {pagination.currentPage} of {pagination.lastPage}
+                            {t('Page :page of :pages', {
+                                page: pagination.currentPage,
+                                pages: pagination.lastPage,
+                            })}
                         </span>
                         <button
                             onClick={() => setPage(pagination.currentPage + 1)}
                             disabled={pagination.currentPage >= pagination.lastPage}
                             className="rounded-lg bg-white px-3 py-1.5 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 disabled:opacity-40"
                         >
-                            Next &rarr;
+                            {t('Next')} &rarr;
                         </button>
                     </div>
                 </div>
