@@ -48,11 +48,19 @@ class PageCache
     /**
      * Serve `$path` from cache, or build it.
      *
-     * A `null` from `$render` means "no such page". It is deliberately **not**
-     * cached: an unknown URL must not be able to fill the cache, or a crawler
-     * walking made-up addresses would.
+     * `$render` answers with what the page *is*, not only its HTML: a
+     * singleton's entry address is a permanent redirect rather than a
+     * document (TASKS.md #60), and caching the decision keeps that path free
+     * of queries too. The shapes are `['html' => string]` and
+     * `['redirect' => string]`.
+     *
+     * A `null` means "no such page". It is deliberately **not** cached: an
+     * unknown URL must not be able to fill the cache, or a crawler walking
+     * made-up addresses would.
+     *
+     * @return array{html?: string, redirect?: string}|null
      */
-    public function remember(string $path, Closure $render): ?string
+    public function remember(string $path, Closure $render): ?array
     {
         $key = self::PREFIX . ':' . $this->version() . ':' . $path;
         $cached = Cache::get($key);
@@ -62,14 +70,14 @@ class PageCache
             return $cached;
         }
 
-        $html = $render();
+        $page = $render();
 
-        if ($html !== null)
+        if ($page !== null)
         {
-            Cache::put($key, $html, self::TTL);
+            Cache::put($key, $page, self::TTL);
         }
 
-        return $html;
+        return $page;
     }
 
     public function invalidate(): void

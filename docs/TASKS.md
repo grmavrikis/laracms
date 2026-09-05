@@ -63,7 +63,7 @@ profitability.
 - [x] #58 per-language entry slugs *(done — CHANGELOG §16)*
 - [x] **#75–#88 the review of #56/#57/#58** *(done — CHANGELOG §17 and §19)*
 - [x] #59 public Blade routes, page cache cleared on publish, sitemap + hreflang *(done — CHANGELOG §21)*
-- [ ] #60 `singleton` modules
+- [x] #60 `singleton` modules *(done — CHANGELOG §23)*
 - [ ] #61 core/site boundary drawn
 - [x] #68 gallery field — several images on one entry *(done — CHANGELOG §14)*
 - [ ] #66 enquiries
@@ -116,8 +116,8 @@ behind would have shipped the change half-done.
 
 ### Phase 1 — content reaches the public (6–8 days)
 
-**Done: #68, #55, #56, #57, #58, the #75–#88 review of them, and #59.**
-Remaining: **#60, #61, #66, #67.**
+**Done: #68, #55, #56, #57, #58, the #75–#88 review of them, #59 and #60.**
+Remaining: **#61, #66, #67.**
 
 **#75–#88 came before #59 and there was no judgement call in it.** #59 is the
 public read path, and it is built on exactly the four things the review found
@@ -524,7 +524,7 @@ knowing before touching it:
 
 `welcome.blade.php` and the stock `ExampleTest` went with it.
 
-### 60. `singleton` modules
+### 60. `singleton` modules — DONE
 
 "About" is one entry; "Blog" is many. Today both are collections, so a client
 opening About finds a list and a "new entry" button that must never be pressed.
@@ -532,6 +532,21 @@ opening About finds a list and a "new entry" button that must never be pressed.
 A `singleton` flag on the module: the admin opens straight into the single
 entry, with no list and no create button. Small, and much cheaper before five
 sites exist than after.
+
+**Done, 2026-09-05** (CHANGELOG §23). `modules.is_singleton`, enforced in three
+places rather than one:
+
+- `StoreEntryRequest` refuses a second entry — hiding the button would have
+  been the whole feature, and would have held until somebody used the API.
+  #75's lesson applied before it was paid for a second time;
+- the panel opens straight into the one entry, or a blank form for the first;
+- publicly, `/{lang}/{module}` **is** the page and `/{lang}/{module}/{slug}`
+  301s to it. A 404 would break every link that exists the moment a Module is
+  made a singleton after the fact — which is exactly when the flag gets
+  flipped. The sitemap lists the Module's address and not the entry's.
+
+`PageCache` now stores what a page *is* rather than only its markup, so the
+redirect costs no queries on a hit.
 
 ### 61. Draw the core/site boundary
 

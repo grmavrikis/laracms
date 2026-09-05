@@ -37,6 +37,7 @@ const emptyField = () => ({ name: '', type: 'string', translatable: false, requi
 export default function ModuleBuilder({ onCreated, onCancel }) {
     const [name, setName] = useState('');
     const [slug, setSlug] = useState('');
+    const [isSingleton, setIsSingleton] = useState(false);
     const [fields, setFields] = useState([{ _id: 0, ...emptyField() }]);
     const [submitting, setSubmitting] = useState(false);
     const [errors, setErrors] = useState([]);
@@ -73,6 +74,7 @@ export default function ModuleBuilder({ onCreated, onCancel }) {
 
         const payload = {
             name,
+            is_singleton: isSingleton,
             // Omitted when blank, so the backend derives it. Sending one means
             // "I want exactly this", and a duplicate is then a 422 rather than
             // being silently renamed.
@@ -91,6 +93,7 @@ export default function ModuleBuilder({ onCreated, onCancel }) {
             onCreated?.(body.data);
             setName('');
             setSlug('');
+            setIsSingleton(false);
             setFields([{ _id: nextId.current++, ...emptyField() }]);
         } catch (err) {
             console.error(err);
@@ -149,6 +152,29 @@ export default function ModuleBuilder({ onCreated, onCancel }) {
                         Leave blank to let the server build it from the name.
                     </p>
                 </div>
+            </div>
+
+            {/* "About" is one entry; "Blog" is many (TASKS.md #60). Worded as
+                what the client will see rather than as a flag, because that is
+                the decision being made. */}
+            <div className="pt-4 border-t border-gray-200">
+                <label className="flex items-start gap-3 cursor-pointer select-none">
+                    <input
+                        type="checkbox"
+                        checked={isSingleton}
+                        onChange={(e) => setIsSingleton(e.target.checked)}
+                        className="mt-0.5 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                    />
+                    <span>
+                        <span className="block text-sm font-semibold text-gray-900">
+                            This module is a single page
+                        </span>
+                        <span className="block text-xs text-gray-500">
+                            One entry rather than a list of them &mdash; About, Contact.
+                            Opens straight into its content, with no list to manage.
+                        </span>
+                    </span>
+                </label>
             </div>
 
             <div className="space-y-4 pt-4 border-t border-gray-200">

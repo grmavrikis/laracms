@@ -2110,3 +2110,82 @@ same events.
 The root is now kept on the element and re-rendered. Four lines, and it makes
 the browser checks this project keeps relying on actually usable.
 
+---
+
+## 23. A Module can be a page rather than a list
+
+#60. "About" is one entry; "Blog" is many. Until now both were collections, so
+a client opening About met a table with a single row and an **"add entry"
+button that must never be pressed** — and if they pressed it, the site had two
+About pages and no way to say which one was the About page.
+
+`modules.is_singleton`, defaulting to false so nothing that already exists is
+reinterpreted. A column rather than a key inside `schema`, for the same reason
+`status` is one: it means the same thing for every Module and it is asked about
+on the read path, while `schema` describes an Entry's *fields* rather than the
+Module's own shape.
+
+### Enforced on the server, not only in the panel
+
+`StoreEntryRequest` refuses a second entry with a 422 that names the module and
+says what to do instead. Hiding the button would have been the whole feature —
+and it would have held only until somebody used the API.
+
+That is **#75's lesson applied before it was paid for**: an endpoint that
+accepts whatever it is sent because the client promises not to send anything
+else. The rule now lives where the write happens.
+
+Updating the one entry still works, and deleting it makes room for another —
+neither is a rule anybody asked for, but a singleton that could be written once
+and never corrected would be worse than no singleton at all.
+
+### One page, one address
+
+`/{lang}/{module}` serves the entry itself, and `/{lang}/{module}/{slug}`
+answers **301** to it. A 404 would be simpler; it would also break every link
+that exists the moment a Module is made a singleton after the fact, which is
+exactly when this flag will be flipped.
+
+The alternates are the Module's URLs in each language rather than the entry's,
+so the canonical the page advertises is the address it is actually served at —
+they are read out of the same array, so they cannot disagree.
+
+**The sitemap lists the Module's address and not the entry's.** Advertising a
+URL that redirects wastes the crawl on a hop and claims two pages where the
+site has one. Found by looking at the live sitemap after the redirect worked —
+it listed the old address four times.
+
+`PageCache::remember` now stores what the page *is* rather than only its
+markup: `['html' => …]` or `['redirect' => …]`. That keeps the redirect free of
+queries on a cache hit, which was the point of §21's ordering and would have
+been quietly given up by resolving the module first.
+
+An empty singleton, or one holding only a draft, is a 404. There is no page
+until there is something published to put on it.
+
+### The panel
+
+A checkbox in the module builder, worded as the decision rather than the flag —
+*"This module is a single page"* — and the panel then opens straight into the
+one entry, or into a blank form for the first one. There is no list and no add
+button, and leaving the form leaves the module, because there is nothing to go
+back to.
+
+### Checked
+
+Failing tests first: seventeen, of which eight failed before the feature
+existed. Two of the others passed **for the wrong reason** — a one-item list
+happens to contain the entry's title — so the page test was tightened to
+require an `<article>` and the *absence* of a link to a second address.
+
+Verified live against MySQL over real HTTP with a Σχετικά singleton in three
+languages: `/el/sxetika`, `/en/sxetika` and `/fr/sxetika` serve the article,
+the entry address 301s to the Module's, a second entry answers 422, and the
+sitemap carries the Module's URL once and the entry's not at all — while the
+Δωμάτια collection still lists entry by entry.
+
+290 PHP tests, 155 JS tests, build clean.
+
+**The panel needs a human.** It has no component harness (#94), so the
+open-straight-into-the-entry behaviour is verified by reading.
+

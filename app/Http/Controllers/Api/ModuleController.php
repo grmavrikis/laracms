@@ -44,6 +44,10 @@ class ModuleController extends Controller
                 'regex:/^[a-z0-9]+(?:-[a-z0-9]+)*$/',
                 'unique:modules,slug',
             ],
+            // A Module holding one Entry rather than a collection of them
+            // (TASKS.md #60). Absent means a collection, so nothing that
+            // already exists is reinterpreted.
+            'is_singleton' => 'sometimes|boolean',
             'schema' => 'required|array',
             // Reported against the field itself, so the message points at
             // schema.1 rather than at a key that does not exist.
@@ -94,6 +98,9 @@ class ModuleController extends Controller
             'name' => $validated['name'],
             'slug' => $slug,
             'schema' => $validated['schema'],
+            // Absent means a collection, which is what every Module that
+            // existed before the flag is.
+            'is_singleton' => $validated['is_singleton'] ?? false,
         ]);
 
         return response()->json([

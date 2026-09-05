@@ -55,11 +55,11 @@ class PageController extends Controller
                 return null;
             }
 
-            return view('site.home', [
+            return ['html' => view('site.home', [
                 ...$this->chrome($current, $this->alternatesForHome()),
                 'title' => config('app.name'),
                 'modules' => Module::query()->orderBy('name')->get(),
-            ])->render();
+            ])->render()];
         });
     }
 
@@ -75,6 +75,14 @@ class PageController extends Controller
                 return null;
             }
 
+            // A singleton is not a list of one. Its content is served here,
+            // at the Module's own address, and that address is the only one it
+            // has (TASKS.md #60).
+            if ($found->isSingleton())
+            {
+                return $this->singletonPage($current, $found);
+            }
+
             // Only entries with a slug in this language: one nobody has
             // translated here has no address, so a listing cannot link to it.
             $entries = $found->entries()
@@ -84,7 +92,7 @@ class PageController extends Controller
                 ->get()
                 ->filter(fn(Entry $entry) => $entry->slugFor($current->code) !== null);
 
-            return view('site.module', [
+            return ['html' => view('site.module', [
                 ...$this->chrome($current, $this->alternatesForModule($found)),
                 'title' => $found->name,
                 'module' => $found,
@@ -92,7 +100,7 @@ class PageController extends Controller
                     'title' => $this->presenter->title($found, $entry, $current->code),
                     'url' => url("/{$current->code}/{$found->slug}/" . $entry->slugFor($current->code)),
                 ])->values(),
-            ])->render();
+            ])->render()];
         });
     }
 
@@ -108,6 +116,15 @@ class PageController extends Controller
                 return null;
             }
 
+            // The entry's own address would be a second URL for content that
+            // already has one, so it redirects rather than serving it. A 404
+            // would be simpler and would break every link that exists if a
+            // Module is made a singleton after the fact.
+            if ($found->isSingleton())
+            {
+                return ['redirect' => url("/{$current->code}/{$found->slug}")];
+            }
+
             $entry = Entry::forSlug($found, $current->code, $slug)
                 ->published()
                 ->with('slugs')
@@ -118,39 +135,76 @@ class PageController extends Controller
                 return null;
             }
 
-            $fields = $this->presenter->fields($found, $entry, $current->code);
-
-            // The field standing in for a title becomes the heading, so the
-            // body must not repeat it.
-            $heading = collect($fields)->first(
-                fn(array $field) => $field['kind'] === 'text' && ($field['text'] ?? '') !== ''
-            );
-
-            return view('site.entry', [
-                ...$this->chrome($current, $this->alternatesForEntry($found, $entry)),
-                'title' => $heading['text'] ?? '#' . $entry->id,
-                'module' => $found,
-                'entry' => $entry,
-                'fields' => $fields,
-                'titleField' => $heading['name'] ?? null,
-            ])->render();
+            return ['html' => $this->entryHtml($current, $found, $entry, $this->alternatesForEntry($found, $entry))];
         });
+    }
+
+    /**
+     * A singleton's page: its one published entry, at the Module's address.
+     *
+     * The alternates are the Module's own URLs rather than the entry's, since
+     * that is where the content lives in each language - and the canonical
+     * follows from them, so the page cannot advertise an address that
+     * redirects away.
+     *
+     * @return array{html: string}|null
+     */
+    private function singletonPage(Language $current, Module $module): ?array
+    {
+        $entry = $module->entries()->published()->inListOrder()->first();
+
+        if ($entry === null)
+        {
+            return null;
+        }
+
+        return ['html' => $this->entryHtml($current, $module, $entry, $this->alternatesForModule($module))];
+    }
+
+    /** @param array<string, string> $alternates */
+    private function entryHtml(Language $current, Module $module, Entry $entry, array $alternates): string
+    {
+        $fields = $this->presenter->fields($module, $entry, $current->code);
+
+        // The field standing in for a title becomes the heading, so the body
+        // must not repeat it.
+        $heading = collect($fields)->first(
+            fn(array $field) => $field['kind'] === 'text' && ($field['text'] ?? '') !== ''
+        );
+
+        return view('site.entry', [
+            ...$this->chrome($current, $alternates),
+            'title' => $heading['text'] ?? '#' . $entry->id,
+            'module' => $module,
+            'entry' => $entry,
+            'fields' => $fields,
+            'titleField' => $heading['name'] ?? null,
+        ])->render();
     }
 
     /**
      * Cache first, database second. A closure returning null means there is no
      * such page, which becomes a 404 and is not cached.
+     *
+     * The closure answers with what the page *is* - HTML, or a permanent
+     * redirect for a singleton's entry address - so that decision is cached
+     * alongside the document rather than costing a query on every hit.
      */
     private function serve(string $path, Closure $render)
     {
-        $html = $this->cache->remember($path, $render);
+        $page = $this->cache->remember($path, $render);
 
-        if ($html === null)
+        if ($page === null)
         {
             throw new NotFoundHttpException();
         }
 
-        return response($html);
+        if (isset($page['redirect']))
+        {
+            return redirect($page['redirect'], 301);
+        }
+
+        return response($page['html']);
     }
 
     /**

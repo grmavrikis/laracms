@@ -44,6 +44,11 @@ export default function EntriesManager({ module, onBack }) {
     const [reorderable, setReorderable] = useState(true);
     const [refreshKey, setRefreshKey] = useState(0);
 
+    // "About" is one entry, not a list of one (TASKS.md #60). The panel opens
+    // straight into it, so the client never meets a table with a single row
+    // and an "add" button that must not be pressed.
+    const singleton = module.is_singleton === true;
+
     const [view, setView] = useState('list');
     const [editingEntry, setEditingEntry] = useState(null);
 
@@ -132,6 +137,21 @@ export default function EntriesManager({ module, onBack }) {
         return () => { current = false; };
     }, [module.slug, refreshKey, view]);
 
+    // A singleton has nothing to list, so as soon as the listing tells us
+    // whether its entry exists we go to that entry - or to a blank form for
+    // the first one. Driven off the listing rather than a request of its own,
+    // which is why it waits for `loading` to finish.
+    useEffect(() => {
+        if (!singleton || view !== 'list' || loading || error) return;
+
+        if (entries.length > 0) {
+            handleEdit(entries[0]);
+        } else if (languages.length > 0) {
+            setEditingEntry(null);
+            setView('create');
+        }
+    }, [singleton, view, loading, error, entries, languages.length]);
+
     const handleEdit = async (entry) => {
         setLoading(true);
         try {
@@ -191,6 +211,13 @@ export default function EntriesManager({ module, onBack }) {
 
     const handleFormClose = (saved = false) => {
         const wasCreating = view === 'create';
+
+        // A singleton has no list to go back to: leaving the form means
+        // leaving the module.
+        if (singleton && onBack) {
+            onBack();
+            return;
+        }
 
         setView('list');
         setEditingEntry(null);
@@ -263,7 +290,7 @@ export default function EntriesManager({ module, onBack }) {
                     </div>
                 </div>
                 <div className="flex items-center gap-3">
-                    {languages.length > 0 && (
+                    {languages.length > 0 && !singleton && (
                         <button
                             onClick={() => {
                                 setEditingEntry(null);

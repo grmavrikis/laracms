@@ -39,7 +39,25 @@ class StoreEntryRequest extends FormRequest
         // `required` on a translatable field means the default language.
         // See SchemaRuleBuilder for why, and Language::default() for what
         // happens when no row carries the flag.
-        return SchemaRuleBuilder::build($module->schema, 'data', Language::default()?->code)
+        $rules = SchemaRuleBuilder::build($module->schema, 'data', Language::default()?->code)
             + $this->structuralRules($module);
+
+        // A singleton holds one Entry, and the rule is enforced here rather
+        // than only in the panel: a limit the client honours and the API does
+        // not check is a limit that holds until somebody uses the API
+        // (TASKS.md #60, and #75's lesson).
+        //
+        // Reported against `data`, because that is the field this request
+        // actually carries - the complaint is about the entry being created,
+        // not about a key it does not have.
+        if ($module->isSingleton() && $module->entries()->exists())
+        {
+            $rules['data'][] = function (string $attribute, mixed $value, callable $fail) use ($module): void
+            {
+                $fail("'{$module->name}' holds a single entry, which already exists. Edit that one instead.");
+            };
+        }
+
+        return $rules;
     }
 }

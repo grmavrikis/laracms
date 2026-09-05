@@ -11,11 +11,26 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 #[ObservedBy(PageCacheObserver::class)]
 class Module extends Model
 {
-    protected $fillable = ['user_id', 'name', 'slug', 'schema'];
+    protected $fillable = ['user_id', 'name', 'slug', 'schema', 'is_singleton'];
 
     protected $casts = [
         'schema' => 'array',
+        'is_singleton' => 'boolean',
     ];
+
+    /**
+     * A Module holding exactly one Entry - "About", "Contact" - rather than a
+     * collection of them (TASKS.md #60).
+     *
+     * The panel opens straight into that entry, the public side serves it at
+     * the Module's own address, and `StoreEntryRequest` refuses a second one.
+     * All three matter: a flag only the panel honours is a rule that holds
+     * until somebody uses the API.
+     */
+    public function isSingleton(): bool
+    {
+        return (bool) $this->is_singleton;
+    }
 
     public function getRouteKeyName(): string
     {

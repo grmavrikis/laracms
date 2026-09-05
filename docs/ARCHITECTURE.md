@@ -73,6 +73,17 @@ User (1:N) Module (1:N) Entry
   (`Ψυχαγωγία` → `psychagogia` vs `psikhaghoghia`, and `Café Münchén` →
   `caf-m-nch-n`). Since the frontend sent its value, the wrong one was the
   one stored. The form now leaves the slug blank unless the user types one.
+  **`is_singleton` says whether the Module is a page or a list.** "About" is
+  one entry; "Blog" is many. A column rather than a key inside `schema`, for
+  the same reason `status` is one: it means the same thing for every Module and
+  it is asked about on the read path, while `schema` describes an Entry's
+  *fields* rather than the Module's own shape. It defaults to false, so nothing
+  that already exists is reinterpreted.
+
+  The flag is enforced in three places, and all three matter: `StoreEntryRequest`
+  refuses a second entry, the panel opens straight into the one that exists, and
+  the public side serves it at the Module's own address.
+
 - **Entry** — `id, module_id, data(json), status, published_at, sort_order`.
   Belongs to one Module. Has no `user_id` of its own — ownership is derived
   indirectly through `Entry → Module → User`.
@@ -362,6 +373,17 @@ return them differently between requests, so a paginated list can repeat
 or skip rows. On the client, `lib/pagination.js` reduces the paginator
 envelope and `EntriesTable` renders the controls; a page past the end
 falls back to the last page.
+
+**A singleton is not a list of one.** `/{lang}/{module}` serves its published
+entry directly, and `/{lang}/{module}/{slug}` answers **301** to that address —
+a 404 would be simpler and would break every link that exists if a Module is
+made a singleton after the fact. The sitemap lists the Module's address and not
+the entry's, so it never advertises a redirect. An empty singleton, or one
+holding only a draft, is a 404.
+
+The redirect is decided inside the cached closure rather than before it, so
+that path costs no queries either: `PageCache::remember` stores what the page
+*is* — `['html' => …]` or `['redirect' => …]` — not only its markup.
 
 **Reordering is one request for the module's whole order**, and the endpoint
 enforces that:

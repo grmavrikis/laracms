@@ -49,6 +49,15 @@ class SitemapController extends Controller
                     ];
                 }
 
+                // A singleton's content lives at the Module's address, which
+                // is already listed above, and its entry address redirects
+                // there. Listing it would advertise a hop and claim two pages
+                // where the site has one (TASKS.md #60).
+                if ($module->isSingleton())
+                {
+                    continue;
+                }
+
                 $entries = $module->entries()->published()->withSlugs()->inListOrder()->get();
 
                 foreach ($entries as $entry)
@@ -65,10 +74,10 @@ class SitemapController extends Controller
                 }
             }
 
-            return view('site.sitemap', ['urls' => $urls])->render();
+            return ['html' => view('site.sitemap', ['urls' => $urls])->render()];
         });
 
-        return response($xml)->header('Content-Type', 'application/xml');
+        return response($xml['html'])->header('Content-Type', 'application/xml');
     }
 
     /** @return array<string, string> */
