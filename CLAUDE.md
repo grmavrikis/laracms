@@ -42,15 +42,21 @@ theme lives in `site/theme` and is reached as `theme::layout`, `theme::entry`
 and so on; `site/routes.php` holds anything that one site alone needs. Client
 #2 is a copy of that directory against the same core — see `site/README.md`.
 
-Core may name the *location* of the site side at exactly two mount points, and
-nowhere else: `AppServiceProvider` registers the view namespace and
-`routes/web.php` loads the routes file. `tests/Feature/CoreSiteBoundaryTest.php`
+Core may name the *location* of the site side at exactly three mount points,
+and nowhere else: `config/site.php` holds the two paths, `AppServiceProvider`
+registers the view namespace from one and `routes/web.php` loads the other.
+They are config values rather than literals so a test can point them
+elsewhere without rewriting the repository's own files. `tests/Feature/CoreSiteBoundaryTest.php`
 fails if anything else in `app/`, `routes/`, `bootstrap/`, `config/` or
 `database/` names it, checks that the theme provides every `theme::` template
 core renders, and checks that both mounts actually work.
 
 `site/routes.php` loads **before** the core pages so a client route can take
-one over; the admin panel is declared ahead of it and cannot be. Core route
+one over. The panel and `sitemap.xml` are the exceptions, and they are
+declared on **both** sides of it: Laravel's dispatch picks the first matching
+route, but its lookup map is keyed by URI, so a later identical path replaces
+an earlier one. One position defends against one of those; both defend against
+both. Core route
 names are `web.*` — `site.` belongs to the client. **`sitemap.xml` is core**,
 not theme: its shape is a protocol, not a design.
 
@@ -158,8 +164,8 @@ JS tests sit **beside** their source as `resources/js/lib/*.test.js`.
 ## Commands
 
 ```bash
-php artisan test                    # 210 tests
-npm test                            # 120 tests
+php artisan test                    # 305 tests
+npm test                            # 155 tests
 npm run build
 php artisan schema:sync-field-types # after changing field type constants
 ```
@@ -226,7 +232,7 @@ Started from a repo that would not boot (eight files of merge conflicts).
 Worked through a prioritised list; every item is either done or recorded in
 `CHANGELOG.md` with its reasoning.
 
-- **210 PHP tests, 120 JS tests**, all passing. Build clean.
+- **305 PHP tests, 155 JS tests**, all passing. Build clean.
 - **The project has a commercial goal as of 2026-08-30**, and it now decides
   what gets worked on. A multilingual CMS that feeds client sites, owned
   outright, for a one-person web agency: **one installation per client site**,
@@ -252,21 +258,25 @@ Worked through a prioritised list; every item is either done or recorded in
   dropped as the authorization axis — plus a login defect the tests turned up,
   where a correct password answered 500 from any non-stateful origin while a
   wrong one answered 401.
-- **Phase 1 is half done.** #68 (CHANGELOG §14), #55 (§15) and #56/#57/#58
-  (§16) have landed: a gallery field, a Tiptap-to-HTML renderer, and the three
-  structural columns plus their admin UI. What is left of the phase is #59,
-  #60, #61, #66, #67.
-- **Next is not #59. It is `TASKS.md` → `## P0` (#75–#88)** — fourteen findings
-  from a review of #56/#57/#58 on the day it landed, 2026-09-02. **Three are
-  wrong in the browser now**: reordering on page 2 renumbers those rows over
-  page 1 (#75); a `slugs` key longer than five characters answers **500** on
-  MySQL (#76); and a failed slug write **destroys the entry's existing public
-  URLs**, because `syncSlugs` deletes before it inserts with no transaction
-  (#77). #59 is built on exactly those mechanisms, so it goes second.
-- **#36 is no longer next**, and neither is most of #36–#53. They are recorded,
-  real, and deliberately not being worked on. Grinding through them before the
-  MVP ships is the most plausible way to spend three months and reach no client.
-  **`## P0` is the one exception** and outranks even the MVP list.
+- **Phase 1 is nearly done, and only #66 and #67 are left.** Landed: #68
+  (CHANGELOG §14), #55 (§15), #56/#57/#58 (§16), the whole of `## P0` (§17 and
+  §19), #59 (§21), #60 (§23) and #61 (§24) — a gallery field, a Tiptap-to-HTML
+  renderer, the three structural columns and their admin UI, the fourteen
+  review findings against them, the public Blade site with its cache and
+  sitemap, singleton modules, and the core/site line.
+- **`## P0` is closed.** It was fourteen findings against #56/#57/#58 and it
+  outranked the MVP list until it was done; the three that were wrong in the
+  browser (#75 reordering across pages, #76 a long `slugs` key answering 500 on
+  MySQL, #77 a failed slug write destroying an entry's URLs) are fixed and
+  verified live. Do not go looking for them.
+- **Next is #66 (enquiries), then #67 (site settings).** #66 is the larger and
+  the more interesting: it is the **first inbound path from an anonymous
+  visitor** anywhere in the application, so it is worth designing once rather
+  than adding in a hurry for a client.
+- **#36 is not next**, and neither is most of #36–#53, #78–#88's successors
+  (#89–#95) included. They are recorded, real, and deliberately not being
+  worked on. Grinding through them before the MVP ships is the most plausible
+  way to spend three months and reach no client.
 
 ### What #56/#57/#58 actually built — read this before touching an Entry
 
@@ -294,13 +304,25 @@ Four mechanisms, and each has a reason a fresh session will otherwise undo:
   scoped binding cannot reach them, so that endpoint is the one place the
   Module is checked by hand.
 
-### Not verified by a human yet
+### What a human has and has not checked
 
-The API and models were verified end-to-end against the real MySQL database
-(probe scripts, since deleted). **Nobody has clicked through the admin panel**
-— the Publish buttons, the per-language slug inputs and the ↑/↓ controls have
-never been exercised in a browser, because doing so needs a password typed into
-a form. Ask the user to try them, or expect surprises there first.
+**The panel has been clicked through**, as of 2026-09-05: the ↑/↓ controls
+across a page boundary, the disabled states at either end, a text-only save
+leaving a published entry published, and the create response carrying every
+column. Two defects came out of that session which no test had caught — a
+listing that showed the default language's text for an untranslated field, and
+a `required` rule that demanded every active language (CHANGELOG §22).
+
+**What still needs a person** is anything in a component rather than in a pure
+helper. `TASKS.md` #94 records why: six defects in a row have been in the
+wiring of `EntriesManager`, `EntryForm` and `EntriesTable` while the helpers
+underneath them were well covered, and one was an assignment to a `const` that
+the build and 155 passing tests both walked past. There is no component-test
+harness. Ask the user to click, or expect surprises there first.
+
+The public site was verified live over real HTTP against MySQL — routes,
+hreflang, the draft that must not appear, and the cache surviving a row
+rewritten behind the model's back.
 
 **Decisions you must not re-open or contradict** (all in `TASKS.md` →
 Decisions, with reasoning): Blade rather than React for public pages; single

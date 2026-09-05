@@ -2382,3 +2382,76 @@ recorded here instead.
 303 PHP tests, 155 JS tests, build clean. Every public route and the admin
 still answer live after the sitemap moved back to core.
 
+### Nine more, and one of them taught me how Laravel loses a route
+
+The review of the previous fix found nine. Two were the same irony: the commit
+that drew the line then crossed it.
+
+**The boundary test rewrote a tracked file to run.** To prove `routes/web.php`
+really loads the client's routes, it overwrote `site/routes.php` with probe
+routes and restored them in a `finally` — which does not run on a fatal error
+or an interrupted process. A cancelled test run left the repository dirty
+**and the application serving `/zz-boundary-probe` and `/el/zz-probe-module`**,
+the second shaped like a real page.
+
+The right depth was the mount, not the test. `config/site.php` now holds the
+two paths core knows — the theme directory and the routes file — so a test can
+point them at a temporary file and nothing under version control is written.
+That makes it a third mount point, which the boundary test allows by name.
+
+**And a client could take over `/sitemap.xml`.** The same commit moved the
+sitemap template out of the theme because "its shape is a protocol rather than
+a design", then loaded the client's routes ahead of the sitemap's own
+declaration. The guarantee was handed back with the other hand.
+
+### What the test taught me
+
+Fixing that revealed something I had asserted without checking. The comment
+said declaration order was "the whole of the enforcement". It is not:
+
+- **dispatch order** decides between *overlapping* patterns — the first route
+  whose pattern matches wins, so a client's `/{page}` would answer `/admin`
+  unless the panel is declared first;
+- **the lookup map** decides between *identical* URIs — `RouteCollection`
+  stores routes as `[method][uri] => route`, so a later route with the same
+  path **replaces** the earlier one, and declaring the panel first does nothing
+  against a client writing the same string.
+
+Each position defends against one. The protected routes are therefore declared
+on **both** sides of the client's file, from one closure so the repetition
+reads as deliberate. The test that found it asserts both: a client declaring
+`/admin/{any?}` and `/sitemap.xml` verbatim gets neither.
+
+That is #75's shape again — a rule believed to hold because of an arrangement
+nobody had tested.
+
+### The rest
+
+- **Site routes were loaded before the `Route::pattern` calls**, and Laravel
+  merges global patterns into a route *as it is created*
+  (`Router::addWhereClausesToRoute`). A client's `/{language}/epikoinonia`
+  would have matched `/anything-at-all/epikoinonia`. The patterns moved above
+  the load.
+- **The `site.` prefix check asked the router**, which holds the client's
+  routes too — so a client naming a route `site.contact`, exactly what the
+  prefix was reserved for, would have failed a core test. It reads core's own
+  files now.
+- **Nothing pinned that the panel survives a client route.** It does now, in
+  the same test as the sitemap.
+- `site/README.md` claimed the contract test derives `layout`; it derives
+  `home`, `module` and `entry`, and `layout` is covered by the namespace test
+  because the templates extend it themselves rather than core naming it.
+- Directory walks are memoised — three tests were re-reading five trees each —
+  and `relative()` uses `Str::after`.
+
+**`CLAUDE.md`'s "Where we are" was four commits stale**, which matters more
+than any of the above: it is the file that loads into every fresh session, and
+it said three defects were "wrong in the browser now" that had been fixed and
+verified live days earlier, that `## P0` was next when it is closed, and that
+nobody had clicked the panel when a human had run every check. Rewritten, along
+with the test counts and the "not verified by a human" section, which now
+records what a person *has* checked and points at #94 for what still needs one.
+
+305 PHP tests, 155 JS tests, build clean. Every public route and the admin
+answer live.
+

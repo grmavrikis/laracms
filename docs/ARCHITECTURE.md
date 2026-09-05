@@ -457,9 +457,18 @@ the theme only through `theme::`, which is a **contract**: every theme provides
 
 `site/routes.php` is loaded **before** the core pages, so a client route takes
 precedence — `/{language}/{module}` would otherwise claim `/el/epikoinonia`
-before a hand-written page saw it. The admin panel is declared ahead of both
-and cannot be taken over. Core route names are `web.*`, leaving `site.` to the
-client.
+before a hand-written page saw it — and after the `Route::pattern` calls, so a
+client's `{language}` carries the same constraint core's does.
+
+**Two addresses cannot be taken over: the panel and `/sitemap.xml`.** They are
+declared on *both* sides of the client's file, because Laravel loses a route in
+two different ways: dispatch picks the first matching pattern, while the route
+collection is keyed by URI so a later identical path replaces an earlier one.
+One position defends against one of those.
+
+Core route names are `web.*`, leaving `site.` to the client — and the boundary
+test checks that by reading core's files rather than the router, which holds
+the client's routes too.
 
 **`sitemap.xml` is core**, not theme: its structure is fixed by sitemaps.org
 rather than by design, and a theme that mangled it would break indexing with

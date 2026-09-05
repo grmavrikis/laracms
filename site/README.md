@@ -16,10 +16,12 @@ inside here — a test enforces it: `tests/Feature/CoreSiteBoundaryTest.php`.
 
 ### The templates core expects
 
-Core renders these by name, so a theme has to provide all of them. The test
-reads the list out of core's own render calls, so it cannot drift:
+Core renders `home`, `module` and `entry` by name, and the contract test reads
+that list out of core's own render calls so it cannot drift.
 
-`layout`, `home`, `module`, `entry`.
+`layout` is not in that list because core never names it — the three templates
+above extend it themselves. It is covered separately, by the test that asserts
+the `theme::` namespace resolves at all. A theme needs all four.
 
 Anything else a theme wants is its own business — a partial, an extra page
 rendered from `routes.php`, whatever the design needs.
@@ -28,7 +30,14 @@ rendered from `routes.php`, whatever the design needs.
 
 `routes.php` is loaded **before** the core pages, so a route here wins. That is
 what makes a hand-written contact page possible where the generic entry page is
-not enough. The admin panel is declared ahead of it and cannot be taken over.
+not enough. Routes declared here get the same `{language}`, `{module}` and
+`{slug}` patterns core's do.
+
+**Two addresses cannot be taken over**: the admin panel, and `/sitemap.xml`.
+Both are declared on either side of this file, because Laravel loses a route in
+two different ways — the first matching pattern wins at dispatch, and a later
+identical URI replaces an earlier one in the lookup map. Declaring them twice
+covers both.
 
 `route:cache` freezes the file — run `route:clear` after editing it on a cached
 deployment.

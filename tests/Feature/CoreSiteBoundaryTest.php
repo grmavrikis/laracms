@@ -2,8 +2,10 @@
 
 namespace Tests\Feature;
 
+use App\Http\Controllers\Web\SitemapController;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 /**
@@ -46,23 +48,63 @@ class CoreSiteBoundaryTest extends TestCase
      * name the *location* and neither names anything inside it.
      */
     private const MOUNTS = [
+        'config/site.php',
         'app/Providers/AppServiceProvider.php',
         'routes/web.php',
     ];
 
+    /** Directory walks are shared: three tests scan the same five trees. */
+    private static array $files = [];
+
     /** @return array<int, string> */
     private function phpFilesIn(string $directory): array
     {
-        return collect(File::allFiles(base_path($directory)))
+        return self::$files[$directory] ??= collect(File::allFiles(base_path($directory)))
             ->filter(fn($file) => $file->getExtension() === 'php')
             ->map(fn($file) => $file->getPathname())
             ->values()
             ->all();
     }
 
+    /** Repo-relative, with forward slashes, so MOUNTS compares the same everywhere. */
     private function relative(string $path): string
     {
-        return str_replace('\\', '/', str_replace(base_path() . DIRECTORY_SEPARATOR, '', $path));
+        return str_replace('\\', '/', Str::after($path, base_path() . DIRECTORY_SEPARATOR));
+    }
+
+    /**
+     * Run the application with a client's routes file of our own.
+     *
+     * Nothing under version control is written. The earlier version of this
+     * overwrote the repository's own `site/routes.php` and restored it in a
+     * `finally` - which does not run on a fatal error or an interrupted
+     * process, so a cancelled test run left the app serving probe routes.
+     * `config/site.php` reads the path from the environment for exactly this.
+     */
+    private function withSiteRoutes(string $php, callable $assertions): void
+    {
+        $temp = tempnam(sys_get_temp_dir(), 'zz-site-routes-') . '.php';
+        file_put_contents($temp, $php);
+
+        putenv('SITE_ROUTES=' . $temp);
+        $_ENV['SITE_ROUTES'] = $temp;
+        $_SERVER['SITE_ROUTES'] = $temp;
+
+        try
+        {
+            $this->refreshApplication();
+
+            $assertions();
+        }
+        finally
+        {
+            putenv('SITE_ROUTES');
+            unset($_ENV['SITE_ROUTES'], $_SERVER['SITE_ROUTES']);
+
+            @unlink($temp);
+
+            $this->refreshApplication();
+        }
     }
 
     // ---------------------------------------------------------- the shape
@@ -101,41 +143,92 @@ class CoreSiteBoundaryTest extends TestCase
 
     /**
      * The other half of the mount, which nothing checked: `routes/web.php`
-     * requires the site's routes, and deleting that line would leave every
-     * test green while a client's routes silently stopped existing.
+     * loads the site's routes, and deleting that line would leave every test
+     * green while a client's routes silently stopped existing.
      *
-     * Proved by giving the file a route and rebuilding the application, which
-     * is the only way to exercise a file read at boot.
+     * Proved by loading a file of our own and asking for what it declares -
+     * the only way to exercise a read that happens at boot.
      */
     public function test_the_sites_routes_are_loaded_and_take_precedence(): void
     {
-        $path = base_path(self::SITE . '/routes.php');
-        $original = file_get_contents($path);
+        $this->withSiteRoutes(<<<'PHP'
+            <?php
 
-        try
+            use Illuminate\Support\Facades\Route;
+
+            Route::get('/zz-boundary-probe', fn() => 'mounted');
+
+            // Shaped like a core page, to prove a site route can take one over
+            // rather than being shadowed by it.
+            Route::get('/el/zz-probe-module', fn() => 'overridden');
+            PHP, function ()
         {
-            file_put_contents($path, <<<'PHP'
-                <?php
-
-                use Illuminate\Support\Facades\Route;
-
-                Route::get('/zz-boundary-probe', fn() => 'mounted');
-
-                // Deliberately shaped like a core page, to prove a site route
-                // can take one over rather than being shadowed by it.
-                Route::get('/el/zz-probe-module', fn() => 'overridden');
-                PHP);
-
-            $this->refreshApplication();
-
             $this->get('/zz-boundary-probe')->assertOk()->assertSee('mounted');
             $this->get('/el/zz-probe-module')->assertOk()->assertSee('overridden');
-        }
-        finally
+        });
+    }
+
+    /**
+     * Precedence has exactly two exceptions, and they are the ones a client
+     * must not be able to break: the panel, because a site that locks its
+     * owner out is a support call with no way back, and `sitemap.xml`, whose
+     * shape is a protocol rather than a design.
+     *
+     * Both are declared above the site's routes, and that ordering is the
+     * whole of the enforcement - so it is asserted rather than trusted.
+     */
+    public function test_a_site_route_cannot_take_over_the_panel_or_the_sitemap(): void
+    {
+        $this->withSiteRoutes(<<<'PHP'
+            <?php
+
+            use Illuminate\Support\Facades\Route;
+
+            Route::get('/admin/{any?}', fn() => 'hijacked')->where('any', '.*');
+            Route::get('/sitemap.xml', fn() => 'hijacked');
+            PHP, function ()
         {
-            file_put_contents($path, $original);
-            $this->refreshApplication();
-        }
+            // The panel renders a view and touches no database, so it can be
+            // asked for directly.
+            $this->get('/admin')->assertOk()->assertDontSee('hijacked');
+
+            // The sitemap reads entries, and `refreshApplication()` builds a
+            // fresh in-memory SQLite with no tables - so what is checked is
+            // that the route resolves to core's controller rather than to the
+            // client's closure, which is the thing at stake.
+            $action = Route::getRoutes()->getByName('web.sitemap')?->getAction('controller');
+
+            $this->assertSame(
+                SitemapController::class . '@show',
+                $action,
+                '`/sitemap.xml` no longer resolves to core.'
+            );
+        });
+    }
+
+    /**
+     * A client's routes get the same parameter constraints core's do.
+     *
+     * Laravel merges the global patterns into a route **as it is created**
+     * (`Router::addWhereClausesToRoute`), so the `Route::pattern` calls have
+     * to come before the site's routes are loaded. Declared after them, a
+     * client's `{language}` matched anything at all.
+     */
+    public function test_a_site_route_inherits_the_parameter_patterns(): void
+    {
+        $this->withSiteRoutes(<<<'PHP'
+            <?php
+
+            use Illuminate\Support\Facades\Route;
+
+            Route::get('/{language}/zz-probe-pattern', fn(string $language) => $language);
+            PHP, function ()
+        {
+            $this->get('/el/zz-probe-pattern')->assertOk()->assertSee('el');
+
+            // Not two letters, so the pattern must refuse it.
+            $this->get('/zzz-not-a-language/zz-probe-pattern')->assertNotFound();
+        });
     }
 
     // ----------------------------------------------------------- the rule
@@ -248,8 +341,12 @@ class CoreSiteBoundaryTest extends TestCase
 
     /**
      * "Site" means the client's side of the line, so core must not claim the
-     * word - not as a namespace, and not as a route name a client would
-     * reasonably reach for.
+     * word - not as a namespace, and not as a route name.
+     *
+     * Read out of core's own files rather than out of the router: the route
+     * collection holds the client's routes too, and a client naming one
+     * `site.contact` is doing exactly what this change reserved the prefix
+     * for. Asking the router would have failed them for it.
      */
     public function test_core_does_not_claim_the_word_site(): void
     {
@@ -258,16 +355,23 @@ class CoreSiteBoundaryTest extends TestCase
             'A core controller directory called Site contradicts what `site/` means.'
         );
 
-        $claimed = collect(Route::getRoutes()->getRoutesByName())
-            ->keys()
-            ->filter(fn(string $name) => str_starts_with($name, 'site.'))
-            ->values()
-            ->all();
+        $offenders = [];
+
+        foreach (self::CORE as $directory)
+        {
+            foreach ($this->phpFilesIn($directory) as $file)
+            {
+                if (preg_match('#->name\(\s*[\'"]site\.#', file_get_contents($file)))
+                {
+                    $offenders[] = $this->relative($file);
+                }
+            }
+        }
 
         $this->assertSame(
             [],
-            $claimed,
-            'Core route names take the `site.` prefix a client would use: ' . implode(', ', $claimed)
+            $offenders,
+            'Core route names take the `site.` prefix a client would use: ' . implode(', ', $offenders)
         );
     }
 }

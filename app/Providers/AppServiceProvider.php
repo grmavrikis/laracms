@@ -47,9 +47,11 @@ class AppServiceProvider extends ServiceProvider
         // touching anything here. Core renders `theme::layout`; it never names
         // a file inside.
         //
-        // Registered by convention, so core reads the location and not the
-        // contents - it does not know or care what a given client put there.
-        $this->loadViewsFrom(base_path('site/theme'), 'theme');
+        // The path is a config value rather than a literal: it is core's only
+        // knowledge of where the client's directory is, and keeping it in one
+        // place is what lets a test point it elsewhere without editing the
+        // repository's own files.
+        $this->loadViewsFrom(config('site.theme'), 'theme');
 
         $this->registerRateLimiters();
     }
