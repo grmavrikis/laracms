@@ -63,8 +63,22 @@ class SiteSettings
         ['name' => 'facebook_url', 'type' => 'string', 'translatable' => false, 'validation' => 'url|max:255', 'group' => 'site'],
         ['name' => 'instagram_url', 'type' => 'string', 'translatable' => false, 'validation' => 'url|max:255', 'group' => 'site'],
         ['name' => 'booking_url', 'type' => 'string', 'translatable' => false, 'validation' => 'url|max:255', 'group' => 'site'],
-        ['name' => 'logo', 'type' => 'image', 'translatable' => false, 'group' => 'site'],
+        // Bounded by the constant the gallery's image URLs use, so the two
+        // cannot drift. Not `url`: the upload endpoint answers with what
+        // `Storage::url()` returns, which is a path rather than an address.
+        ['name' => 'logo', 'type' => 'image', 'translatable' => false, 'validation' => 'max:' . SchemaRuleBuilder::GALLERY_URL_MAX_LENGTH, 'group' => 'site'],
     ];
+
+    /**
+     * There is one row and this is its key.
+     *
+     * Writing to a fixed primary key is what makes "one row" true rather than
+     * likely: `first() ?? new Setting()` is a read then a write, so two people
+     * saving at the same moment both found nothing and both inserted - and
+     * whichever row the database returned first became the settings, silently
+     * losing the other save.
+     */
+    public const ROW_ID = 1;
 
     /** Read once: `SetPanelLocale` asks on every API request. */
     private ?array $stored = null;
@@ -172,16 +186,29 @@ class SiteSettings
     {
         try
         {
-            return Setting::query()->value('data') ?? [];
+            return Setting::query()->find(self::ROW_ID)?->data ?? [];
         }
         catch (QueryException $e)
         {
             // Only "there is no table yet" is an answer. Anything else is a
             // database fault and has to surface, or a broken connection would
             // quietly serve `.env` defaults - including mailing enquiries to
-            // an address the owner replaced. Asking costs a second query, and
-            // only on the path that has already failed.
-            if (Schema::hasTable('settings'))
+            // an address the owner replaced.
+            //
+            // The check is itself a query, and on a dead connection it throws
+            // too. Its failure must not become the one that is reported: the
+            // original names the statement that actually broke, and this one
+            // would point at an information-schema lookup nobody wrote.
+            try
+            {
+                $migrated = Schema::hasTable('settings');
+            }
+            catch (\Throwable)
+            {
+                throw $e;
+            }
+
+            if ($migrated)
             {
                 throw $e;
             }
@@ -222,16 +249,25 @@ class SiteSettings
     }
 
     /**
-     * Replace the stored values. One row, however many times this is called.
+     * Store what was sent, over what is already there.
      *
-     * The whole form is sent, so this is a replace rather than a merge -
-     * anything the owner cleared has to actually clear.
+     * **A merge, not a replace**, and the difference matters because an absent
+     * key does not mean "empty": `all()` falls back to `config('site.*')` for
+     * a key that was never saved, so replacing would turn a client that sent
+     * three fields into "the other nine went back to whatever `.env` holds".
+     * A stale browser tab would quietly restore the developer's notification
+     * address, which is the exact failure the config fallback is documented as
+     * preventing.
+     *
+     * Clearing still works, because a key **present** with a null wins - that
+     * is the same rule `all()` applies, one layer down.
      */
     public function save(array $data): void
     {
-        $setting = Setting::query()->first() ?? new Setting();
+        $setting = Setting::query()->find(self::ROW_ID) ?? new Setting();
 
-        $setting->data = $data;
+        $setting->id = self::ROW_ID;
+        $setting->data = [...$this->stored ??= $this->stored(), ...$data];
         $setting->save();
 
         $this->stored = null;

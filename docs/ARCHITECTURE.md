@@ -664,6 +664,13 @@ Three things follow from where it is read:
   saved falls back to it, so a fresh copy works and `.env` still means
   something. A key that *is* saved wins even when empty — an owner who cleared
   the notification address meant to clear it.
+- **A save merges; it does not replace.** That follows directly from the line
+  above: an absent key means "not saved", so replacing would send every field a
+  client did not mention back to `.env`. A stale tab saving three fields would
+  have quietly restored the developer's notification address.
+- **One row, at a fixed key.** `find(ROW_ID)`, not "the first row there is" —
+  read-then-write is how two simultaneous saves become two rows and half the
+  settings disappear without an error.
 - **A missing table is an answer, not a 500.** The read catches a query failure
   and checks `Schema::hasTable` only then, so an unpacked-but-unmigrated copy
   shows a login screen rather than a stack trace, and a real database fault

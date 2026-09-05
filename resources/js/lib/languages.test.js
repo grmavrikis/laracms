@@ -1,10 +1,36 @@
 import { describe, it, expect } from 'vitest';
-import { getLangCode, defaultLanguage, defaultLangCode } from './languages';
+import { getLangCode, defaultLanguage, defaultLangCode, languagesFrom } from './languages';
 
 // The shape /api/languages returns, taken from the live endpoint.
 const gr = { id: 1, code: 'gr', name: 'Greek', is_default: false, is_active: true };
 const en = { id: 2, code: 'en', name: 'English', is_default: true, is_active: true };
 const fr = { id: 3, code: 'fr', name: 'French', is_default: false, is_active: true };
+
+describe('languagesFrom', () => {
+    /**
+     * `/api/languages` answers with a bare array. Two components were each
+     * guessing at a paginator envelope in case it ever does not, so the shape
+     * of one endpoint was decided in two files (TASKS.md #67 review).
+     */
+    it('takes the list the endpoint actually returns', () => {
+        expect(languagesFrom([{ code: 'el' }, { code: 'en' }])).toHaveLength(2);
+    });
+
+    it('takes the list out of a paginator envelope', () => {
+        expect(languagesFrom({ data: [{ code: 'el' }] })).toEqual([{ code: 'el' }]);
+    });
+
+    /**
+     * A failed request that still resolved, or an endpoint answering
+     * something nobody expected: the caller gets a list to map over either
+     * way, because every one of them does.
+     */
+    it('is a list even when the answer is not', () => {
+        expect(languagesFrom(null)).toEqual([]);
+        expect(languagesFrom(undefined)).toEqual([]);
+        expect(languagesFrom('nonsense')).toEqual([]);
+    });
+});
 
 describe('getLangCode', () => {
     it('uses the code', () => {

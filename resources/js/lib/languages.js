@@ -4,6 +4,19 @@
 /**
  * The code a language is keyed by inside an entry's translatable field.
  */
+/**
+ * The list out of whatever `/api/languages` answered with.
+ *
+ * The endpoint returns a bare array today, but two components were each
+ * guessing at a paginator envelope in case it ever does not - so the shape of
+ * one endpoint was being decided in two places. It is decided here.
+ *
+ * @param {unknown} payload the axios `data` from `/languages`
+ * @returns {Array<object>}
+ */
+export const languagesFrom = (payload) =>
+    Array.isArray(payload) ? payload : (payload?.data ?? []);
+
 export const getLangCode = (language) =>
     language?.locale || language?.code || language?.short_code || null;
 

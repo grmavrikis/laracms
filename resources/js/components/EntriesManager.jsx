@@ -4,7 +4,7 @@ import EntryForm from './EntryForm';
 import EntriesTable from './EntriesTable';
 import { paginationFrom, rowsFrom, isPastLastPage } from '../lib/pagination';
 import { t } from '../lib/i18n';
-import { defaultLangCode } from '../lib/languages';
+import { defaultLangCode, languagesFrom } from '../lib/languages';
 import { createLatestWriteQueue } from '../lib/latestWriteQueue';
 
 export default function EntriesManager({ module, onBack }) {
@@ -56,7 +56,7 @@ export default function EntriesManager({ module, onBack }) {
     useEffect(() => {
         api.get('/languages')
             .then(({ data }) => {
-                const list = Array.isArray(data) ? data : data?.data ?? [];
+                const list = languagesFrom(data);
                 setLanguages(list);
 
                 // `loading` belongs to the entries request alone. These used to

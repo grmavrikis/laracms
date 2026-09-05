@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import api, { uploadImage } from '../lib/api';
 import { errorSummary, validationErrors } from '../lib/apiErrors';
-import { getLangCode } from '../lib/languages';
+import { getLangCode, languagesFrom } from '../lib/languages';
 import { t } from '../lib/i18n';
 
 /**
@@ -32,7 +32,7 @@ export default function SettingsManager({ onBack }) {
             .then(([settings, langs]) => {
                 setSchema(settings.data.schema);
                 setData(settings.data.data ?? {});
-                setLanguages(Array.isArray(langs.data) ? langs.data : (langs.data?.data ?? []));
+                setLanguages(languagesFrom(langs.data));
             })
             .catch((err) => {
                 console.error(err);

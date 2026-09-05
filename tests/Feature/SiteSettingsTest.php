@@ -6,6 +6,7 @@ use App\Mail\EnquiryReceived;
 use App\Models\Language;
 use App\Models\Setting;
 use App\Models\User;
+use App\Services\SchemaRuleBuilder;
 use App\Services\SiteSettings;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Mail;
@@ -155,6 +156,117 @@ class SiteSettingsTest extends TestCase
 
         $this->assertSame(1, Setting::count());
         $this->assertSame('2', app(SiteSettings::class)->get('phone'));
+    }
+
+    /**
+     * A save carries what it carries. A key it does not mention keeps the
+     * value it had - it does **not** fall back to `.env`, which would turn a
+     * stale tab into "the notification address quietly went back to the one
+     * the developer set".
+     */
+    public function test_a_key_left_out_of_a_save_keeps_its_value(): void
+    {
+        $user = $this->owner();
+        config(['site.enquiries_to' => 'from-the-env@example.com']);
+
+        $this->actingAs($user)->putJson('/api/settings', [
+            'data' => ['enquiries_to' => 'owner@example.com', 'phone' => '1'],
+        ])->assertOk();
+
+        // A client that knows about fewer fields, or an older tab.
+        $this->actingAs($user)->putJson('/api/settings', ['data' => ['phone' => '2']])->assertOk();
+
+        $settings = app(SiteSettings::class);
+
+        $this->assertSame('2', $settings->get('phone'));
+        $this->assertSame('owner@example.com', $settings->get('enquiries_to'), 'The save reverted a key it never mentioned.');
+    }
+
+    /**
+     * Clearing a value is a value. `null` is stored and beats the config,
+     * because an owner who emptied the notification box meant to empty it.
+     */
+    public function test_clearing_a_value_beats_the_env_default(): void
+    {
+        config(['site.enquiries_to' => 'from-the-env@example.com']);
+
+        $this->actingAs($this->owner())->putJson('/api/settings', [
+            'data' => ['enquiries_to' => null],
+        ])->assertOk();
+
+        $this->assertNull(app(SiteSettings::class)->get('enquiries_to'));
+    }
+
+    /**
+     * An empty save is a save of nothing, not a malformed request. The rules
+     * come from `SchemaRuleBuilder`, which opens with `required` because an
+     * Entry with no data is meaningless - settings are not.
+     */
+    public function test_a_save_that_changes_nothing_is_allowed(): void
+    {
+        $this->actingAs($this->owner())->putJson('/api/settings', ['data' => []])->assertOk();
+    }
+
+    /**
+     * There is one row and the database is what says so: everything is written
+     * to a fixed key, so a second row cannot be inserted rather than merely
+     * being unlikely.
+     */
+    public function test_a_stray_row_cannot_shadow_the_settings(): void
+    {
+        // With the settings row absent, so the difference actually shows: a
+        // read that takes "whatever row comes back first" would answer with
+        // this one, and one that addresses the fixed key answers with the
+        // defaults. The first version of this test created the settings row
+        // as well and passed either way.
+        Setting::query()->forceCreate(['id' => 99, 'data' => ['phone' => 'stray']]);
+
+        $this->assertNull(app(SiteSettings::class)->get('phone'), 'A row that is not the settings row became the settings.');
+
+        $this->actingAs($this->owner())->putJson('/api/settings', [
+            'data' => ['phone' => 'real'],
+        ])->assertOk();
+
+        $this->assertSame('real', app(SiteSettings::class)->get('phone'));
+        $this->assertSame(SiteSettings::ROW_ID, Setting::query()->orderBy('id')->first()->id);
+    }
+
+    // ------------------------------------------------- the other field types
+
+    /**
+     * The two types whose panel widgets are new, through the endpoint rather
+     * than through the service - `select` builds its options at runtime and
+     * `image` stores what the upload endpoint returned.
+     */
+    public function test_a_select_and_an_image_survive_a_round_trip(): void
+    {
+        $this->actingAs($this->owner())->putJson('/api/settings', [
+            'data' => ['panel_locale' => 'el', 'logo' => '/storage/uploads/logo.png'],
+        ])->assertOk();
+
+        $settings = app(SiteSettings::class);
+
+        $this->assertSame('el', $settings->get('panel_locale'));
+        $this->assertSame('/storage/uploads/logo.png', $settings->get('logo'));
+    }
+
+    public function test_a_language_nobody_has_a_file_for_is_not_a_panel_locale(): void
+    {
+        $this->actingAs($this->owner())->putJson('/api/settings', [
+            'data' => ['panel_locale' => 'zz'],
+        ])->assertStatus(422);
+    }
+
+    /**
+     * The logo is a URL the upload endpoint produced, and it is bounded the
+     * way a gallery image's URL is - by the same constant, so the two cannot
+     * drift.
+     */
+    public function test_the_logo_is_bounded_like_every_other_image_url(): void
+    {
+        $this->actingAs($this->owner())->putJson('/api/settings', [
+            'data' => ['logo' => '/storage/' . str_repeat('a', SchemaRuleBuilder::GALLERY_URL_MAX_LENGTH)],
+        ])->assertStatus(422);
     }
 
     // -------------------------------------------------- what core reads back

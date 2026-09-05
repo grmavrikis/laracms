@@ -44,7 +44,14 @@ class SettingController extends Controller
     {
         Gate::authorize('update', Setting::class);
 
-        $rules = SchemaRuleBuilder::build($this->settings->schema(), 'data');
+        $schema = $this->settings->schema();
+        $rules = SchemaRuleBuilder::build($schema, 'data');
+
+        // `present`, not the builder's `required`. An Entry with no data is
+        // meaningless, which is why the builder says so; a settings save that
+        // changes nothing is not, and `required` rejects an empty array - so
+        // "clear everything" answered "the data field is required".
+        $rules['data'] = ['present', 'array'];
 
         // The builder says what each declared field may hold; it says nothing
         // about a field nobody declared. Without this, an unknown key is
@@ -67,7 +74,7 @@ class SettingController extends Controller
         // needs for the public form's Greek.)
         $attributes = [];
 
-        foreach ($this->settings->schema() as $field)
+        foreach ($schema as $field)
         {
             $attributes["data.{$field['name']}"] = $field['label'];
             $attributes["data.{$field['name']}.*"] = $field['label'];
@@ -75,6 +82,11 @@ class SettingController extends Controller
 
         $validated = $request->validate($rules, [], $attributes);
 
+        // `?? []` is reachable, and only became so with `present` above:
+        // Laravel omits a key from `validated()` when it is an empty array
+        // with no nested rule to match, so "clear everything" arrives here
+        // with no `data` at all. Under the builder's `required` it could not,
+        // which is what made this look like dead code.
         $this->settings->save($validated['data'] ?? []);
 
         return response()->json(['data' => $this->settings->all()]);

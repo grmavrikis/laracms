@@ -2670,10 +2670,33 @@ expressed no preference — once per request, for a value that changes once a
 year. The count sits **exactly on the bound**, and the test says so: the next
 addition fails there, and the answer is to ask why, not to raise the number.
 
+### What the review of it found
+
+Eleven findings, and the first was the config fallback working against itself.
+`save()` replaced the row, so a client sending three fields sent the other nine
+back to `.env` — the very thing the fallback is documented as preventing, one
+layer up. It merges now, and clearing still works because a key present with a
+null wins.
+
+Two more came from borrowing the Entry rules wholesale: `SchemaRuleBuilder`
+opens with `data` **required**, which is right for an entry and wrong here —
+Laravel's `required` rejects an empty array, so "clear everything" answered
+"the data field is required". And the row was addressed as "the first one
+there is", which is how two simultaneous saves become two rows and half the
+settings vanish; it is a fixed key now.
+
+The two findings interacted, which is worth recording: `$validated['data'] ??
+[]` was reported as dead code under `required`, and became **reachable** the
+moment `required` was relaxed to `present`, because Laravel drops an empty
+array from `validated()`. Removing it turned the fix for one finding into a
+500 for the other.
+
 ### Checked
 
-14 tests written first, 11 of them failing because nothing existed, then nine
-mutations each failing the test that pins it. Then live over HTTP against
+21 tests written first, then five mutations each failing the test that pins it.
+One of those mutations did not bite at first: the stray-row test created the
+settings row as well, so it passed whether the read addressed a fixed key or
+took whatever came back. It creates only the stray now. Then live over HTTP against
 MySQL with a real session: the schema and its translated labels came back, a
 bad URL was refused as *"The Facebook page field must be a valid URL"* rather
 than naming the request key, an undeclared key was refused, and the public
