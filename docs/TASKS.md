@@ -64,7 +64,7 @@ profitability.
 - [x] **#75–#88 the review of #56/#57/#58** *(done — CHANGELOG §17 and §19)*
 - [x] #59 public Blade routes, page cache cleared on publish, sitemap + hreflang *(done — CHANGELOG §21)*
 - [x] #60 `singleton` modules *(done — CHANGELOG §23)*
-- [ ] #61 core/site boundary drawn
+- [x] #61 core/site boundary drawn *(done — CHANGELOG §24)*
 - [x] #68 gallery field — several images on one entry *(done — CHANGELOG §14)*
 - [ ] #66 enquiries
 - [ ] #67 site settings
@@ -116,8 +116,8 @@ behind would have shipped the change half-done.
 
 ### Phase 1 — content reaches the public (6–8 days)
 
-**Done: #68, #55, #56, #57, #58, the #75–#88 review of them, #59 and #60.**
-Remaining: **#61, #66, #67.**
+**Done: #68, #55, #56, #57, #58, the #75–#88 review of them, #59, #60 and
+#61.** Remaining: **#66, #67.**
 
 **#75–#88 came before #59 and there was no judgement call in it.** #59 is the
 public read path, and it is built on exactly the four things the review found
@@ -553,7 +553,7 @@ places rather than one:
 `PageCache` now stores what a page *is* rather than only its markup, so the
 redirect costs no queries on a hit.
 
-### 61. Draw the core/site boundary
+### 61. Draw the core/site boundary — DONE
 
 > **Raised in importance, 2026-09-05.** Domain modules — bookings, invoicing, a
 > product catalogue — are written **once in core** and shipped to every
@@ -567,6 +567,25 @@ per-client modules and site routes on one side, everything shipped on the other.
 No packaging, no Composer work, no tooling: only the line. The line is what
 makes the eventual extraction (client #2) mechanical, and it costs almost
 nothing today.
+
+**Done, 2026-09-05** (CHANGELOG §24). `site/` holds `theme/`, `routes.php` and
+a README saying what belongs there. The theme is a **view namespace**
+(`theme::layout`), not another path in the finder, so a client's template
+cannot shadow a core one and the directory can be swapped whole.
+
+The rule that took a failing test to state properly: **core knows where the
+door is, not what is behind it.** Exactly two mount points may name the
+directory — `AppServiceProvider` and `routes/web.php` — and everywhere else
+core refers to the theme only through `theme::`, which is a contract rather
+than a path.
+
+`CoreSiteBoundaryTest` holds both halves, and the second is the one worth
+having: **every `theme::` template core renders must exist**, with the list
+read out of core itself. That is the set a theme author for client #2 owes,
+instead of finding out when an unopened page 500s in front of a visitor.
+
+The public controllers moved to `app/Http/Controllers/Web` — they are core
+machinery, and a core namespace called `Site` contradicts what `site/` means.
 
 ### 62. The demo site — client #0
 

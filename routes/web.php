@@ -1,7 +1,7 @@
 <?php
 
-use App\Http\Controllers\Site\PageController;
-use App\Http\Controllers\Site\SitemapController;
+use App\Http\Controllers\Web\PageController;
+use App\Http\Controllers\Web\SitemapController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -38,3 +38,16 @@ Route::pattern('slug', '[a-z0-9]+(?:-[a-z0-9]+)*');
 Route::get('/{language}', [PageController::class, 'home'])->name('site.home');
 Route::get('/{language}/{module}', [PageController::class, 'index'])->name('site.module');
 Route::get('/{language}/{module}/{slug}', [PageController::class, 'show'])->name('site.entry');
+
+/*
+ * This one site's own routes, if it has any (TASKS.md #61).
+ *
+ * Loaded last, so they are additional rather than a replacement - and loaded
+ * by location rather than by name, so core never learns what a given client
+ * put in there. A missing file is the normal state for a site that needs
+ * nothing beyond the generic pages.
+ */
+if (is_file(base_path('site/routes.php')))
+{
+    require base_path('site/routes.php');
+}

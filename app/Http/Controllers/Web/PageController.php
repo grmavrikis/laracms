@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Site;
+namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
 use App\Models\Entry;
@@ -56,7 +56,7 @@ class PageController extends Controller
                 return null;
             }
 
-            return ['html' => view('site.home', [
+            return ['html' => view('theme::home', [
                 ...$this->chrome($current, $this->alternatesForHome()),
                 'title' => config('app.name'),
                 'modules' => Module::query()->orderBy('name')->get(),
@@ -93,7 +93,7 @@ class PageController extends Controller
                 ->get()
                 ->filter(fn(Entry $entry) => $entry->slugFor($current->code) !== null);
 
-            return ['html' => view('site.module', [
+            return ['html' => view('theme::module', [
                 ...$this->chrome($current, $this->alternatesForModule($found)),
                 'title' => $found->name,
                 'module' => $found,
@@ -180,7 +180,7 @@ class PageController extends Controller
             fn(array $field) => $field['kind'] === 'text' && ($field['text'] ?? '') !== ''
         );
 
-        return view('site.entry', [
+        return view('theme::entry', [
             ...$this->chrome($current, $alternates),
             'title' => $heading['text'] ?? '#' . $entry->id,
             'module' => $module,

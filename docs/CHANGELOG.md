@@ -2251,3 +2251,66 @@ a blank page. Asserting the exception **type** is what tells the two apart.
 
 295 PHP tests, 155 JS tests, build clean.
 
+---
+
+## 24. The line between core and one client
+
+#61, and the last structural item of Phase 1. Core code and per-client code now
+sit on opposite sides of one directory, so client #2 is a copy of that
+directory rather than a fork of the application.
+
+```
+site/
+  theme/        the public templates, as `theme::layout`, `theme::entry`, …
+  routes.php    what this one site needs beyond the generic pages
+  README.md     what belongs here, and what is core work instead
+```
+
+No packaging, no Composer changes, no tooling — the item asked for the line and
+nothing else. Two moves and a mount: the templates left `resources/views/site`
+for `site/theme`, and the theme is registered as a **view namespace** rather
+than another path in the finder, so a client's template cannot shadow a core
+one by being named the same and the whole directory can be swapped.
+
+### Core knows where the door is, not what is behind it
+
+That distinction is the whole design, and it took a failing test to state it
+properly. The first version of the boundary check said "core must not name the
+site directory" and immediately caught `AppServiceProvider` — which is right by
+the letter and wrong about the rule. **Something has to register the namespace,
+or nothing on the client's side is reachable at all.**
+
+So the rule is: exactly **two mount points** may name the directory —
+`AppServiceProvider` for the views, `routes/web.php` for the routes — and both
+do it by location. Everywhere else, core refers to the theme only through
+`theme::`, which is not a path but a contract.
+
+### The contract, made checkable
+
+Writing that down produced the test worth more than the move: **every
+`theme::` name core renders must exist in the theme**. The list is read out of
+core itself, so a theme author for client #2 has the exact set they owe —
+`layout`, `home`, `module`, `entry`, `sitemap` — instead of finding out when a
+page nobody opened during the build 500s in front of a visitor.
+
+### One rename
+
+The public controllers moved from `app/Http/Controllers/Site` to `…/Web`. They
+are core machinery that renders whatever theme is mounted, and a core namespace
+claiming the word `Site` contradicts what `site/` now means — worth fixing
+while it was two files. A test asserts the old directory is gone.
+
+### Checked
+
+Six boundary tests written first, four failing before the move existed. Then
+core was made to name a file inside `site/` — the test failed and named
+`EntryPresenter`, which is the behaviour that matters, since the fix when it
+fails is almost never to loosen it.
+
+301 PHP tests, 155 JS tests, build clean. Verified live: every public route and
+the admin still answer 200 after the templates moved and the compiled views
+were cleared.
+
+`CLAUDE.md` gained the line as its own short section, since a fresh session
+needs it before touching either side.
+

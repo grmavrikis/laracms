@@ -35,6 +35,22 @@ That is enough to take instructions. Read the fourth when you need the *why*:
 
 `README.md` is for a human running the app. Read it only if you need setup.
 
+### 1a. The line through the middle (#61)
+
+**`site/` is one client's; everything else ships to every installation.** The
+theme lives in `site/theme` and is reached as `theme::layout`, `theme::entry`
+and so on; `site/routes.php` holds anything that one site alone needs. Client
+#2 is a copy of that directory against the same core — see `site/README.md`.
+
+Core may name the *location* of the site side at exactly two mount points, and
+nowhere else: `AppServiceProvider` registers the view namespace and
+`routes/web.php` loads the routes file. `tests/Feature/CoreSiteBoundaryTest.php`
+fails if anything else in `app/` or `routes/` names it, and also checks that
+the theme provides every `theme::` template core renders.
+
+When that test fails, the fix is almost never to loosen it: it means something
+client-specific has been written into core, where the next client inherits it.
+
 ### 2. The backend that carries the design (~9 files)
 
 Read all of these before touching backend behaviour. They are small.
@@ -97,9 +113,10 @@ JS tests sit **beside** their source as `resources/js/lib/*.test.js`.
 
 ## Do not read
 
-- **`resources/views/welcome.blade.php`** — contains a full inlined Tailwind
-  stylesheet. Reading it once cost ~36k tokens. It is the stock Laravel
-  placeholder; nothing depends on it.
+- **`resources/views/welcome.blade.php`** — **gone as of #59.** It held a full
+  inlined Tailwind stylesheet and reading it once cost ~36k tokens. Mentioned
+  only so nobody goes looking for it: `/` now redirects to the default
+  language.
 - **`vendor/`, `node_modules/`, `public/build/`** — noise. Exception: reading
   one framework file to confirm behaviour is good practice, and has caught
   real bugs here. Grep for the specific method, do not browse.

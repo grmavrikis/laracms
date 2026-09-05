@@ -1,4 +1,4 @@
-@extends('site.layout')
+@extends('theme::layout')
 
 @section('content')
     <h1>{{ $module->name }}</h1>

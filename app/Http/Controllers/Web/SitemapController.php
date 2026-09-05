@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Site;
+namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
 use App\Models\Entry;
@@ -74,7 +74,7 @@ class SitemapController extends Controller
                 }
             }
 
-            return ['html' => view('site.sitemap', ['urls' => $urls])->render()];
+            return ['html' => view('theme::sitemap', ['urls' => $urls])->render()];
         });
 
         return response($xml['html'])->header('Content-Type', 'application/xml');

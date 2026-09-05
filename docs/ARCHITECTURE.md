@@ -436,6 +436,33 @@ makes switching language instant and free. Filtering server-side would
 mean flattening `title: {en, el}` into one value — a different response
 shape, and the edit form needs every language at once anyway.
 
+## 5. The line between core and one client
+
+`site/` belongs to a single installation. Everything outside it ships to every
+installation unchanged (TASKS.md #61, CHANGELOG.md §24).
+
+```
+site/
+  theme/        the public templates, reached as `theme::layout`, `theme::entry`
+  routes.php    routes this one site needs, loaded after the core routes
+  README.md     what belongs here and what does not
+```
+
+Core knows **where the door is, not what is behind it**. Exactly two mount
+points name the directory — `AppServiceProvider` registers the `theme` view
+namespace, `routes/web.php` requires the routes file — and both do it by
+location rather than by naming a file inside. Everything else in core refers to
+the theme only through `theme::`, which is a **contract**: every theme provides
+`layout`, `home`, `module`, `entry` and `sitemap`.
+
+`CoreSiteBoundaryTest` enforces both halves: nothing outside the two mount
+points may name `site/`, and the theme must provide every `theme::` template
+core renders. A boundary nothing checks is a convention people drift across.
+
+> The public controllers are in `app/Http/Controllers/Web`, **not** `Site` —
+> they are core machinery that renders whatever theme is mounted, and letting
+> a core namespace claim the word would contradict what `site/` means.
+
 ## 5a. The public site
 
 Blade, served from this same application, reading through Eloquent. There is

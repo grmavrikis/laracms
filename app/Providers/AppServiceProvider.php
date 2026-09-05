@@ -39,6 +39,18 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // The per-client side of the line (TASKS.md #61).
+        //
+        // A namespace rather than another path in the view finder, so a
+        // client's template cannot shadow a core one by being named the same,
+        // and the whole directory can be swapped for the next client without
+        // touching anything here. Core renders `theme::layout`; it never names
+        // a file inside.
+        //
+        // Registered by convention, so core reads the location and not the
+        // contents - it does not know or care what a given client put there.
+        $this->loadViewsFrom(base_path('site/theme'), 'theme');
+
         $this->registerRateLimiters();
     }
 
