@@ -6,7 +6,14 @@
     are core - a theme cannot get those wrong by leaving something out.
 
     Plain like the rest of this theme: #62 replaces it with the bought one.
+
+    It takes `$current` from the page around it when there is one and falls
+    back to the default language otherwise, so a client route in
+    `site/routes.php` can `@include` it without rebuilding what PageController
+    hands its own templates.
 --}}
+@php($enquiryLanguage = ($current ?? \App\Models\Language::default())?->code)
+
 <section id="enquiry">
     <h2>Ρωτήστε μας / Ask us</h2>
 
@@ -24,7 +31,7 @@
         </ul>
     @endif
 
-    <form method="POST" action="{{ url('/' . $current->code . '/enquiries') }}">
+    <form method="POST" action="{{ url('/' . $enquiryLanguage . '/enquiries') }}">
         @csrf
 
         {{-- The honeypot. Hidden from people and from screen readers, and left

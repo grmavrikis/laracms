@@ -197,20 +197,14 @@ class PageController extends Controller
      * The closure answers with what the page *is* - HTML, or a permanent
      * redirect for a singleton's entry address - so that decision is cached
      * alongside the document rather than costing a query on every hit.
+     *
+     * **What may be stored is PageCache's decision, not this one.** A page
+     * carrying a form is rendered on every visit, because a form is session
+     * state and a cached page belongs to nobody.
      */
     private function serve(string $path, Closure $render)
     {
-        $page = $this->cache->remember($path, function () use ($render)
-        {
-            $rendered = $render();
-
-            if ($rendered !== null && isset($rendered['html']))
-            {
-                $rendered['html'] = self::withoutSessionTokens($rendered['html']);
-            }
-
-            return $rendered;
-        });
+        $page = $this->cache->remember($path, $render);
 
         if ($page === null)
         {
@@ -233,51 +227,10 @@ class PageController extends Controller
         // indexed, all worse than a fault.
         if (isset($page['html']))
         {
-            return response(self::withSessionTokens($page['html']));
+            return response($page['html']);
         }
 
         throw new RuntimeException('A cached page carried neither html nor a redirect: ' . json_encode(array_keys($page)));
-    }
-
-    /**
-     * A CSRF token belongs to one session; a cached page is served to
-     * everyone.
-     *
-     * Caching a page with a form in it therefore hands every visitor after the
-     * first **somebody else's token**, and every submission answers 419 - a
-     * form that silently never works, which for an enquiry form means the
-     * owner never learns the enquiries are not arriving. Found by posting the
-     * live form, not by any test: the suite renders each page fresh, so the
-     * token always matched.
-     *
-     * The token is replaced by a placeholder on the way into the cache and by
-     * this session's own on the way out. Done here rather than by asking
-     * themes to use a special directive, because a theme writing `@csrf` out
-     * of habit would then break the form for everybody but the first visitor
-     * after a cache clear - a fault that looks intermittent and is not.
-     */
-    private const CSRF_PLACEHOLDER = '@@mini-cms:csrf@@';
-
-    private static function withoutSessionTokens(string $html): string
-    {
-        return preg_replace(
-            [
-                '#(<input[^>]*name="_token"[^>]*value=")[^"]*(")#i',
-                '#(<meta[^>]*name="csrf-token"[^>]*content=")[^"]*(")#i',
-            ],
-            '${1}' . self::CSRF_PLACEHOLDER . '${2}',
-            $html
-        );
-    }
-
-    private static function withSessionTokens(string $html): string
-    {
-        if (!str_contains($html, self::CSRF_PLACEHOLDER))
-        {
-            return $html;
-        }
-
-        return str_replace(self::CSRF_PLACEHOLDER, csrf_token(), $html);
     }
 
     /**

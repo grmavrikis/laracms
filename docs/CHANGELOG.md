@@ -2523,6 +2523,70 @@ than by giving themes a special directive, because a theme writing `@csrf` out
 of habit would then break the form for everybody but the first visitor after a
 cache clear — a fault that looks intermittent and is not.
 
+### The review of it, and the same defect one field along
+
+Nine findings. The first was the CSRF fix above, **at the wrong depth**.
+
+A token was substituted because a token has a fixed shape. But `session()`,
+`$errors` and every `old(...)` in the same template are session state too, and
+they are arbitrary content that nothing can substitute — so the visitor was
+redirected back to a cached page that told them nothing had happened, showed no
+validation errors, and had emptied every box they had typed in. Worse than the
+419, because it looks like it worked.
+
+**The rule is now the page, not the token: a page carrying a form is not
+cached.** `PageCache` decides it from the rendered HTML, and the CSRF token is
+the marker — any form posting back to this application carries one, or the
+submission is refused, so a theme cannot forget to declare itself and a theme
+that adds a form to a page is covered the moment it does. The placeholder
+machinery is gone.
+
+The cost is that such a page is rendered on every visit. That is the client's
+decision and is made by where their theme puts the form; this one puts it on
+the home page, so the home page is uncached and a site that minds gives the
+form a page of its own.
+
+#### And the deploy fault underneath it, again
+
+The live probe answered **419 on every submission** with 335 tests green: the
+warm cache still held pages written by the previous release, with the
+placeholder baked in, and nothing substitutes it any more. The version counter
+moves on a **write**, not on a deploy — the same trap as §22, one release
+later. `PREFIX` is now `page.v3`, which retires them all at once.
+
+The rule is written into the constant: bump it when the stored shape changes,
+**including when what is stored changes from something to nothing**.
+
+#### The rest
+
+- **Markdown in the message became a live link.** `[Confirm your booking](…)`
+  in an enquiry arrived as a real link in an email the owner's client trusts,
+  because their own site sent it. HTML escaping does not touch Markdown syntax
+  and Laravel's mail templates are Markdown.
+  `Markdown::withSecuredEncoding()` is the framework's own answer and is now on
+  for the whole application, not for this one mailable — the next mail added
+  would otherwise have to remember.
+- **The inbox asked no policy**, alone among the admin endpoints. `EnquiryPolicy`
+  now answers, with the same "anybody signed in" the route group already
+  establishes. It is a hook, not a fix: group permissions are what will make an
+  inbox of names, addresses and phone numbers something not every account
+  should open, and they land in policies.
+- **The prune could overlap itself** and now cannot.
+- **The form partial needed `$current`**, so a client route in `site/routes.php`
+  that included it answered 500. It falls back to the default language.
+- **The tests stopped at `assertRedirect()`** and never looked at the page the
+  visitor lands on. That is precisely why the first finding was not caught.
+- **`RateLimiter::clear('enquiries|127.0.0.1')` in `setUp` cleared nothing** —
+  the middleware hashes the key. Deleted rather than corrected: tests run on
+  the `array` store, which is empty at the start of each one.
+
+One was closed without a change. **The limiter keys on `$request->ip()`, and
+`TRUSTED_PROXIES` is empty by default**, so behind nginx every visitor would
+share one bucket. That is recorded as a decision in §13 and stated in
+`bootstrap/app.php`, `.env.example` and ARCHITECTURE §*rate limiting*: trusting
+a proxy that is not there is worse, because anyone could then mint a bucket per
+request. The deployment sets it; nothing here changes.
+
 ### Checked
 
 22 tests written first, 20 of them failing because nothing existed. Then the
@@ -2531,7 +2595,15 @@ the served page: a real submission stored with its Greek intact, the honeypot
 answering 302 and storing nothing, a submission without consent refused — one
 row in the table at the end, and a POST with no token answering 419.
 
-327 PHP tests, 155 JS tests, build clean.
+The review's fixes were checked the same way and then **mutated back out one at
+a time**, seven of them, each one failing the test that pins it — including the
+over-fix, where caching nothing at all fails the test that a page without a
+form still comes out of the cache. The live probe ran two independent sessions
+against one URL: different tokens, the errors and the typed values coming back
+to the visitor who submitted and to nobody else, and a quiet rename still
+hidden on a page with no form.
+
+335 PHP tests, 155 JS tests, build clean.
 
 **The panel screen needs a human.** There is still no component harness (#94),
 so the inbox and its delete confirmation are verified by reading.

@@ -527,6 +527,19 @@ A `PageCacheObserver` on `Entry` and `Module` bumps it. **Model events do not
 cover everything** — `EntryController::reorder` writes one mass `UPDATE`,
 which fires none, so it invalidates by hand.
 
+**A page carrying a form is not cached at all.** Everything a form needs is one
+visitor's session — the CSRF token, the confirmation after a submission, the
+errors after a failure, the values to type back into the boxes — and a cached
+page has none of it. `PageCache` detects the case from the rendered HTML: any
+form posting back to this application carries a CSRF token, so the token is the
+marker and no theme has to declare anything. Which pages that costs is the
+client's decision, made by where their theme puts the form.
+
+The key also carries a **shape prefix** (`page.v3`), bumped by hand whenever
+what is stored changes. Both bumps so far were faults found only by opening the
+deployed app: the counter above moves on a write, never on a deploy, so entries
+from the previous release are read by the new code.
+
 `EntryPresenter` turns a Module's schema into something a template can loop
 over, resolved to the language being rendered: rich text through
 `RichTextRenderer` (so no template writes `{!! !!}`), a gallery as a list of
@@ -556,14 +569,23 @@ and that gives it the session, the CSRF token and `back()` with the errors.
 - **`enquiries:prune`** enforces the retention period the form states, daily
   from `routes/console.php`.
 
-> **A cached page cannot carry a session's CSRF token.** `PageController`
-> replaces any `_token` value with a placeholder on the way into the cache and
-> with this session's own on the way out. Without it every visitor after the
-> first got somebody else's token and every submission answered 419 — a form
-> that silently never works. It is done in core rather than by asking themes
-> for a special directive, because a theme writing `@csrf` out of habit would
-> otherwise break the form for everybody but the first visitor after a cache
-> clear.
+> **A page with the form on it is not cached** — see §5, *the public site*.
+> The form needs session state and a cached page belongs to nobody, so the
+> whole page is rendered per visit. The first attempt substituted only the
+> CSRF token and was the wrong depth: the visitor still saw no confirmation
+> and no errors.
+
+The message the visitor writes reaches the owner's mail client, which trusts
+the sender because it is their own site. `Markdown::withSecuredEncoding()` is
+enabled in `AppServiceProvider`, so `[text](url)` in an enquiry arrives as the
+characters that were typed rather than as a live link — HTML escaping does not
+touch Markdown syntax, and Laravel's mail templates are Markdown.
+
+The inbox endpoints ask `EnquiryPolicy`, like every other admin endpoint asks
+`ModulePolicy`. The answer today is "anybody signed in", which the route group
+has established already; the calls exist so that group permissions land in a
+policy rather than having to be remembered at an endpoint holding visitors'
+names, addresses and phone numbers.
 
 ## 6. File uploads
 

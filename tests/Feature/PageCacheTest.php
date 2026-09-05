@@ -175,6 +175,12 @@ class PageCacheTest extends TestCase
         $this->get('/sitemap.xml')->assertOk()->assertSee('deftero', false);
     }
 
+    /**
+     * Behaviour, not invalidation: the home page carries the enquiry form, so
+     * it is not cached at all (CHANGELOG §25) and there is nothing here for a
+     * write to drop. Invalidation on a page that *is* cached is pinned by the
+     * two tests above and by `EnquiryTest`.
+     */
     public function test_a_new_module_shows_on_the_home_page(): void
     {
         $this->get('/el')->assertOk()->assertDontSee('Facilities', false);
@@ -268,6 +274,28 @@ class PageCacheTest extends TestCase
     }
 
     /**
+     * The second bump, and the reason there is a prefix at all.
+     *
+     * A page with a form used to be stored with its CSRF token replaced by a
+     * placeholder that `PageController` swapped back on the way out. Such a
+     * page is no longer stored and nothing swaps anything, so an entry left by
+     * that release would serve the literal placeholder as the token and
+     * **every submission on the site would answer 419** - which is what the
+     * live probe found, with the suite green.
+     */
+    public function test_a_page_cached_with_the_old_csrf_placeholder_is_ignored(): void
+    {
+        $version = app(PageCache::class)->version();
+
+        Cache::put("page.v2:{$version}:home:el", ['html' => '<p>value="@@mini-cms:csrf@@"</p>'], 600);
+
+        $this->get('/el')
+            ->assertOk()
+            ->assertDontSee('@@mini-cms:csrf@@', false)
+            ->assertSee('Rooms', false);
+    }
+
+    /**
      * A shape the code does not recognise has to fail loudly. Serving an empty
      * 200 would keep monitoring green, cache the blank, and let it be indexed.
      */
@@ -277,7 +305,7 @@ class PageCacheTest extends TestCase
 
         // Reach into the key the current format uses and corrupt it.
         $version = app(PageCache::class)->version();
-        Cache::put("page.v2:{$version}:entry:el:rooms:proto", ['nonsense' => true], 600);
+        Cache::put(PageCache::PREFIX . ":{$version}:entry:el:rooms:proto", ['nonsense' => true], 600);
 
         // The **type** is asserted, not the status. Falling through to
         // `$page['html']` also fails here, but only because PHPUnit turns the

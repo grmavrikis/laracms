@@ -5,6 +5,7 @@ namespace App\Providers;
 use Illuminate\Cache\RateLimiting\Limit;
 use App\Models\Enquiry;
 use Illuminate\Http\Request;
+use Illuminate\Mail\Markdown;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
@@ -55,6 +56,7 @@ class AppServiceProvider extends ServiceProvider
         $this->loadViewsFrom(config('site.theme'), 'theme');
 
         $this->registerRateLimiters();
+        $this->secureMarkdownMail();
     }
 
     /**
@@ -65,6 +67,25 @@ class AppServiceProvider extends ServiceProvider
      * as the web server would serve them. A single account makes that easier
      * to attack rather than harder: there is only one email to guess against.
      */
+    /**
+     * The visitor writes the enquiry and the owner reads it in a mail client
+     * that trusts the sender, because it is their own site.
+     *
+     * Laravel's Markdown mails run every `{{ }}` through a Markdown parser
+     * after escaping it as HTML, so `[Confirm your booking](https://phish.example)`
+     * in the message arrived as a **live link** in the owner's inbox - HTML
+     * escaping does not touch Markdown syntax. This is the framework's own
+     * answer: `[`, `<` and `>` in an echoed value are escaped so they render
+     * as the characters the visitor typed.
+     *
+     * Registered once for the whole application rather than in the one
+     * mailable, because the next mail added would otherwise have to remember.
+     */
+    private function secureMarkdownMail(): void
+    {
+        Markdown::withSecuredEncoding();
+    }
+
     private function registerRateLimiters(): void
     {
         // The broad limit, applied to every /api route by throttleApi().

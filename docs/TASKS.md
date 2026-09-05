@@ -147,6 +147,12 @@ so that client #1 is a copy with a different theme and different content rather
 than a fresh start. The demo is simultaneously the sales sample and the first
 template in the library.
 
+One decision the theme makes without meaning to: **a page with the enquiry
+form on it is not cached** (CHANGELOG §25), because a form is session state.
+The present theme includes the form on the home page, so the home page renders
+on every visit. Fine at this size; if the bought theme is heavy, give the form
+a page of its own and the home page keeps its cache.
+
 Note that **rooms, facilities and the home-page slider need no engineering at
 all**: they are modules built in the existing builder, and the slider gets its
 ordering free from #57 (one entry per slide). That is the schema-driven design

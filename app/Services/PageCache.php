@@ -44,15 +44,29 @@ class PageCache
     /**
      * The stored shape is part of this key.
      *
-     * `remember()` once answered with a page's HTML and now answers with what
-     * the page *is*. The version counter below moves on a **write**, not on a
-     * deploy, so entries left by the previous shape sat under keys the new
-     * code would read and hand back through an `?array` signature - a
-     * TypeError on every warm page until somebody published or the seven-day
-     * TTL ran out. Changing the prefix retires them all at once; bump it again
-     * if the shape changes again.
+     * The version counter below moves on a **write**, not on a deploy, so
+     * entries written by the previous release sit under keys the new code
+     * reads. Changing the prefix retires them all at once, and it has been
+     * needed twice - both times found by opening the deployed app, never by
+     * the suite, which starts every run with an empty cache:
+     *
+     * - **v2**: `remember()` once answered with a page's HTML and now answers
+     *   with what the page *is*. The old strings came back through an `?array`
+     *   signature: a TypeError on every warm page.
+     * - **v3**: pages with a form used to be stored with their CSRF token
+     *   replaced by a placeholder, which `PageController` swapped back on the
+     *   way out. Such a page is no longer stored at all and nothing swaps
+     *   anything, so a v2 entry served the literal placeholder as the token
+     *   and **every submission answered 419**.
+     *
+     * Bump it whenever the stored shape changes, including when what is stored
+     * changes from something to nothing.
+     *
+     * Public because `PageCacheTest` composes keys with it. A test that spells
+     * the prefix out has to be edited on every bump, which is how the bump
+     * comes to look like the thing that broke the suite.
      */
-    private const PREFIX = 'page.v2';
+    public const PREFIX = 'page.v3';
 
     private const VERSION_KEY = 'page-version';
 
@@ -65,9 +79,12 @@ class PageCache
      * of queries too. The shapes are `['html' => string]` and
      * `['redirect' => string]`.
      *
-     * A `null` means "no such page". It is deliberately **not** cached: an
-     * unknown URL must not be able to fill the cache, or a crawler walking
-     * made-up addresses would.
+     * Two things are deliberately **not** stored.
+     *
+     * A `null` means "no such page": an unknown URL must not be able to fill
+     * the cache, or a crawler walking made-up addresses would.
+     *
+     * A page **carrying a form** is not stored either - see below.
      *
      * @return array{html?: string, redirect?: string}|null
      */
@@ -83,12 +100,40 @@ class PageCache
 
         $page = $render();
 
-        if ($page !== null)
+        if ($page !== null && !self::carriesSessionState($page))
         {
             Cache::put($key, $page, self::TTL);
         }
 
         return $page;
+    }
+
+    /**
+     * **A page with a form on it cannot be cached**, because everything a form
+     * needs belongs to one visitor's session and a cached page is handed to
+     * everyone: the CSRF token, the confirmation after a submission, the
+     * errors after a failure, and the values to type back into the boxes.
+     *
+     * Found by posting the live enquiry form, which answered 419 with the
+     * suite green - the cached HTML carried the first visitor's token and
+     * everybody after them was refused. The first answer substituted the token
+     * on the way in and on the way out, and was the wrong depth: it fixed the
+     * one piece of session state with a fixed shape and left the three that
+     * have none, so the visitor still saw no confirmation and no errors.
+     *
+     * The **CSRF token is the marker**, not a flag a template sets. Any form
+     * posting back to this application carries one - without it the submission
+     * is refused - so a theme cannot forget to declare itself, and a theme
+     * that puts a form on a page that had none is covered the moment it does.
+     *
+     * The cost is that such a page is rendered on every visit. Which page that
+     * is, is the client's decision and is made by where the theme puts the
+     * form; a site that wants its home page cached gives the form its own.
+     */
+    private static function carriesSessionState(array $page): bool
+    {
+        return isset($page['html'])
+            && preg_match('/name=[\'"](_token|csrf-token)[\'"]/i', $page['html']) === 1;
     }
 
     public function invalidate(): void
