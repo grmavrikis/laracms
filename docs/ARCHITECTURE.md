@@ -633,6 +633,50 @@ refused password is refused in the language of the form.
 > were found by grepping for `$fail(` rather than for quoted sentences, since
 > they build their message by interpolation. See TASKS.md #112.
 
+## 5c. Site settings (TASKS.md #67)
+
+One row, one screen, `SiteSettings`. It holds two kinds of value and that is
+deliberate — two screens would be two places to look for "why does the site say
+the wrong phone number":
+
+| `group` | Read by | Examples |
+|---|---|---|
+| `core` | this application | `enquiries_to`, `panel_locale` |
+| `site` | the theme | phone, address, opening hours, social links, logo |
+
+**A table rather than the singleton Module the item first described.** A
+singleton is the client's content — they create it, name it, and could rename
+or empty it. Core cannot read `enquiries_to` out of a row the client owns and
+might not have made: an enquiry can arrive on the first day of an installation,
+before any module exists, and the panel resolves a language before anybody has
+signed in.
+
+**The fields are declared in a Module schema's shape**, so `SchemaRuleBuilder`
+validates them — the two-level translatable rules included — and there is no
+second set of rules growing up beside the first. The panel builds its form from
+`GET /api/settings`, which returns the schema alongside the values, so a field
+added to `SiteSettings` needs no edit in JavaScript. Labels are literal `__()`
+calls, translated server-side, so the API's locale decides them.
+
+Three things follow from where it is read:
+
+- **`config('site.*')` is the default, not a previous home.** A key nobody has
+  saved falls back to it, so a fresh copy works and `.env` still means
+  something. A key that *is* saved wins even when empty — an owner who cleared
+  the notification address meant to clear it.
+- **A missing table is an answer, not a 500.** The read catches a query failure
+  and checks `Schema::hasTable` only then, so an unpacked-but-unmigrated copy
+  shows a login screen rather than a stack trace, and a real database fault
+  still surfaces.
+- **`resolve()` asks the user first.** `SetPanelLocale` runs on every API
+  request, and reading settings for a question `users.locale` already answered
+  would be a query per call. `EntryOrderingTest` pins the count.
+
+`PageController::chrome()` hands every public template `$settings`, resolved to
+the language being rendered — inside the cached closure, so a hit costs
+nothing. Saving invalidates the cache through `PageCacheObserver`, like an
+Entry: the footer is on every page.
+
 ## 5b. Enquiries — the one thing an anonymous visitor may write
 
 `POST /{lang}/enquiries` (`Web\EnquiryController`) is the only route in the

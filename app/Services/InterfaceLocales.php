@@ -87,6 +87,9 @@ class InterfaceLocales
      * The reader's own choice, then the installation's, then the fallback -
      * and each is taken only if somebody has written that file.
      *
+     * The installation's is the settings screen since #67, falling back to
+     * `config('site.locale')` for a copy nobody has configured.
+     *
      * The availability check is not defensive dressing: `users.locale` and
      * `config('site.locale')` are both editable outside the application, and a
      * locale with no file would otherwise render the panel with an empty
@@ -97,7 +100,16 @@ class InterfaceLocales
     {
         $available = $this->available();
 
-        foreach ([$user?->locale, config('site.locale'), config('app.fallback_locale')] as $candidate)
+        // The reader's own choice first, and **without asking the database**:
+        // this runs on every API request, and a settings read for a question
+        // already answered is a query per call for a value that changes once
+        // a year (#67, and the count `EntryOrderingTest` pins).
+        if (is_string($user?->locale) && in_array($user->locale, $available, true))
+        {
+            return $user->locale;
+        }
+
+        foreach ([app(SiteSettings::class)->get('panel_locale'), config('app.fallback_locale')] as $candidate)
         {
             if (is_string($candidate) && in_array($candidate, $available, true))
             {

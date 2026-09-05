@@ -2608,3 +2608,81 @@ hidden on a page with no form.
 **The panel screen needs a human.** There is still no component harness (#94),
 so the inbox and its delete confirmation are verified by reading.
 
+---
+
+## 26. Site settings, and the argument that chose a table
+
+#67. The values a client changes about their own site: phone, address, opening
+hours, social links, a logo, the booking URL — and the two this application
+reads about itself, the enquiry notification address and the language the panel
+opens in.
+
+The point is not the fields. `BUSINESS.md` puts the ceiling of the whole
+business at **support minutes per client**, and a phone number living in a
+template is a call on a Sunday that only you can answer.
+
+### Why it is not the singleton the item described
+
+`TASKS.md` said "a singleton (#60)", and that was reconsidered rather than
+followed. A singleton is the client's **content**: they create it, they name
+it, and they can rename or empty it. Two of these values are not theirs to
+lose. An enquiry can arrive on the first day of an installation, **before any
+module exists**, and the panel has to resolve a language before anybody has
+signed in — core cannot read either out of a row that might not be there.
+
+So the storage is core's: one table, one row, declared in PHP.
+
+### What was reused instead
+
+The fields are declared in **the same shape a Module's schema uses**, so
+`SchemaRuleBuilder` validates them — the two-level translatable rules included,
+which is what lets an address be Greek on the Greek page and English on the
+English one. There is no second set of rules to keep in step with the first.
+
+The panel builds its form from `GET /api/settings`, which hands over the schema
+alongside the values, so adding a field is one edit in `SiteSettings` and none
+in JavaScript. The same reasoning as the generated `fieldTypes.json`, one layer
+up. Labels are literal `__()` calls translated server-side (#96), so the wording
+is core's and the language is the reader's.
+
+### `config/site.php` became the default rather than the previous home
+
+A key nobody has saved falls back to the config, so a fresh copy of the
+application works before anybody opens the panel and `.env` still means
+something. A key that **is** saved wins even when it is empty: an owner who
+cleared the notification address meant to clear it, and falling back would have
+gone on mailing an address they removed.
+
+### Two things the suite caught that the design had not
+
+**The panel stopped opening without the table.** Adding a settings read to
+`InterfaceLocales` — which runs on the login screen and on every API request —
+meant an unpacked-but-unmigrated copy answered 500 where the sign-in form goes.
+That is the argument for a table failing one step earlier than it was made: core
+has to work before anybody has *migrated* anything too. The read now treats a
+missing table as an answer, and asks `Schema::hasTable` only after a query has
+already failed, so a real database fault still surfaces.
+
+**And it added two queries to every API request.** `EntryOrderingTest` pins the
+count for a reorder at four, and it went to five. `resolve()` now asks
+`users.locale` first and only reaches the settings row when the reader has
+expressed no preference — once per request, for a value that changes once a
+year. The count sits **exactly on the bound**, and the test says so: the next
+addition fails there, and the answer is to ask why, not to raise the number.
+
+### Checked
+
+14 tests written first, 11 of them failing because nothing existed, then nine
+mutations each failing the test that pins it. Then live over HTTP against
+MySQL with a real session: the schema and its translated labels came back, a
+bad URL was refused as *"The Facebook page field must be a valid URL"* rather
+than naming the request key, an undeclared key was refused, and the public
+footer read the address in Greek on `/el` and in English on `/en`. The probe
+row was deleted.
+
+373 PHP tests, 165 JS tests, build clean.
+
+**The screen needs a human.** There is still no component harness (#94), so
+`SettingsManager` — the image upload and the per-language inputs especially —
+is verified by reading.
+

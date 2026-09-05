@@ -7,6 +7,7 @@ use App\Http\Requests\StoreEnquiryRequest;
 use App\Mail\EnquiryReceived;
 use App\Models\Enquiry;
 use App\Models\Language;
+use App\Services\SiteSettings;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
@@ -59,6 +60,10 @@ class EnquiryController extends Controller
     /**
      * Tell the owner, if anybody has said where and the mailer is willing.
      *
+     * The address comes from the settings screen since #67, with
+     * `config('site.enquiries_to')` as the default for an installation nobody
+     * has configured yet - so a fresh copy still works on its first day.
+     *
      * Wrapped, and deliberately so: the row is already committed, and a mail
      * server that is down must not turn a stored enquiry into a 500 the
      * visitor reads as "it did not go through" - they would send it again, or
@@ -67,7 +72,7 @@ class EnquiryController extends Controller
      */
     private function notify(Enquiry $enquiry): void
     {
-        $to = config('site.enquiries_to');
+        $to = app(SiteSettings::class)->get('enquiries_to');
 
         if (blank($to))
         {

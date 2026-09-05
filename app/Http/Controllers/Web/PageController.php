@@ -8,6 +8,7 @@ use App\Models\Language;
 use App\Models\Module;
 use App\Services\EntryPresenter;
 use App\Services\PageCache;
+use App\Services\SiteSettings;
 use Closure;
 use RuntimeException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
@@ -37,6 +38,7 @@ class PageController extends Controller
     public function __construct(
         private readonly EntryPresenter $presenter,
         private readonly PageCache $cache,
+        private readonly SiteSettings $settings,
     ) {
     }
 
@@ -252,6 +254,11 @@ class PageController extends Controller
             'alternates' => $alternates,
             'canonical' => $alternates[$current->code] ?? url()->current(),
             'defaultAlternate' => $alternates[$this->defaultLanguage()->code] ?? null,
+            // What the client says about themselves (#67), already resolved to
+            // the language being rendered - so a template prints
+            // `$settings['address']` without knowing which of them is a map.
+            // Inside the cached closure, so it costs nothing on a hit.
+            'settings' => $this->settings->for($current->code),
         ];
     }
 

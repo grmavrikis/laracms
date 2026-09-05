@@ -45,7 +45,9 @@ return [
     |
     | Per installation, like the rest of this file: the first market is Greek,
     | and a panel that opens in English because nobody filled in a column is
-    | the demo failing at its first screen. Moves into the database with #67.
+    | the demo failing at its first screen. **Since #67 this is the default**,
+    | not the answer: the settings screen holds `panel_locale`, and this is
+    | what a copy nobody has configured opens in.
     |
     | It is a locale, not a language row - `InterfaceLocales` explains why the
     | two are different axes.
@@ -63,8 +65,9 @@ return [
     | this file, and null is a valid answer - the enquiry is still stored, and
     | the email is a courtesy on top of the record rather than the record.
     |
-    | This moves into the database with #67, where the owner can change it
-    | without an editor.
+    | **Since #67 this is the default**, not the answer: the owner sets
+    | `enquiries_to` on the settings screen without needing an editor, and this
+    | is what an installation nobody has configured falls back to.
     |
     */
 

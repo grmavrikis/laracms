@@ -42,6 +42,16 @@
 
     @yield('content')
 
-    <footer>{{ config('app.name') }}</footer>
+    {{-- What the owner typed into the settings screen (#67). Every value is
+         optional, so each one is printed only if it is there. --}}
+    <footer>
+        {{ config('app.name') }}
+        @if ($settings['address'] ?? null)
+            <span> · {{ $settings['address'] }}</span>
+        @endif
+        @if ($settings['phone'] ?? null)
+            <span> · <a href="tel:{{ $settings['phone'] }}">{{ $settings['phone'] }}</a></span>
+        @endif
+    </footer>
 </body>
 </html>

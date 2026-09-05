@@ -355,8 +355,15 @@ class EntryOrderingTest extends TestCase
         }
 
         // Measured: 32 before, 3 after - resolving the module by slug, reading
-        // its ids, and one UPDATE. The headroom is for the binding, not for
-        // creeping back towards a query per row.
+        // its ids, and one UPDATE. A fourth arrived with #67: `SetPanelLocale`
+        // asks the settings row for the installation's language, and only
+        // when the reader has expressed no preference of their own. That is
+        // once per request rather than once per row, which is the line this
+        // test defends.
+        //
+        // **It now sits exactly on the bound.** The next addition fails here,
+        // and the answer is to ask why the request needs another query - not
+        // to raise the number.
         $this->assertLessThanOrEqual(
             4,
             $queries,

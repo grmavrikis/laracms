@@ -9,6 +9,7 @@ import ModulesList from './components/ModulesList';
 import EntriesManager from './components/EntriesManager';
 import ModuleBuilder from './components/ModuleBuilder';
 import EnquiriesManager from './components/EnquiriesManager';
+import SettingsManager from './components/SettingsManager';
 
 export default function App() {
     const [user, setUser] = useState(null);
@@ -76,9 +77,17 @@ export default function App() {
                     {localeError && (
                         <span role="alert" className="text-xs text-red-300">{localeError}</span>
                     )}
-                    {/* Enquiries are a domain module: written once in core and
-                        reached from the chrome rather than through the module
-                        list, which holds content types (TASKS.md #66). */}
+                    {/* Settings and enquiries are core screens rather than
+                        content types, so they are reached from the chrome and
+                        not through the module list (TASKS.md #66, #67). */}
+                    <button
+                        onClick={() => setView({ type: view.type === 'settings' ? 'list' : 'settings' })}
+                        className={`text-sm px-3 py-1 rounded transition-colors ${view.type === 'settings'
+                            ? 'bg-white text-gray-900'
+                            : 'bg-gray-700 hover:bg-gray-600'}`}
+                    >
+                        {t('Settings')}
+                    </button>
                     <button
                         onClick={() => setView({ type: view.type === 'enquiries' ? 'list' : 'enquiries' })}
                         className={`text-sm px-3 py-1 rounded transition-colors ${view.type === 'enquiries'
@@ -103,6 +112,9 @@ export default function App() {
                 )}
                 {view.type === 'enquiries' && (
                     <EnquiriesManager onBack={() => setView({ type: 'list' })} />
+                )}
+                {view.type === 'settings' && (
+                    <SettingsManager onBack={() => setView({ type: 'list' })} />
                 )}
                 {view.type === 'list' && (
                     <ModulesList

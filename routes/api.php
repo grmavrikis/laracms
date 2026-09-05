@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\LanguageController;
 use App\Http\Controllers\Api\ModuleController;
+use App\Http\Controllers\Api\SettingController;
 use App\Http\Controllers\Api\EnquiryController;
 use App\Http\Controllers\Api\EntryController;
 use App\Http\Controllers\UploadController;
@@ -30,6 +31,14 @@ Route::middleware('auth:sanctum')->group(function ()
     Route::put('/user/locale', [AuthController::class, 'setLocale']);
 
     Route::get('/languages', [LanguageController::class, 'index']);
+
+    /*
+     * What the site says about itself (TASKS.md #67). One screen, one row -
+     * the notification address and the panel's default language among them,
+     * which is why it is core's rather than a Module the client could rename.
+     */
+    Route::get('/settings', [SettingController::class, 'show']);
+    Route::put('/settings', [SettingController::class, 'update']);
 
 
     // Modules Routes

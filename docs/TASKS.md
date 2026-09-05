@@ -136,9 +136,9 @@ behind would have shipped the change half-done.
 
 ### Phase 1 — content reaches the public (6–8 days)
 
-**Done: #68, #55, #56, #57, #58, the #75–#88 review of them, #59, #60, #61 and
-#66.** Remaining: **#96, #97, #98 and #67**, in that order, and Phase 1 is
-closed. The first three were added on 2026-09-05 (see Amendments) and cost
+**Done: #68, #55, #56, #57, #58, the #75–#88 review of them, #59, #60, #61,
+#66 and #67.** Remaining: **#96** (built, its review open) plus **#97** and
+**#98**, and Phase 1 is closed. The first three were added on 2026-09-05 (see Amendments) and cost
 about five days; they come before #67 and #62 because both would be built on
 top of them.
 
@@ -816,15 +816,27 @@ bin.
 The notification address is `config/site.php` → `enquiries_to` for now; **#67
 moves it into the database**, where the owner can change it without an editor.
 
-### 67. Site settings
+### 67. Site settings — DONE (CHANGELOG §26)
 
-A singleton (#60) holding phone, email, address, map coordinates, social links,
-logo, opening hours, and the channel-manager URL that #65 links out to.
+Phone, email, address, map coordinates, social links, logo, opening hours and
+the booking URL #65 links out to — plus the two values core reads about itself,
+`enquiries_to` and `panel_locale`.
 
 Without it these values live inside templates, which means **the client cannot
 change their own phone number without calling you.** That contradicts the one
 promise the product makes, and it is the kind of call that arrives on a Sunday.
-Half a day, and it removes a category of support permanently.
+BUSINESS.md puts the ceiling of the whole business at support minutes per
+client, which is the real argument for it.
+
+**Built as a table, not the singleton (#60) this item first described**, and
+the reason is in the sentence above: core cannot read the notification address
+out of a row the client owns, names and could delete. An enquiry can arrive on
+the first day of an installation, before any module exists. The part worth
+reusing was reused instead — the fields are declared in a Module schema's shape
+and go through `SchemaRuleBuilder`, translatable rules and all. ARCHITECTURE
+§5c describes it.
+
+**#97's cache switch has a home now**: it is a `core` field like the other two.
 
 ### 96. Translated interfaces, panel and public — *built, review open*
 

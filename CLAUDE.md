@@ -166,8 +166,8 @@ JS tests sit **beside** their source as `resources/js/lib/*.test.js`.
 ## Commands
 
 ```bash
-php artisan test                    # 353 tests
-npm test                            # 163 tests
+php artisan test                    # 373 tests
+npm test                            # 165 tests
 npm run build
 php artisan schema:sync-field-types # after changing field type constants
 ```
@@ -234,7 +234,7 @@ Started from a repo that would not boot (eight files of merge conflicts).
 Worked through a prioritised list; every item is either done or recorded in
 `CHANGELOG.md` with its reasoning.
 
-- **353 PHP tests, 163 JS tests**, all passing. Build clean.
+- **373 PHP tests, 165 JS tests**, all passing. Build clean.
 - **The project has a commercial goal as of 2026-08-30**, and it now decides
   what gets worked on. A multilingual CMS that feeds client sites, owned
   outright, for a one-person web agency: **one installation per client site**,
@@ -262,19 +262,23 @@ Worked through a prioritised list; every item is either done or recorded in
   wrong one answered 401.
 - **Phase 1 is nearly done.** Landed: #68 (CHANGELOG §14), #55 (§15),
   #56/#57/#58 (§16), the whole of `## P0` (§17 and §19), #59 (§21), #60 (§23),
-  #61 (§24) and #66 (§25) — a gallery field, a Tiptap-to-HTML renderer, the
-  three structural columns and their admin UI, the fourteen review findings
-  against them, the public Blade site with its cache and sitemap, singleton
-  modules, the core/site line, and enquiries.
+  #61 (§24), #66 (§25) and #67 (§26) — a gallery field, a Tiptap-to-HTML
+  renderer, the three structural columns and their admin UI, the fourteen
+  review findings against them, the public Blade site with its cache and
+  sitemap, singleton modules, the core/site line, enquiries, and site
+  settings.
 - **`## P0` is closed.** It was fourteen findings against #56/#57/#58 and it
   outranked the MVP list until it was done; the three that were wrong in the
   browser (#75 reordering across pages, #76 a long `slugs` key answering 500 on
   MySQL, #77 a failed slug write destroying an entry's URLs) are fixed and
   verified live. Do not go looking for them.
-- **Next is #96, #97, #98, then #67** — added on 2026-09-05 at a stop the owner
-  called, and recorded in `TASKS.md` → Amendments and → Decisions taken
-  (2026-09-05, third). Read those before starting any of them; each rests on a
-  decision that is not obvious from the code.
+- **Next is #97 and #98**, plus the review that keeps #96 open. All three were
+  added on 2026-09-05 at a stop the owner called, and recorded in `TASKS.md` →
+  Amendments and → Decisions taken (2026-09-05, third). Read those before
+  starting any of them; each rests on a decision that is not obvious from the
+  code. **#67 is done** (CHANGELOG §26): site settings are one core table, not
+  the singleton Module the item first described — core cannot read the
+  notification address out of a row the client owns and could delete.
   - **#96 translated interfaces — both halves are built; the review is not
     done** (ARCHITECTURE §5a). Public: `SetLocale` from the address, `lang/`
     for core and `site/lang/` for the theme. Panel: `InterfaceLocales`,

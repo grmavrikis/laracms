@@ -6,6 +6,7 @@ use Illuminate\Cache\RateLimiting\Limit;
 use App\Models\Enquiry;
 use Illuminate\Http\Request;
 use App\Services\InterfaceLocales;
+use App\Services\SiteSettings;
 use Illuminate\Mail\Markdown;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
@@ -37,6 +38,10 @@ class AppServiceProvider extends ServiceProvider
         // One per request, because it caches the `lang/` listing and both the
         // API middleware and the panel page ask for it several times (#96).
         $this->app->singleton(InterfaceLocales::class);
+
+        // Same reason: it caches the settings row, and the panel page, the
+        // locale middleware and every public render ask for it (#67).
+        $this->app->singleton(SiteSettings::class);
     }
 
     /**
