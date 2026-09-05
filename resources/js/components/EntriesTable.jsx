@@ -1,7 +1,7 @@
 import { isRichTextField, docToText } from '../lib/richText';
 import { isGalleryField, galleryPreview } from '../lib/gallery';
 import { getLangCode } from '../lib/languages';
-import { isPublished, reorderedIds, positionInOrder, sortByOrder } from '../lib/entries';
+import { isPublished, reorderedIds, positionInOrder, sortByOrder, valueForLanguage } from '../lib/entries';
 
 export default function EntriesTable({
     schema,
@@ -110,10 +110,15 @@ export default function EntriesTable({
                                                     ? entry.data[field.name]
                                                     : entry[field.name];
 
-                                                let value = rawValue;
-                                                if (field.translatable && typeof rawValue === 'object' && rawValue !== null) {
-                                                    value = rawValue[currentLangCode] || Object.values(rawValue)[0] || '';
-                                                }
+                                                // Only this language. An empty cell
+                                                // is the honest answer for a
+                                                // translation nobody has written,
+                                                // and it is what makes the table
+                                                // show at a glance which ones are
+                                                // still missing.
+                                                const value = field.translatable
+                                                    ? valueForLanguage(rawValue, currentLangCode)
+                                                    : rawValue;
 
                                                 // Rich text is a document object, not markup: render a plain
                                                 // text excerpt, which React escapes on its own. Nothing here
@@ -151,8 +156,12 @@ export default function EntriesTable({
                                                     );
                                                 }
 
-                                                if (value === null || value === undefined) value = '';
-                                                let displayValue = String(value);
+                                                // Folded into the string rather
+                                                // than reassigning `value`,
+                                                // which is now a const.
+                                                let displayValue = value === null || value === undefined
+                                                    ? ''
+                                                    : String(value);
 
                                                 if (displayValue.length > 50) {
                                                     displayValue = displayValue.substring(0, 50) + '...';

@@ -1363,16 +1363,24 @@ support call. Not before the MVP ships.
 
 ### 94. The panel has no component-test harness
 
-Four defects in a row now sit in `EntriesManager`/`EntryForm` and are verified
-by reading rather than by a test: the in-flight queue (#78), the refetch after
-a failed reorder, the two payload omissions (#86 and its slug twin), and the
-error banner that the refetch cleared one frame after showing it — all in
-CHANGELOG §20. The pure helpers underneath them are well covered —
-`latestWriteQueue`, `entryPayload`, `sortByOrder` — and every time the bug has
+Six defects in a row now sit in `EntriesManager`, `EntryForm` and
+`EntriesTable`, verified by reading rather than by a test: the in-flight queue
+(#78), the refetch after a failed reorder, the two payload omissions (#86 and
+its slug twin), the error banner that the refetch cleared one frame after
+showing it (all CHANGELOG §20), and an **assignment to a `const`** in
+`EntriesTable` that the build and 155 passing tests both walked past
+(CHANGELOG §22).
+
+The pure helpers underneath them are well covered — `latestWriteQueue`,
+`entryPayload`, `sortByOrder`, `valueForLanguage` — and every time the bug has
 been in the **wiring**, not in the helper.
 
-The last of them was introduced *by a fix for the one before it*, and found by
-a review rather than by the suite. That is the clearest argument yet.
+Two of them were introduced *by a fix for the one before it*, and neither was
+found by the suite — one by a review, one by reading. The most recent was an
+**assignment to a `const`** in JSX, which the build and 155 passing tests both
+walked past, in a file whose pure helper had just gained six tests of its own.
+
+The count is now the argument.
 
 That is the shape of a missing test layer, not bad luck. Vitest is already
 here; what is missing is a renderer and a way to fake `api`.

@@ -2060,3 +2060,53 @@ probe ran inside a transaction and rolled back, so the demo content survived.
 
 273 PHP tests, 150 JS tests, build clean.
 
+### And the listing was showing a translation that does not exist
+
+Found the same way, one screen along. `EntriesTable` picked a cell's value as:
+
+```js
+rawValue[currentLangCode] || Object.values(rawValue)[0] || ''
+```
+
+so switching the table to French showed the **Greek** text for anything not
+translated. The listing claimed a translation that does not exist, and — worse
+for a CMS whose selling point is translation — **the rows that most needed
+attention were the ones that looked finished.**
+
+An untranslated cell is now empty, which the table already renders as a muted
+dash. That is the honest answer, and it turns the language switcher into a way
+to see at a glance what is still missing.
+
+The one exception is the moment before `/api/languages` resolves, when the code
+is null and the listing has already rendered (#40). A blank column would flash
+there, so the first translation stands in until the real language is known.
+
+**The fix introduced a runtime error that the build and 155 tests did not
+catch.** Narrowing `let value` to `const` collided with a later
+`if (value === null || value === undefined) value = '';` fifty lines down —
+assignment to a constant, which throws in a module's strict mode. It was found
+by reading the surrounding code rather than by any check.
+
+That is `TASKS.md` #94 for the fifth time: the pure helper had six new tests
+and the component that uses it has no harness at all. The count is now more
+persuasive than the argument.
+
+### The panel remounted itself on every hot update
+
+Surfaced by the same browser session, in the console rather than on the page:
+
+```
+You are calling ReactDOMClient.createRoot() on a container that has already
+been passed to createRoot() before.
+```
+
+`app.jsx` ended in an unguarded `createRoot(rootElement).render(<App />)`, and
+Vite re-executes that module on every hot update — so each save mounted a
+second root over the first. Harmless in a production build, where the module
+runs once. Not harmless while working on the panel, which is when it happens:
+the form throws away whatever was typed on each edit, and two trees answer the
+same events.
+
+The root is now kept on the element and re-rendered. Four lines, and it makes
+the browser checks this project keeps relying on actually usable.
+

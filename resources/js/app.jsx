@@ -57,4 +57,14 @@ export default function App() {
 }
 
 const rootElement = document.getElementById('admin-root');
-if (rootElement) createRoot(rootElement).render(<App />);
+
+if (rootElement) {
+    // The root is kept on the element rather than created each time this
+    // module runs. Vite re-executes it on every hot update, and `createRoot`
+    // on a container that already has one mounts a second root over the first:
+    // React warns, and the panel throws away whatever you had typed on each
+    // save. Harmless in a production build, where the module runs once - and
+    // exactly where it is not harmless is while working on the panel.
+    rootElement._adminRoot ??= createRoot(rootElement);
+    rootElement._adminRoot.render(<App />);
+}

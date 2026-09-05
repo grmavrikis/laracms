@@ -9,6 +9,7 @@ import {
     reorderedIds,
     entryPayload,
     sortByOrder,
+    valueForLanguage,
 } from './entries';
 
 describe('statuses', () => {
@@ -273,3 +274,43 @@ describe('sortByOrder', () => {
         expect(sortByOrder(undefined, [1, 2])).toEqual([]);
     });
 });
+
+describe('valueForLanguage', () => {
+    const title = { el: 'Θέα', en: 'Sea view' };
+
+    it('gives the language asked for', () => {
+        expect(valueForLanguage(title, 'el')).toBe('Θέα');
+        expect(valueForLanguage(title, 'en')).toBe('Sea view');
+    });
+
+    it('gives nothing when that language is untranslated', () => {
+        // It used to fall through to `Object.values(raw)[0]`, so switching the
+        // table to French showed the Greek text - which made the listing claim
+        // a translation that does not exist, and hid the ones that are missing.
+        expect(valueForLanguage(title, 'fr')).toBe('');
+        expect(valueForLanguage({ el: 'Θέα', fr: null }, 'fr')).toBe('');
+        expect(valueForLanguage({ el: 'Θέα', fr: '' }, 'fr')).toBe('');
+    });
+
+    it('leaves a value that is not a translation map alone', () => {
+        expect(valueForLanguage('plain', 'el')).toBe('plain');
+        expect(valueForLanguage(42, 'el')).toBe(42);
+        expect(valueForLanguage(null, 'el')).toBe(null);
+        expect(valueForLanguage(true, 'el')).toBe(true);
+    });
+
+    it('leaves a list alone, because a gallery is not translatable', () => {
+        const gallery = [{ url: '/a.jpg' }];
+
+        expect(valueForLanguage(gallery, 'el')).toBe(gallery);
+    });
+
+    it('shows something before the languages have arrived', () => {
+        // The listing renders before /api/languages resolves, so the code is
+        // null for a moment. A blank column would flash; the first translation
+        // is replaced as soon as the real language is known.
+        expect(valueForLanguage(title, null)).toBe('Θέα');
+        expect(valueForLanguage(title, undefined)).toBe('Θέα');
+    });
+});
+

@@ -129,6 +129,27 @@ export const entryPayload = ({ data, slugs, initialSlugs, status, initialStatus,
 };
 
 /**
+ * One translation out of a translatable field's map.
+ *
+ * Empty when that language has not been written. It used to fall through to
+ * `Object.values(raw)[0]`, so switching the table to French showed the Greek
+ * text - the listing claimed a translation that does not exist, and the
+ * columns that most needed attention were the ones that looked filled in.
+ *
+ * The one exception is `langCode` being absent, which happens for a moment
+ * because the listing renders before `/api/languages` resolves. A blank column
+ * would flash there, and the value is replaced as soon as the language is
+ * known.
+ */
+export const valueForLanguage = (raw, langCode) => {
+    if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) return raw;
+
+    if (!langCode) return Object.values(raw)[0] ?? '';
+
+    return raw[langCode] ?? '';
+};
+
+/**
  * The rows of one page, in the module's order.
  *
  * The table renders whatever the listing returned, and a reorder is applied
