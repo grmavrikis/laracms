@@ -859,7 +859,7 @@ and the enquiry form's refusals. Verified live in `el`, `en` and an untranslated
 
 **The panel is done too** (ARCHITECTURE §5a → *The panel is the other axis*).
 `InterfaceLocales`, `users.locale`, `PUT /api/user/locale`, a picker in the
-header, `SetPanelLocale` on the API group, and 131 strings — every message in
+header, `SetPanelLocale` on the API group, and 135 strings — every message in
 `app/` and every literal in the nine components — in `lang/en.json` and
 `lang/el.json`. Verified live with a real session: `/admin` served
 `<html lang="el">` with the Greek catalogue inline, and `POST /api/modules`
@@ -2066,6 +2066,36 @@ What remains is filtering and sorting by *content* fields at scale, and that
 only bites at eshop sizes.
 
 ---
+
+### 111. The singleton refusal is written twice — P2
+
+The same sentence is built in `StoreEntryRequest::rules()` and again in
+`EntryController::store()`, because the check happens twice on purpose: the
+request refuses the ordinary case, and the controller re-checks inside the
+transaction with a lock so two simultaneous creates cannot both win.
+
+**The duplication was invisible until it cost something.** Translating #96's
+panel half caught only the controller's copy on the first pass; the request's
+stayed English, and nothing failed — the two are never compared. Whoever
+rewords one will do the same.
+
+The check has to stay in both places; the *message* does not. It belongs on
+`Module`, next to `isSingleton()`.
+
+### 112. No test pins the wording of any `$fail()` message — P3
+
+Five validation closures build the message a person reads, and the suite
+asserts only that validation refuses. Rewording any of them — or breaking a
+`:placeholder` so it renders literally — passes.
+
+Found by rewording all five for #96 and noticing nothing went red. They were
+checked by rendering them in both locales by hand, which is what a test should
+have been doing.
+
+Not every message needs pinning; a message with **placeholders** does, because
+an unreplaced `:slug` in front of a client is the failure mode and it looks
+exactly like working code. That is four of the five, plus the eight in
+`SchemaRuleBuilder`.
 
 # Backlog
 

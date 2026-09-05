@@ -54,7 +54,9 @@ class StoreEntryRequest extends FormRequest
         {
             $rules['data'][] = function (string $attribute, mixed $value, callable $fail) use ($module): void
             {
-                $fail("'{$module->name}' holds a single entry, which already exists. Edit that one instead.");
+                $fail(__(':module holds a single entry, which already exists. Edit that one instead.', [
+                    'module' => $module->name,
+                ]));
             };
         }
 

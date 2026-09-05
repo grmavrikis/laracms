@@ -57,8 +57,10 @@ class ModuleController extends Controller
 
                 if ($unknown !== [])
                 {
-                    $fail('Unknown field key(s): ' . implode(', ', $unknown)
-                        . '. A field may have: ' . implode(', ', self::SCHEMA_FIELD_KEYS) . '.');
+                    $fail(__('Unknown field keys: :unknown. A field may have: :allowed.', [
+                        'unknown' => implode(', ', $unknown),
+                        'allowed' => implode(', ', self::SCHEMA_FIELD_KEYS),
+                    ]));
                 }
             }],
             'schema.*.name' => 'required|string|alpha_dash',

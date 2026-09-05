@@ -269,7 +269,7 @@ class EntryController extends Controller
 
             if ($given !== $existing)
             {
-                $fail('The order must list every entry in this module exactly once. Reload the list and try again.');
+                $fail(__('The order must list every entry in this module exactly once. Reload the list and try again.'));
             }
         };
     }

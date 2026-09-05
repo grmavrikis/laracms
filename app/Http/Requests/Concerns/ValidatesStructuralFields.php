@@ -94,7 +94,7 @@ trait ValidatesStructuralFields
             {
                 if (!in_array((string) $language, $active, true))
                 {
-                    $fail("'{$language}' is not one of this site's languages.");
+                    $fail(__(":language is not one of this site's languages.", ['language' => $language]));
                 }
             }
         };
@@ -129,7 +129,10 @@ trait ValidatesStructuralFields
 
             if ($taken)
             {
-                $fail("Another entry in this module already uses '{$value}' for '{$language}'.");
+                $fail(__('Another entry in this module already uses :slug for :language.', [
+                    'slug' => $value,
+                    'language' => $language,
+                ]));
             }
         };
     }

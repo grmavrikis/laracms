@@ -623,6 +623,13 @@ than to the authenticated routes: with no user it resolves to the
 installation's locale, which is what the login screen was rendered in, so a
 refused password is refused in the language of the form.
 
+> **`__('English text')` in the source is not an untranslated string.** The key
+> *is* the English, so the call sites read as English and the Greek lives in
+> `lang/el.json`. What an actual miss looks like is a bare string with no
+> `__()` around it — and five `$fail()` closures were exactly that until they
+> were found by grepping for `$fail(` rather than for quoted sentences, since
+> they build their message by interpolation. See TASKS.md #112.
+
 ## 5b. Enquiries — the one thing an anonymous visitor may write
 
 `POST /{lang}/enquiries` (`Web\EnquiryController`) is the only route in the
