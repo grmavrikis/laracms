@@ -50,7 +50,7 @@ loads the third. They are config values rather than literals so a test can
 point them elsewhere without rewriting the repository's own files. `tests/Feature/CoreSiteBoundaryTest.php`
 fails if anything else in `app/`, `routes/`, `bootstrap/`, `config/` or
 `database/` names it, checks that the theme provides every `theme::` template
-core renders, and checks that both mounts actually work.
+core renders, and checks that the mounts actually work.
 
 `site/routes.php` loads **before** the core pages so a client route can take
 one over. The panel and `sitemap.xml` are the exceptions, and they are

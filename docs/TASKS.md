@@ -997,15 +997,22 @@ is an improvement on a working system rather than a prerequisite for one.
 
 # Code-review findings
 
-Numbered **#36–#95** and **#99–#110**, from six reviews. **#96, #97 and #98
-are not findings** — they are work items in the MVP, which is why the sequence
-breaks there. Three findings have left: **#47** and **#48**, which were in the
-MVP, and **#39**, which was fixed while the code it described was being changed
-for another reason (CHANGELOG §14). The numbers are not reused, so the gaps in
-the sequence are those three and nothing is missing.
+**One numbering sequence, two kinds of thing.** Findings are **#36–#53**,
+**#75–#95** and **#99–#110**. Everything between and around them is a *product
+work item* and lives under `# Product work items`: **#55–#74**, and **#96–#98**
+added on 2026-09-05. Reading the whole sequence as one list is the mistake this
+paragraph exists to prevent.
 
-**#99–#110 are the exception to the sentence below**: they are not debt to rank
-against the MVP but the unfinished part of an MVP item — see their own section.
+**Five numbers have no entry, and all five are done.** Four are findings:
+**#47**, **#48** and **#54**, which were in the MVP (CHANGELOG §13), and
+**#39**, fixed while the code it described was being changed for something else
+(CHANGELOG §14). The fifth, **#68**, is a work item (CHANGELOG §14). The
+numbers are not reused, so those five are the only gaps and nothing is
+missing.
+
+**#99–#110 are the exception to the sentence below**, and they come first
+because they are the only group here that is live work: they are not debt to
+rank against the MVP but the unfinished part of #96.
 
 **Nothing else on this list is scheduled** —
 the rest are real, stay recorded, and are not being worked on. Grinding through
@@ -1013,9 +1020,9 @@ them before the MVP ships is the most plausible way to spend three months and
 reach no client.
 
 The priority labels rank these *against each other*, not against the MVP.
-**P0 is the exception and outranks the MVP itself** — see below. **P1** is
-behaviour that is wrong now, **P2** is correctness with small blast radius,
-**P3** is tidying.
+**P1** is behaviour that is wrong now, **P2** is correctness with small blast
+radius, **P3** is tidying. **P0 outranked the MVP itself and is closed** — it
+is kept below for its reasoning, not as work.
 
 Items **#36–#46** came from a review of the work in `CHANGELOG.md`, so most are
 the cost of recent changes rather than old debt — noted per item where that is
@@ -1023,15 +1030,238 @@ so. Items **#47–#53** came from a review of the project as a whole and are
 largely the opposite: gaps present from the beginning that no single change is
 responsible for.
 
-**#47 and #48 are gone from this list — they are done** (CHANGELOG §13). The
-numbers are not reused.
+Items **#75–#88** came from a review of #56/#57/#58 on the day that work
+landed, and **#99–#110** from a review of #96's public half on the day *it*
+landed. Both are a different kind of entry from #36–#53: not debt inherited
+from an earlier version of this codebase, but defects in code written hours
+earlier.
 
 ---
 
-Items **#75–#88** came from a review of #56/#57/#58 on the day that work
-landed. They are a different kind of entry from everything below them: not debt
-inherited from an earlier version of this codebase, but defects in code written
-hours earlier, three of which are wrong in the browser now.
+## The #96 review — the rest of the item, not a backlog
+
+Twelve findings from a review of #96's public half on the day it landed,
+2026-09-05. **They are ranked differently from every other group here**, because they
+are not debt: every one is a defect in the mechanism that commit built, in the
+tests that are supposed to hold it, or in what was published alongside it.
+Deferring them means shipping a translation system whose own guarantees do not
+hold, so **#96 is not closable until all twelve are done** — #100 included,
+which is deferred only in the sense that it lands with #96's panel half rather
+than before it.
+
+One is visible to a visitor today (#99). Five are the test mechanism failing to
+hold what its docblocks claim (#101–#103, #105, #108). One belongs with the
+panel half (#100). The remaining five are small (#104, #106, #107, #109, #110).
+
+That the review found this much in a green, live-verified, mutation-tested
+commit is worth naming: **every mutation proved a test bites, and none proved a
+test is sufficient.** The mutations were written from the same understanding as
+the code, so they exercised the paths the code already handled.
+
+### 99. A Greek visitor is refused half in English — P1
+
+`php artisan lang:publish` created `lang/en/` only. Laravel falls back per key
+to `APP_FALLBACK_LOCALE`, so every *framework* validation message stays English
+while the two hand-written ones in `lang/el.json` are Greek.
+
+A Greek visitor submitting a bad email with no consent box ticked reads:
+
+```
+The email field must be a valid email address.
+Παρακαλούμε συμφωνήστε να κρατήσουμε τα στοιχεία σας για να σας απαντήσουμε.
+```
+
+The framework messages are the **majority** of what a visitor ever sees — every
+`required`, `email`, `max`, `date` and `integer` on the form. The hand-written
+pair is the exception.
+
+Neither `TranslationTest` nor the live probe caught it because both assert on
+the consent message, which is the one that was translated. **A test written
+from the same understanding as the code cannot find what that understanding
+missed** — the same reason the mutations all passed.
+
+The fix is `lang/el/validation.php`, and only the rules the public forms
+actually use: the per-key fallback covers the rest, so a partial file is
+correct rather than half-finished.
+
+**The messages are half of it.** Every framework line interpolates
+`:attribute`, which resolves to the request key, so a Greek `validation.php`
+alone produces *«Το πεδίο arrives_on είναι υποχρεωτικό»* — a Greek sentence
+around an English column name. The `attributes` array has to carry the enquiry
+form's fields (`name`, `email`, `phone`, `message`, `arrives_on`, `departs_on`,
+`guests`, `consent`, `source_url`) or the finding is marked done while the page
+still reads as half-translated.
+
+Decide with #109, which is the other half of the same `lang:publish`.
+
+### 100. The owner's notification will be sent in the visitor's language — P2
+
+`EnquiryController::notify()` builds `EnquiryReceived` **inside the visitor's
+request**, where `SetLocale` has already set the application locale to the
+language of the page they were reading.
+
+Nothing is wrong today, because the mail template is hardcoded English. But
+#96's own description says the owner's notification follows the *owner's*
+locale, and the moment that template is translated a French visitor's enquiry
+produces a French email to a Greek owner. It will look like a mail defect
+rather than a locale one, because nothing at the call site says the locale
+belongs to somebody else.
+
+Belongs with #96's panel half, which is where `users.locale` arrives and where
+the owner's locale becomes a thing that exists. The fix is to render the mail
+under the owner's locale explicitly, not to move the send.
+
+### 101. The mount test asserts something that is true without the mount — P1
+
+`TranslationTest::test_the_client_side_of_the_translations_is_mounted` ends
+with `assertSame('Name', __('Name', [], 'en'))`. `__()` returns the key when
+there is no translation at all, so the assertion passes whether or not
+`loadJsonTranslationsFrom(config('site.lang'))` was ever called.
+
+**Confirmed by the mutation run**: deleting that line bit only
+`test_a_page_is_rendered_in_the_language_of_its_address`. The third mount point
+therefore has no proof it works — unlike the routes mount, which is proven by
+loading a real file through `withSiteRoutes()`.
+
+The fix is the same shape as `withSiteRoutes`: point `SITE_LANG` at a temporary
+directory holding a known string and assert the string comes out. That also
+proves the `env()` override works, which is what lets a test move the mount at
+all.
+
+**#106 is a precondition, not a tidy-up.** `withSiteRoutes` calls
+`refreshApplication()`, and a new application means a new PDO — which, on the
+`:memory:` SQLite the suite runs, is an **empty database**. `TranslationTest`
+uses `RefreshDatabase` and creates its languages in `setUp`, so rebuilding the
+application there destroys the schema the rest of the class depends on.
+`CoreSiteBoundaryTest` does not use `RefreshDatabase`, which is exactly why the
+routes mount can be proven there and not here. Move the test first, then write
+it.
+
+### 102. The parity test skips exactly the locales a client adds — P1
+
+`TranslationTest::locales()` lists the JSON files in **core's** `lang/`, and
+`test_every_locale_carries_the_same_keys_as_english` iterates that list. A
+locale present in `site/lang/` but not in `lang/` is therefore never compared
+with anything.
+
+The collision test iterates the same list and is **not** affected: a collision
+needs the key in `lang/{locale}.json` *and* `site/lang/{locale}.json`, so a
+locale core does not have cannot collide. Widening it would pin nothing.
+
+A client activates Italian and adds `site/lang/it.json` with four of the
+fourteen keys. The suite is green and the Italian page ships half in English —
+which is precisely what the test's docblock claims to catch, and the only case
+that involves a client rather than the agency.
+
+The fix is to take the union of the locale files found in both directories.
+
+### 103. Nothing checks the catalogue against the code — P1
+
+`lang/en.json` and `site/lang/en.json` are identity maps. They exist only to be
+the reference the parity test compares against, and **no test compares them
+with the `__('...')` literals the templates actually contain.**
+
+So a new `__('Cancel')` in a theme template that nobody adds to `en.json` is
+invisible to the entire mechanism: parity passes, collision passes, and Greek
+visitors read "Cancel". The catalogue is only ever compared with itself.
+
+The fix is a test that scans `site/theme/**.blade.php` and `app/` for `__('…')`
+literals and asserts each one is in the catalogue. That is what makes the
+identity files earn their place; without it they are duplication with a
+ceremony attached.
+
+**Settle #110 first, because that test decides it.** Once every `__('…')` must
+be in the catalogue, "drop the honeypot label from the catalogue" stops being
+an option — the template would still ask for it and the new test would fail.
+Whichever of the two lands first constrains the other.
+
+### 104. A client's own routes get no locale — P2
+
+`site/routes.php` is required **before** the `locale` group, so a page a client
+writes at `/{language}/…` renders in the default locale unless its author
+remembers `->middleware('locale')`.
+
+A client writes `/el/epikoinonia` and includes `theme::enquiry` — which the
+partial supports since #66's review. The page is Greek and the form labels are
+English. `CoreSiteBoundaryTest` cannot see it, and the note in
+`bootstrap/app.php` saying clients "can opt in" is not where anyone writing a
+route will be looking.
+
+**The obvious fix does not reach the obvious route.** `SetLocale` reads
+`$request->route('language')`, so putting it on the whole `web` group helps only
+routes that *declare a parameter of that name* — and the example above,
+`Route::get('/el/epikoinonia', …)`, has no parameters at all. It would stay
+broken.
+
+So either the middleware learns to read the first URL segment when there is no
+parameter (safe: `admin` and `sitemap.xml` cannot match `[a-z]{2}(-[a-z]{2})?`,
+which is the pattern the routes already use), or the requirement is written
+where a client's route author reads it — `site/README.md` — rather than in a
+comment in `bootstrap/app.php`. The first is the one that cannot be forgotten.
+
+### 105. The key-parity assertion compares order, not membership — P3
+
+`assertSame(array_keys($reference), array_keys(…))`. Alphabetising a
+translation file, or inserting a new pair at the top rather than the bottom,
+fails the suite with a whole-array diff that reads as a missing translation.
+
+`assertEqualsCanonicalizing` states the actual rule.
+
+### 106. The boundary test still promises two mounts — P3
+
+`CoreSiteBoundaryTest`'s docblock says "both mounts must actually work", and
+the file checks the theme and the routes file. `config/site.php` now carries a
+third.
+
+CLAUDE.md §1a sends a fresh session to that test as *the* enforcement of the
+core/site line, so the translations mount sits outside the one place a reader is
+told to look. **CLAUDE.md's own copy of the sentence is already corrected**;
+what is left is the docblock and the check it describes, which means taking
+#101's test in rather than leaving it in `TranslationTest` — see #101 for why
+that move is a precondition rather than tidying.
+
+### 107. A rate-limited visitor is refused in English — P3
+
+`->middleware(['throttle:enquiries', 'locale'])` runs the limiter first, so a
+429 is rendered before the locale is set. Swapping the order costs nothing:
+`SetLocale` does no work the limiter would repeat and no work a rejected
+request wastes.
+
+### 108. Two assertions that cannot fire — P3
+
+`assertDontSee('>Name<')` never matches, because the label renders as `Name *`;
+if the translation of `Name` were dropped, `/el` would render `>Name *<` and
+the assertion would still pass. `assertDontSee('theme.', false)` guards against
+a namespaced-key format this design deliberately does not use.
+
+Both read as safety nets and neither is one. Only the `assertSee('Όνομα')` half
+does any work.
+
+### 109. Three published language files nothing reads — P3
+
+`lang:publish` wrote `auth.php`, `pagination.php` and `passwords.php` beside
+`validation.php`. The application has no Blade auth screens, no password reset
+and no paginated Blade views, so 61 lines of framework defaults entered the
+repository as things a future translator will work through for nothing.
+
+Only `validation.php` is needed, as the fallback base #99 relies on. Decide the
+two together.
+
+### 110. The honeypot's label is now translated — P3
+
+The hidden trap's `<label>` was translated along with the visible ones, so its
+text varies with the language.
+
+Harmless today, because bots match the field's `name` rather than its label.
+But it is the one element in that form whose wording is a defence rather than a
+design choice, and a translator handed "Website" in the catalogue has no way to
+know it should be left alone.
+
+**Only one of the two obvious fixes survives #103.** Dropping the key from the
+catalogue fails the test #103 proposes, because the template still calls
+`__('Website')`. So either the template stops translating it — a literal
+`Website`, with a comment saying the wording is a trap and not a label — or the
+catalogue keeps it and the comment goes there instead. Decide it with #103.
 
 ---
 
@@ -1297,6 +1527,11 @@ particular has no automated cover. On a module with **more than 15 entries**:
 ---
 
 ## P1 — wrong today
+
+**#99 is the most urgent entry in this file and it is not below** — it is in
+*The #96 review* above, with the rest of its review. A Greek visitor submitting
+the enquiry form is refused half in English right now. #101, #102 and #103 are
+P1 there too.
 
 ### 36. `required` does nothing on a rich-text field
 
@@ -1826,186 +2061,6 @@ What remains is filtering and sorting by *content* fields at scale, and that
 only bites at eshop sizes.
 
 ---
-
-### The #96 review — the rest of the item, not a backlog
-
-Twelve findings from a review of #96's public half on the day it landed,
-2026-09-05. **They are ranked differently from everything above**, because ten
-of the twelve are not debt: they are defects in the mechanism that commit just
-built, or in the tests that are supposed to hold it. Deferring them means
-shipping a translation system whose own guarantees do not hold, so
-**#96 is not closable until #99 and #101–#108 are done.**
-
-One is visible to a visitor today (#99). One is latent and belongs with the
-panel half (#100). Five are the test mechanism failing to hold what its
-docblocks claim (#101–#103, #105, #108). The rest are small.
-
-That the review found this much in a green, live-verified, mutation-tested
-commit is worth naming: **every mutation proved a test bites, and none proved a
-test is sufficient.** The mutations were written from the same understanding as
-the code, so they exercised the paths the code already handled.
-
-### 99. A Greek visitor is refused half in English — P1
-
-`php artisan lang:publish` created `lang/en/` only. Laravel falls back per key
-to `APP_FALLBACK_LOCALE`, so every *framework* validation message stays English
-while the two hand-written ones in `lang/el.json` are Greek.
-
-A Greek visitor submitting a bad email with no consent box ticked reads:
-
-```
-The email field must be a valid email address.
-Παρακαλούμε συμφωνήστε να κρατήσουμε τα στοιχεία σας για να σας απαντήσουμε.
-```
-
-The framework messages are the **majority** of what a visitor ever sees — every
-`required`, `email`, `max`, `date` and `integer` on the form. The hand-written
-pair is the exception.
-
-Neither `TranslationTest` nor the live probe caught it because both assert on
-the consent message, which is the one that was translated. **A test written
-from the same understanding as the code cannot find what that understanding
-missed** — the same reason the mutations all passed.
-
-The fix is `lang/el/validation.php`, and only the rules the public forms
-actually use: the per-key fallback covers the rest, so a partial file is
-correct rather than half-finished. Decide with #109, which is the other half of
-the same `lang:publish`.
-
-### 100. The owner's notification will be sent in the visitor's language — P2
-
-`EnquiryController::notify()` builds `EnquiryReceived` **inside the visitor's
-request**, where `SetLocale` has already set the application locale to the
-language of the page they were reading.
-
-Nothing is wrong today, because the mail template is hardcoded English. But
-#96's own description says the owner's notification follows the *owner's*
-locale, and the moment that template is translated a French visitor's enquiry
-produces a French email to a Greek owner. It will look like a mail defect
-rather than a locale one, because nothing at the call site says the locale
-belongs to somebody else.
-
-Belongs with #96's panel half, which is where `users.locale` arrives and where
-the owner's locale becomes a thing that exists. The fix is to render the mail
-under the owner's locale explicitly, not to move the send.
-
-### 101. The mount test asserts something that is true without the mount — P1
-
-`TranslationTest::test_the_client_side_of_the_translations_is_mounted` ends
-with `assertSame('Name', __('Name', [], 'en'))`. `__()` returns the key when
-there is no translation at all, so the assertion passes whether or not
-`loadJsonTranslationsFrom(config('site.lang'))` was ever called.
-
-**Confirmed by the mutation run**: deleting that line bit only
-`test_a_page_is_rendered_in_the_language_of_its_address`. The third mount point
-therefore has no proof it works — unlike the routes mount, which is proven by
-loading a real file through `withSiteRoutes()`.
-
-The fix is the same shape as `withSiteRoutes`: point `SITE_LANG` at a temporary
-directory holding a known string and assert the string comes out. That also
-proves the `env()` override works, which is what lets a test move the mount at
-all.
-
-### 102. The parity test skips exactly the locales a client adds — P1
-
-`TranslationTest::locales()` lists the JSON files in **core's** `lang/`, and
-both the parity and collision tests iterate that list. A locale present in
-`site/lang/` but not in `lang/` is never compared with anything.
-
-A client activates Italian and adds `site/lang/it.json` with four of the
-fourteen keys. The suite is green and the Italian page ships half in English —
-which is precisely what the test's docblock claims to catch, and the only case
-that involves a client rather than the agency.
-
-The fix is to take the union of the locale files found in both directories.
-
-### 103. Nothing checks the catalogue against the code — P1
-
-`lang/en.json` and `site/lang/en.json` are identity maps. They exist only to be
-the reference the parity test compares against, and **no test compares them
-with the `__('...')` literals the templates actually contain.**
-
-So a new `__('Cancel')` in a theme template that nobody adds to `en.json` is
-invisible to the entire mechanism: parity passes, collision passes, and Greek
-visitors read "Cancel". The catalogue is only ever compared with itself.
-
-The fix is a test that scans `site/theme/**.blade.php` and `app/` for `__('…')`
-literals and asserts each one is in the catalogue. That is what makes the
-identity files earn their place; without it they are duplication with a
-ceremony attached.
-
-### 104. A client's own routes get no locale — P2
-
-`site/routes.php` is required **before** the `locale` group, so a page a client
-writes at `/{language}/…` renders in the default locale unless its author
-remembers `->middleware('locale')`.
-
-A client writes `/el/epikoinonia` and includes `theme::enquiry` — which the
-partial supports since #66's review. The page is Greek and the form labels are
-English. `CoreSiteBoundaryTest` cannot see it, and the note in
-`bootstrap/app.php` saying clients "can opt in" is not where anyone writing a
-route will be looking.
-
-Either apply the middleware to the whole `web` group (the segment pattern makes
-it safe: `admin` cannot match a language code), or say it in `site/README.md`
-where a client's route author actually reads.
-
-### 105. The key-parity assertion compares order, not membership — P3
-
-`assertSame(array_keys($reference), array_keys(…))`. Alphabetising a
-translation file, or inserting a new pair at the top rather than the bottom,
-fails the suite with a whole-array diff that reads as a missing translation.
-
-`assertEqualsCanonicalizing` states the actual rule.
-
-### 106. The boundary test still promises two mounts — P3
-
-`CoreSiteBoundaryTest`'s docblock says "both mounts must actually work", and
-the file checks the theme and the routes file. `config/site.php` now carries a
-third.
-
-CLAUDE.md §1a sends a fresh session to that test as *the* enforcement of the
-core/site line, so the translations mount now sits outside the one place a
-reader is told to look. Fixing it means moving #101's test there rather than
-leaving it in `TranslationTest`.
-
-### 107. A rate-limited visitor is refused in English — P3
-
-`->middleware(['throttle:enquiries', 'locale'])` runs the limiter first, so a
-429 is rendered before the locale is set. Swapping the order costs nothing:
-`SetLocale` does no work the limiter would repeat and no work a rejected
-request wastes.
-
-### 108. Two assertions that cannot fire — P3
-
-`assertDontSee('>Name<')` never matches, because the label renders as `Name *`;
-if the translation of `Name` were dropped, `/el` would render `>Name *<` and
-the assertion would still pass. `assertDontSee('theme.', false)` guards against
-a namespaced-key format this design deliberately does not use.
-
-Both read as safety nets and neither is one. Only the `assertSee('Όνομα')` half
-does any work.
-
-### 109. Three published language files nothing reads — P3
-
-`lang:publish` wrote `auth.php`, `pagination.php` and `passwords.php` beside
-`validation.php`. The application has no Blade auth screens, no password reset
-and no paginated Blade views, so 61 lines of framework defaults entered the
-repository as things a future translator will work through for nothing.
-
-Only `validation.php` is needed, as the fallback base #99 relies on. Decide the
-two together.
-
-### 110. The honeypot's label is now translated — P3
-
-The hidden trap's `<label>` was translated along with the visible ones, so its
-text varies with the language.
-
-Harmless today, because bots match the field's `name` rather than its label.
-But it is the one element in that form whose wording is a defence rather than a
-design choice, and a translator handed "Website" in the catalogue has no way to
-know it should be left alone. Either drop the label from the catalogue or say
-in the template why it is there.
 
 # Backlog
 
