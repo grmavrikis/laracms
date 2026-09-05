@@ -11,6 +11,7 @@ use App\Services\PageCache;
 use App\Services\RichTextDocument;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Entries are always addressed through their parent Module.
@@ -104,6 +105,22 @@ class EntryController extends Controller
         // the client had been told nothing about (TASKS.md #77).
         $entry = DB::transaction(function () use ($validated, $module)
         {
+            // The request rule that refuses a second entry in a singleton is a
+            // read, and a read before a write is a race: two requests can both
+            // find nothing and both insert, leaving the site with two About
+            // pages and no way to say which is the About page.
+            //
+            // Re-checked here, inside the transaction and holding the rows, so
+            // the second one waits for the first and then finds it. The rule
+            // in the request stays: it is what turns the ordinary case into a
+            // 422 that names the module instead of a 500.
+            if ($module->isSingleton() && $module->entries()->lockForUpdate()->exists())
+            {
+                throw ValidationException::withMessages([
+                    'data' => "'{$module->name}' holds a single entry, which already exists. Edit that one instead.",
+                ]);
+            }
+
             $entry = $module->entries()->create($this->attributes($validated, $module));
 
             $this->syncSlugs($entry, $validated, $module);

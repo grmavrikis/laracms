@@ -541,9 +541,14 @@ places rather than one:
   #75's lesson applied before it was paid for a second time;
 - the panel opens straight into the one entry, or a blank form for the first;
 - publicly, `/{lang}/{module}` **is** the page and `/{lang}/{module}/{slug}`
-  301s to it. A 404 would break every link that exists the moment a Module is
-  made a singleton after the fact — which is exactly when the flag gets
-  flipped. The sitemap lists the Module's address and not the entry's.
+  301s to it, but **only for a slug that resolves** — an address matching
+  nothing is still a 404. The sitemap lists the Module's address and not the
+  entry's.
+
+> Note while checking this: turning an existing Module into a singleton is a
+> **hand-written database edit**. There is no module update endpoint, so the
+> panel can only set the flag at creation. That is worth knowing before the
+> first client asks to convert a page.
 
 `PageCache` now stores what a page *is* rather than only its markup, so the
 redirect costs no queries on a hit.

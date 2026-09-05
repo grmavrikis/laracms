@@ -41,7 +41,18 @@ class PageCache
      */
     public const TTL = 60 * 60 * 24 * 7;
 
-    private const PREFIX = 'page';
+    /**
+     * The stored shape is part of this key.
+     *
+     * `remember()` once answered with a page's HTML and now answers with what
+     * the page *is*. The version counter below moves on a **write**, not on a
+     * deploy, so entries left by the previous shape sat under keys the new
+     * code would read and hand back through an `?array` signature - a
+     * TypeError on every warm page until somebody published or the seven-day
+     * TTL ran out. Changing the prefix retires them all at once; bump it again
+     * if the shape changes again.
+     */
+    private const PREFIX = 'page.v2';
 
     private const VERSION_KEY = 'page-version';
 

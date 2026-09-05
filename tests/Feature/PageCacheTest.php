@@ -7,6 +7,9 @@ use App\Models\Language;
 use App\Models\Module;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use App\Services\PageCache;
+use RuntimeException;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
@@ -234,5 +237,57 @@ class PageCacheTest extends TestCase
         $this->makeEntry('Νέο', 'oute-pou-yparxei');
 
         $this->get('/el/rooms/oute-pou-yparxei')->assertOk()->assertSee('Νέο', false);
+    }
+
+    // ---------------------------------------------- what an old cache holds
+
+    /**
+     * `remember()` once answered with the page's HTML and now answers with
+     * what the page *is* - `['html' => ...]` or `['redirect' => ...]`. The
+     * version counter does not move on a deploy, only on a write, so entries
+     * written by the previous shape are still sitting under their old keys.
+     *
+     * Reading one back through the new signature is a TypeError, which would
+     * 500 **every warm page on the site** until somebody published something
+     * or the seven-day TTL ran out.
+     */
+    public function test_a_page_cached_by_an_older_format_is_ignored(): void
+    {
+        // Exactly what the previous version wrote: a bare string, under the
+        // key that version built. The counter is read rather than assumed -
+        // setUp has already moved it, and hardcoding 1 made this pass without
+        // ever reaching the stale entry.
+        $version = app(PageCache::class)->version();
+
+        Cache::put("page:{$version}:home:el", '<html>stale</html>', 600);
+
+        $this->get('/el')
+            ->assertOk()
+            ->assertDontSee('stale', false)
+            ->assertSee('Rooms', false);
+    }
+
+    /**
+     * A shape the code does not recognise has to fail loudly. Serving an empty
+     * 200 would keep monitoring green, cache the blank, and let it be indexed.
+     */
+    public function test_an_unrecognised_cached_shape_is_not_served_as_an_empty_page(): void
+    {
+        $this->get('/el/rooms/proto')->assertOk();
+
+        // Reach into the key the current format uses and corrupt it.
+        $version = app(PageCache::class)->version();
+        Cache::put("page.v2:{$version}:entry:el:rooms:proto", ['nonsense' => true], 600);
+
+        // The **type** is asserted, not the status. Falling through to
+        // `$page['html']` also fails here, but only because PHPUnit turns the
+        // "undefined array key" warning into an exception - in production that
+        // warning is not fatal and the visitor gets an empty 200. Naming the
+        // exception is what tells the two apart.
+        $this->withoutExceptionHandling();
+
+        $this->expectException(RuntimeException::class);
+
+        $this->get('/el/rooms/proto');
     }
 }

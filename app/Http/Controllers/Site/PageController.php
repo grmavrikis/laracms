@@ -9,6 +9,7 @@ use App\Models\Module;
 use App\Services\EntryPresenter;
 use App\Services\PageCache;
 use Closure;
+use RuntimeException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 /**
@@ -116,15 +117,6 @@ class PageController extends Controller
                 return null;
             }
 
-            // The entry's own address would be a second URL for content that
-            // already has one, so it redirects rather than serving it. A 404
-            // would be simpler and would break every link that exists if a
-            // Module is made a singleton after the fact.
-            if ($found->isSingleton())
-            {
-                return ['redirect' => url("/{$current->code}/{$found->slug}")];
-            }
-
             $entry = Entry::forSlug($found, $current->code, $slug)
                 ->published()
                 ->with('slugs')
@@ -133,6 +125,22 @@ class PageController extends Controller
             if ($entry === null)
             {
                 return null;
+            }
+
+            // A singleton's content already has an address, so the entry's own
+            // one redirects there rather than serving it a second time. A 404
+            // would be simpler and would break links that exist if a Module is
+            // turned into a singleton - which today means a hand-written
+            // database edit, since there is no endpoint that updates a Module.
+            //
+            // **After** the entry is resolved, not before: redirecting first
+            // made every invented slug under the module a 301, which is a soft
+            // 404 to a crawler and - because a redirect is not `null` - one
+            // cached entry per made-up address, the thing PageCache exists to
+            // prevent.
+            if ($found->isSingleton())
+            {
+                return ['redirect' => url("/{$current->code}/{$found->slug}")];
             }
 
             return ['html' => $this->entryHtml($current, $found, $entry, $this->alternatesForEntry($found, $entry))];
@@ -199,12 +207,26 @@ class PageController extends Controller
             throw new NotFoundHttpException();
         }
 
+        // The query string is appended here rather than baked into the cached
+        // target: the cache key does not include it, so a stored redirect
+        // carrying one visitor's `utm_source` would be handed to the next.
         if (isset($page['redirect']))
         {
-            return redirect($page['redirect'], 301);
+            $query = request()->getQueryString();
+
+            return redirect($page['redirect'] . ($query === null ? '' : '?' . $query), 301);
         }
 
-        return response($page['html']);
+        // Explicit, so a shape nobody planned for fails where it happens. The
+        // previous form fell through to `$page['html']` and served an empty
+        // 200 - which keeps monitoring green, caches the blank and lets it be
+        // indexed, all worse than a fault.
+        if (isset($page['html']))
+        {
+            return response($page['html']);
+        }
+
+        throw new RuntimeException('A cached page carried neither html nor a redirect: ' . json_encode(array_keys($page)));
     }
 
     /**

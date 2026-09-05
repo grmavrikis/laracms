@@ -2143,8 +2143,10 @@ and never corrected would be worse than no singleton at all.
 
 `/{lang}/{module}` serves the entry itself, and `/{lang}/{module}/{slug}`
 answers **301** to it. A 404 would be simpler; it would also break every link
-that exists the moment a Module is made a singleton after the fact, which is
-exactly when this flag will be flipped.
+that exists if a Module is turned into a singleton after it has been indexed.
+That transition is a **hand-written database edit today** — there is no
+endpoint that updates a Module at all — so the argument is about the manual
+case rather than about anything the panel can do.
 
 The alternates are the Module's URLs in each language rather than the entry's,
 so the canonical the page advertises is the address it is actually served at —
@@ -2188,4 +2190,64 @@ sitemap carries the Module's URL once and the entry's not at all — while the
 
 **The panel needs a human.** It has no component harness (#94), so the
 open-straight-into-the-entry behaviour is verified by reading.
+
+### Ten the review of it found
+
+Two would have shown up in front of visitors, and one of those on the **deploy
+itself**.
+
+**Every warm page would have 500'd after release.** `PageCache::remember`
+changed its return type from `?string` to `?array`, and the version counter
+that invalidates the cache moves on a **write**, not on a deploy — so every
+page cached by the previous shape stayed under a key the new code reads, and
+handing a string back through an `?array` signature is a TypeError. The whole
+public site would have been down until somebody published something or the
+seven-day TTL ran out.
+
+I met this locally through the sitemap while building the feature and cleared
+it with `cache:clear`, which is exactly how a deploy-only fault gets hidden
+during development. The stored shape is now part of the key — `page.v2` — so
+old entries are unreachable rather than mis-read.
+
+**Every made-up address under a singleton was a 301.** The redirect was
+returned *before* the entry was looked up, so `/el/sxetika/anything-at-all`
+answered 301 rather than 404 — a soft 404 to a crawler, and, because a redirect
+is not `null`, **one cached entry per invented slug**. `PageCache`'s own
+docblock says an unknown URL must not be able to fill the cache; this made it
+possible. The entry is resolved first now, so a slug matching nothing is a 404
+and a draft's slug does not become a public redirect either.
+
+### The rest
+
+- **The singleton limit was a read before a write.** Two concurrent creates
+  could both find nothing and both insert. Re-checked inside the transaction
+  `store()` already opens, holding the rows — the request rule stays, because
+  it is what turns the ordinary case into a 422 that names the module.
+- **The 301 dropped the query string**, losing the campaign a visitor arrived
+  on. Appended when the response is built rather than baked into the cached
+  target: the cache key carries no query, so a stored redirect would have
+  handed one visitor's `utm_source` to the next.
+- **An unrecognised cached shape served an empty 200.** Worse than a fault —
+  monitoring stays green, the blank is cached and indexed. It now throws.
+- **Saving a singleton threw the author out of the module.** They could not see
+  the result, and a second correction meant navigating back in, on the screen a
+  client edits most. Saving keeps them on the content; cancelling leaves.
+- The justification for 301-over-404 cited "a Module made a singleton after the
+  fact" — a transition **no endpoint can perform**, since there is no module
+  update. Corrected in both documents to say it is a hand-written edit.
+- `Module::isSingleton()` cast a value the model already casts, and the panel
+  read the flag with `=== true`.
+
+### Checked
+
+Five tests written first, each failing for its own reason — the stale-format
+one failing with the TypeError itself. Then each fix mutated back out.
+
+**One mutation did not bite at first**, and the test changed rather than the
+claim: the empty-200 case asserted a 500, which the fall-through also produces
+*in tests only*, because PHPUnit escalates the "undefined array key" warning
+into an exception. In production that warning is not fatal and the visitor gets
+a blank page. Asserting the exception **type** is what tells the two apart.
+
+295 PHP tests, 155 JS tests, build clean.
 

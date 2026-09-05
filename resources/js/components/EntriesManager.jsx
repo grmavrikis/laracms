@@ -47,7 +47,7 @@ export default function EntriesManager({ module, onBack }) {
     // "About" is one entry, not a list of one (TASKS.md #60). The panel opens
     // straight into it, so the client never meets a table with a single row
     // and an "add" button that must not be pressed.
-    const singleton = module.is_singleton === true;
+    const singleton = Boolean(module.is_singleton);
 
     const [view, setView] = useState('list');
     const [editingEntry, setEditingEntry] = useState(null);
@@ -212,10 +212,29 @@ export default function EntriesManager({ module, onBack }) {
     const handleFormClose = (saved = false) => {
         const wasCreating = view === 'create';
 
-        // A singleton has no list to go back to: leaving the form means
-        // leaving the module.
-        if (singleton && onBack) {
-            onBack();
+        // A singleton has no list behind the form, so closing it cannot mean
+        // "go back to the list".
+        //
+        // Saving keeps the author on the content they just wrote - throwing
+        // them out to the modules list meant they could not see the result,
+        // and a second correction needed navigating back in, on the one screen
+        // a client edits most. Cancelling leaves, because there is nothing
+        // else here to show them.
+        if (singleton) {
+            if (saved) {
+                if (editingEntry?.id) {
+                    handleEdit(editingEntry);
+                } else {
+                    // Just created: the listing has to name it before the
+                    // effect above can open it.
+                    setView('list');
+                    setRefreshKey((n) => n + 1);
+                }
+
+                return;
+            }
+
+            onBack?.();
             return;
         }
 

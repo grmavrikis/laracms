@@ -29,7 +29,7 @@ class Module extends Model
      */
     public function isSingleton(): bool
     {
-        return (bool) $this->is_singleton;
+        return $this->is_singleton;
     }
 
     public function getRouteKeyName(): string

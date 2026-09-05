@@ -258,4 +258,58 @@ class SingletonModuleTest extends TestCase
             ->assertOk()
             ->assertSee(url('/el/blog/proto'), false);
     }
+
+    // ------------------------------------------- what a wrong address answers
+
+    /**
+     * The redirect is for the entry's *own* address, not for the module's whole
+     * URL space. Returning it before the entry was looked up made every
+     * invented slug a 301 - a soft 404 for a crawler, and a cache entry per
+     * made-up address, which is exactly what PageCache says must not happen.
+     */
+    public function test_a_slug_that_matches_nothing_is_still_a_404(): void
+    {
+        $module = $this->makeModule('sxetika', true);
+        $this->addEntry($module, 'Σχετικά με εμάς', 'sxetika-entry')->assertCreated();
+
+        $this->get('/el/sxetika/oute-pou-yparxei')->assertNotFound();
+        $this->get('/el/sxetika/sxetika-entry')->assertStatus(301);
+    }
+
+    public function test_a_draft_slug_under_a_singleton_is_a_404(): void
+    {
+        $module = $this->makeModule('sxetika', true);
+        $this->addEntry($module, 'Σχετικά με εμάς', 'sxetika-entry')->assertCreated();
+
+        $draft = $module->entries()->create([
+            'data' => ['title' => ['el' => 'Κρυφό']],
+            'status' => Entry::STATUS_DRAFT,
+        ]);
+        $draft->slugs()->create([
+            'module_id' => $module->id,
+            'language_code' => 'el',
+            'slug' => 'kryfo',
+        ]);
+
+        // A draft has no public address, so its slug must not become a
+        // redirect to one.
+        $this->get('/el/sxetika/kryfo')->assertNotFound();
+    }
+
+    /**
+     * A 301 that drops the query loses the campaign the visitor arrived on.
+     * The target is cached without it - the cache key does not include a query
+     * string - so it is appended when the response is built, not before.
+     */
+    public function test_the_redirect_keeps_the_query_string(): void
+    {
+        $module = $this->makeModule('sxetika', true);
+        $this->addEntry($module, 'Σχετικά με εμάς', 'sxetika-entry')->assertCreated();
+
+        $this->get('/el/sxetika/sxetika-entry?utm_source=newsletter')
+            ->assertRedirect('/el/sxetika?utm_source=newsletter');
+
+        // And the cached target is still clean for the next visitor.
+        $this->get('/el/sxetika/sxetika-entry')->assertRedirect('/el/sxetika');
+    }
 }
