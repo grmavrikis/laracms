@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Http\Requests\Concerns\ValidatesStructuralFields;
+use App\Models\Language;
 use App\Models\Module;
 use App\Services\SchemaRuleBuilder;
 use Illuminate\Foundation\Http\FormRequest;
@@ -34,7 +35,10 @@ class UpdateEntryRequest extends FormRequest
 
         // The entry being updated is passed so its own slugs do not count as
         // a collision with itself.
-        return SchemaRuleBuilder::build($module->schema, 'data')
+        // `required` on a translatable field means the default language.
+        // See SchemaRuleBuilder for why, and Language::default() for what
+        // happens when no row carries the flag.
+        return SchemaRuleBuilder::build($module->schema, 'data', Language::default()?->code)
             + $this->structuralRules($module, $this->route('entry'));
     }
 }

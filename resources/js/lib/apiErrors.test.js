@@ -4,6 +4,7 @@ import {
     errorSummary,
     messagesForField,
     messagesNotForFields,
+    languagesWithErrors,
 } from './apiErrors';
 
 // The payload shapes below were taken from the running API, not invented:
@@ -152,3 +153,68 @@ describe('errorSummary status overrides', () => {
             .toEqual(['Check your input.']);
     });
 });
+
+describe('messagesForField, per language', () => {
+    const errors = {
+        'data.title.el': ['The Greek title is required.'],
+        'data.title.fr': ['The French title is required.'],
+        'data.title': ['The title field is required.'],
+        'data.body.fr': ['The French body is required.'],
+    };
+
+    it('shows only the language being edited', () => {
+        // A complaint about French rendered under the Greek input, which told
+        // the author the Greek box was wrong when it was not.
+        const messages = messagesForField(errors, 'title', 'el');
+
+        expect(messages).toHaveLength(2);
+        expect(messages).toContain('The Greek title is required.');
+        expect(messages).not.toContain('The French title is required.');
+    });
+
+    it('keeps a complaint that names no language', () => {
+        // `data.title` is about the map itself - "you sent no translations at
+        // all" - and belongs under whichever language is open.
+        expect(messagesForField(errors, 'title', 'fr')).toContain('The title field is required.');
+    });
+
+    it('still returns everything when no language is given', () => {
+        // A field that is not translatable has no language to filter by, and
+        // a gallery's errors are nested deeper than one segment.
+        expect(messagesForField(errors, 'title')).toHaveLength(3);
+    });
+
+    it('does not mistake a gallery index for a language', () => {
+        const gallery = {
+            'data.photos.0': ['Bad item.'],
+            'data.photos.0.alt.en': ['Too long.'],
+        };
+
+        expect(messagesForField(gallery, 'photos')).toHaveLength(2);
+    });
+});
+
+describe('languagesWithErrors', () => {
+    it('names the languages that failed', () => {
+        expect(languagesWithErrors({
+            'data.title.fr': ['required'],
+            'data.body.fr': ['required'],
+            'data.title.en': ['too long'],
+        }, ['el', 'en', 'fr'])).toEqual(['fr', 'en']);
+    });
+
+    it('ignores keys that are not a language', () => {
+        // `data.photos.0` has the same shape and is an index, not a language.
+        expect(languagesWithErrors({
+            'data.photos.0': ['bad'],
+            'data.title': ['required'],
+            'status': ['invalid'],
+        }, ['el', 'en'])).toEqual([]);
+    });
+
+    it('copes with nothing at all', () => {
+        expect(languagesWithErrors({}, ['el'])).toEqual([]);
+        expect(languagesWithErrors(undefined, ['el'])).toEqual([]);
+    });
+});
+

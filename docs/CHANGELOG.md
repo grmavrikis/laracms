@@ -1978,3 +1978,85 @@ The probe module was removed and the cache flushed.
 
 267 PHP tests, 143 JS tests, build clean.
 
+---
+
+## 22. `required` means the default language
+
+Found by a human clicking through the demo content #59 was built to show, which
+is the only way it could have been found: **every existing test ran against a
+database with no languages in it**, so the per-language wildcard only ever saw
+the keys the test itself had sent.
+
+Opening a room, changing nothing, and pressing Save answered:
+
+```
+The data.title.fr field is required.
+```
+
+Three separate defects, one on top of another.
+
+### The rule was wrong
+
+`required` on a translatable field built `required` into `data.{name}.*`, so
+**every active language** was mandatory. Adding French to a site therefore made
+every existing entry unsaveable until somebody translated it — an author could
+not fix a typo in Greek without first inventing French.
+
+It now means the **default language**. The other translations may be empty, the
+map itself is still required, and the rule follows whichever row carries the
+flag rather than the first one.
+
+The explicit key and the wildcard both apply to the default language, which is
+deliberate and works: `required` is one of Laravel's *implicit* rules, so it is
+still evaluated on a null value even though the wildcard marks the attribute
+nullable. The wildcard's `required` is replaced by `nullable` rather than
+merely dropped — without it a null would fail the type rule behind it, and "not
+translated yet" has to be expressible.
+
+`Language::default()` is now the one answer to which language that is.
+`PageController` had written the same fallback out for itself; two statements
+of one rule that could have drifted, and now do not.
+
+**This was a decision, not a bug fix** — recorded in `TASKS.md` under
+Decisions. The stricter reading is defensible for a product that promises full
+translation; what is not defensible is that adding a language breaks editing.
+The better answer, deferred, is to demand every language **at publish** and let
+a draft be half-translated: `status` already exists for exactly that, but the
+rule builder would have to know it, which changes its signature and every
+caller. Not MVP.
+
+### The message was filed against the wrong input
+
+`messagesForField` returned every language's message, so the complaint about
+French was rendered under the **Greek** box — telling the author the Greek
+field was wrong when it was not.
+
+The comment above it explained why: *"Messages for every language, not just the
+visible tab — otherwise an error on a tab the user is not looking at is
+invisible."* The concern was right and the remedy was not: it solved *invisible*
+by making it *misplaced*.
+
+### Nothing took you to the language that failed
+
+Now the form switches to the first language that failed, and the language tabs
+carry a red dot for each one that has errors — which is what keeps a hidden
+error discoverable, the job the old behaviour was doing badly.
+
+A gallery's keys nest deeper than one segment (`data.photos.0.alt.en`), so
+filtering by language would have hidden them. Fields that are not translatable
+pass no language and still get everything; a test pins it.
+
+### Checked
+
+Failing tests first. The three new rule tests seed **three active languages**,
+which is the thing every earlier test was missing, and each failed for its own
+reason: French demanded, an empty default accepted, the flag ignored. Putting
+the old rule back fails exactly those three.
+
+Verified live against MySQL with `el`, `en` and `fr` active: saving a room with
+only Greek filled answers **200** where it answered 422, and clearing the Greek
+title answers **422 on `data.title.el`** — which the panel now opens on. The
+probe ran inside a transaction and rolled back, so the demo content survived.
+
+273 PHP tests, 150 JS tests, build clean.
+

@@ -227,11 +227,14 @@ class PageController extends Controller
         return $this->activeLanguages()->firstWhere('code', $code);
     }
 
+    /**
+     * The same answer the validator uses, from the same place - the rule
+     * "which language is the default, and what if none is flagged" was
+     * written out twice and the two could have drifted.
+     */
     private function defaultLanguage(): Language
     {
-        $languages = $this->activeLanguages();
-
-        $default = $languages->firstWhere('is_default', true) ?? $languages->first();
+        $default = Language::default();
 
         if ($default === null)
         {

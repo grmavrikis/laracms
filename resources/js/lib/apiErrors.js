@@ -52,15 +52,53 @@ export const errorSummary = (err, fallback = 'Something went wrong.', overrides 
 };
 
 /**
- * Messages belonging to one schema field, covering both the plain key
- * ('data.title') and the per-language ones ('data.title.en').
+ * Messages belonging to one schema field.
+ *
+ * `langCode` narrows them to the translation being edited. Without it, a
+ * complaint about French was rendered under the Greek input - telling the
+ * author the Greek box was wrong when it was not, and giving no hint that the
+ * problem was on a tab they could not see.
+ *
+ * A key naming no language ('data.title') is about the map itself - "you sent
+ * no translations at all" - so it belongs under whichever language is open and
+ * is always returned. Pass no `langCode` for a field that is not translatable:
+ * a gallery's keys nest deeper than one segment and must not be filtered.
  */
-export const messagesForField = (errors, fieldName) => {
+export const messagesForField = (errors, fieldName, langCode = null) => {
     const prefix = `data.${fieldName}`;
 
-    return Object.entries(errors)
-        .filter(([key]) => key === prefix || key.startsWith(`${prefix}.`))
+    return Object.entries(errors ?? {})
+        .filter(([key]) => {
+            if (key === prefix) return true;
+            if (!key.startsWith(`${prefix}.`)) return false;
+
+            return langCode === null || key.slice(prefix.length + 1) === langCode;
+        })
         .flatMap(([, messages]) => (Array.isArray(messages) ? messages : [messages]));
+};
+
+/**
+ * Which languages a 422 complained about, in the order the API reported them.
+ *
+ * What the form needs to answer "the field you cannot see is the one that
+ * failed" - it switches to the first of these and marks the rest.
+ *
+ * The known codes are passed in rather than inferred: `data.photos.0` has the
+ * same three-segment shape and its middle value is an index, not a language.
+ */
+export const languagesWithErrors = (errors, languageCodes) => {
+    const known = new Set(languageCodes ?? []);
+    const found = [];
+
+    for (const key of Object.keys(errors ?? {})) {
+        const parts = key.split('.');
+
+        if (parts.length === 3 && parts[0] === 'data' && known.has(parts[2]) && !found.includes(parts[2])) {
+            found.push(parts[2]);
+        }
+    }
+
+    return found;
 };
 
 /**

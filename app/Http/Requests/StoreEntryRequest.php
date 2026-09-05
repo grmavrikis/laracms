@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Http\Requests\Concerns\ValidatesStructuralFields;
+use App\Models\Language;
 use App\Models\Module;
 use App\Services\SchemaRuleBuilder;
 use Illuminate\Foundation\Http\FormRequest;
@@ -35,7 +36,10 @@ class StoreEntryRequest extends FormRequest
 
         // The schema decides `data`; the structural columns are the same for
         // every Module and are described separately.
-        return SchemaRuleBuilder::build($module->schema, 'data')
+        // `required` on a translatable field means the default language.
+        // See SchemaRuleBuilder for why, and Language::default() for what
+        // happens when no row carries the flag.
+        return SchemaRuleBuilder::build($module->schema, 'data', Language::default()?->code)
             + $this->structuralRules($module);
     }
 }

@@ -228,6 +228,15 @@ configuration, so a field is required only when it says so — the outer
 level was once hardcoded to `required`, which made every translatable field
 mandatory.
 
+**On a translatable field, `required` means the default language.** The other
+translations may be left empty. Demanding every active language made adding a
+language retroactively destructive: every existing entry became unsaveable
+until somebody translated it, so an author could not correct a typo without
+inventing a translation (CHANGELOG.md §22). The map itself is still required —
+sending no translations at all is refused — and `Language::default()` is the
+single answer to which language that is, used by the validator and the public
+site alike.
+
 Requiredness comes from the field's **`required` flag** (the *Req* checkbox
 in the module form). Writing `required` into the free-text `validation`
 string also still works, for schemas that did it that way; setting both

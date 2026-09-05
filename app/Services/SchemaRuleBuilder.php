@@ -79,8 +79,11 @@ class SchemaRuleBuilder
      *        something the request actually has. Module creation sends
      *        `schema`; an entry sends `data` and has no `schema` at all.
      */
-    public static function build(array $schema, string $attribute = 'schema'): array
-    {
+    public static function build(
+        array $schema,
+        string $attribute = 'schema',
+        ?string $requiredLanguage = null
+    ): array {
         $rules = [
             'data' => ['required', 'array'],
         ];
@@ -154,11 +157,31 @@ class SchemaRuleBuilder
                 // inner level used to be built from the field's configuration;
                 // the outer one was always `required`, so a field configured as
                 // optional still had to be sent.
-                $rules["data.{$name}"] = in_array('required', $fieldRules, true)
-                    ? ['required', 'array']
-                    : ['nullable', 'array'];
+                $isRequired = in_array('required', $fieldRules, true);
 
-                $rules["data.{$name}.*"] = $fieldRules;
+                $rules["data.{$name}"] = $isRequired ? ['required', 'array'] : ['nullable', 'array'];
+
+                if ($isRequired && $requiredLanguage !== null)
+                {
+                    // `required` means the **default language**, not every
+                    // active one. Demanding all of them made adding a language
+                    // retroactively unsaveable: every existing entry failed on
+                    // the new one until somebody translated it, so an author
+                    // could not correct a typo without inventing a translation
+                    // (TASKS.md, Decisions 2026-09-05).
+                    //
+                    // The explicit key and the wildcard both apply to the
+                    // default language. That is deliberate and it works:
+                    // `required` is one of Laravel's *implicit* rules, so it is
+                    // still evaluated on a null value even though the wildcard
+                    // marks the attribute nullable.
+                    $rules["data.{$name}.{$requiredLanguage}"] = $fieldRules;
+                    $rules["data.{$name}.*"] = self::withoutRequired($fieldRules);
+                }
+                else
+                {
+                    $rules["data.{$name}.*"] = $fieldRules;
+                }
             }
             else
             {
@@ -177,6 +200,28 @@ class SchemaRuleBuilder
         }
 
         return $rules;
+    }
+
+    /**
+     * The same rules, with the demand for a value dropped.
+     *
+     * `nullable` replaces `required` rather than merely removing it: without
+     * it a null value would fail whatever type rule follows, and "this
+     * language has not been translated yet" has to be expressible.
+     *
+     * @param array<int, mixed> $rules
+     * @return array<int, mixed>
+     */
+    private static function withoutRequired(array $rules): array
+    {
+        $optional = array_values(array_filter(
+            $rules,
+            fn(mixed $rule) => $rule !== 'required'
+        ));
+
+        array_unshift($optional, 'nullable');
+
+        return $optional;
     }
 
     /**

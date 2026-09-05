@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Language;
 use App\Models\Module;
 use App\Models\User;
 use App\Services\SchemaRuleBuilder;
@@ -141,5 +142,124 @@ class RequiredFieldTest extends TestCase
             ])
             ->assertStatus(422)
             ->assertJsonValidationErrors('schema.0.required');
+    }
+
+    // ------------------------------- required, across more than one language
+
+    private function seedLanguages(): void
+    {
+        Language::create(['name' => 'Greek', 'code' => 'el', 'is_default' => true]);
+        Language::create(['name' => 'English', 'code' => 'en']);
+        Language::create(['name' => 'French', 'code' => 'fr']);
+    }
+
+    /**
+     * `required` on a translatable field means **the default language**, not
+     * every active one (TASKS.md, Decisions 2026-09-05).
+     *
+     * Demanding all of them made adding a language retroactively unsaveable:
+     * every existing entry failed on the new language until somebody wrote it,
+     * so an author could not correct a typo without inventing a translation.
+     *
+     * None of the earlier cases here caught it, because this database had no
+     * languages at all - the wildcard only ever saw the keys that were sent.
+     */
+    public function test_required_means_the_default_language(): void
+    {
+        $this->seedLanguages();
+
+        $module = $this->moduleWith([
+            'name' => 'title',
+            'translatable' => true,
+            'required' => true,
+        ]);
+
+        $this->postEntry($module, ['title' => ['el' => 'Παρών']])->assertCreated();
+    }
+
+    public function test_the_other_languages_may_be_left_empty(): void
+    {
+        $this->seedLanguages();
+
+        $module = $this->moduleWith([
+            'name' => 'title',
+            'translatable' => true,
+            'required' => true,
+        ]);
+
+        // What the panel actually sends: every language, most of them blank.
+        $this->postEntry($module, ['title' => ['el' => 'Παρών', 'en' => null, 'fr' => '']])
+            ->assertCreated();
+    }
+
+    public function test_the_default_language_is_still_demanded(): void
+    {
+        $this->seedLanguages();
+
+        $module = $this->moduleWith([
+            'name' => 'title',
+            'translatable' => true,
+            'required' => true,
+        ]);
+
+        $this->postEntry($module, ['title' => ['el' => '', 'en' => 'present']])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('data.title.el');
+
+        $this->postEntry($module, ['title' => ['en' => 'present']])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('data.title.el');
+    }
+
+    public function test_the_map_itself_is_still_demanded(): void
+    {
+        $this->seedLanguages();
+
+        $module = $this->moduleWith([
+            'name' => 'title',
+            'translatable' => true,
+            'required' => true,
+        ]);
+
+        $this->postEntry($module, [])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('data.title');
+    }
+
+    /**
+     * The rule follows whichever language carries the flag, so a site that
+     * changes its default does not keep demanding the old one.
+     */
+    public function test_it_follows_the_flag_rather_than_the_first_row(): void
+    {
+        $this->seedLanguages();
+        Language::where('code', 'el')->update(['is_default' => false]);
+        Language::where('code', 'fr')->update(['is_default' => true]);
+
+        $module = $this->moduleWith([
+            'name' => 'title',
+            'translatable' => true,
+            'required' => true,
+        ]);
+
+        $this->postEntry($module, ['title' => ['fr' => 'Présent']])->assertCreated();
+
+        $this->postEntry($module, ['title' => ['el' => 'Παρών']])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('data.title.fr');
+    }
+
+    public function test_a_field_that_is_not_required_is_untouched_by_any_of_this(): void
+    {
+        $this->seedLanguages();
+
+        $module = $this->moduleWith([
+            'name' => 'title',
+            'translatable' => true,
+            'required' => false,
+        ]);
+
+        $this->postEntry($module, [])->assertCreated();
+        $this->postEntry($module, ['title' => ['el' => null]])->assertCreated();
     }
 }

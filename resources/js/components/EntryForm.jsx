@@ -5,7 +5,7 @@ import RichTextEditor from './RichTextEditor';
 import GalleryEditor from './GalleryEditor';
 import { isRichTextField, emptyDoc } from '../lib/richText';
 import { isGalleryField, emptyGallery, fromStored } from '../lib/gallery';
-import { validationErrors, errorSummary, messagesForField, messagesNotForFields } from '../lib/apiErrors';
+import { validationErrors, errorSummary, messagesForField, messagesNotForFields, languagesWithErrors } from '../lib/apiErrors';
 import { getLangCode, defaultLanguage } from '../lib/languages';
 import { STATUS_DRAFT, STATUS_PUBLISHED, slugsToMap, entryPayload } from '../lib/entries';
 
@@ -152,6 +152,19 @@ export default function EntryForm({ moduleSlug, schema, languages, onSaved, onCa
             const errors = validationErrors(err);
             setFieldErrors(errors);
 
+            // A required translation that is missing fails on a tab the author
+            // may not have open, and until this the message was rendered under
+            // whichever language *was* open - so the Greek box was marked wrong
+            // because the French one was empty. Go to the first language that
+            // actually failed; the tabs mark the rest.
+            const failed = languagesWithErrors(errors, languages.map(getLangCode));
+
+            if (failed.length > 0 && !failed.includes(getLangCode(languages.find((l) => l.id === activeLangId)))) {
+                const target = languages.find((l) => getLangCode(l) === failed[0]);
+
+                if (target) setActiveLangId(target.id);
+            }
+
             // On a 422 the per-field messages are rendered beside their inputs,
             // so only what belongs to no field goes in the banner. Anything
             // else has no field to attach to and goes there in full.
@@ -165,8 +178,16 @@ export default function EntryForm({ moduleSlug, schema, languages, onSaved, onCa
         }
     };
 
-    const fieldErrorList = (field) => {
-        const messages = messagesForField(fieldErrors, field.name);
+    /**
+     * @param langCode the translation being edited, so a complaint about
+     *        another language is not rendered against this input. Null for a
+     *        field that is not translatable - a gallery's keys nest deeper
+     *        than one segment and must not be filtered.
+     */
+    const failedLanguages = languagesWithErrors(fieldErrors, languages.map(getLangCode));
+
+    const fieldErrorList = (field, langCode = null) => {
+        const messages = messagesForField(fieldErrors, field.name, langCode);
 
         if (messages.length === 0) {
             return null;
@@ -336,19 +357,34 @@ export default function EntryForm({ moduleSlug, schema, languages, onSaved, onCa
                 {translatableFields.length > 0 && (
                     <div className="mt-10 pt-8 border-t border-gray-100">
                         <div className="flex p-1 mb-8 space-x-1 bg-gray-100/80 rounded-lg w-max border border-gray-200/50">
-                            {languages.map((l) => (
-                                <button
-                                    key={l.id}
-                                    type="button"
-                                    onClick={() => setActiveLangId(l.id)}
-                                    className={`px-5 py-1.5 text-sm font-medium rounded-md transition-all duration-200 ${activeLangId === l.id
-                                        ? 'bg-white text-indigo-600 shadow-sm'
-                                        : 'text-gray-500 hover:text-gray-900 hover:bg-gray-200/50'
-                                        }`}
-                                >
-                                    {getLangCode(l).toUpperCase()}
-                                </button>
-                            ))}
+                            {languages.map((l) => {
+                                // A tab carries a dot when that translation
+                                // failed. Messages are filed under their own
+                                // language now, so this is what keeps one on a
+                                // tab the author cannot see from being silent.
+                                const failed = failedLanguages.includes(getLangCode(l));
+
+                                return (
+                                    <button
+                                        key={l.id}
+                                        type="button"
+                                        onClick={() => setActiveLangId(l.id)}
+                                        title={failed ? 'This translation has errors' : undefined}
+                                        className={`flex items-center gap-1.5 px-5 py-1.5 text-sm font-medium rounded-md transition-all duration-200 ${activeLangId === l.id
+                                            ? 'bg-white text-indigo-600 shadow-sm'
+                                            : failed
+                                                ? 'text-red-600 hover:bg-gray-200/50'
+                                                : 'text-gray-500 hover:text-gray-900 hover:bg-gray-200/50'
+                                            }`}
+                                    >
+                                        {getLangCode(l).toUpperCase()}
+                                        {failed && (
+                                            <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-red-500" />
+                                        )}
+                                        {failed && <span className="sr-only">has errors</span>}
+                                    </button>
+                                );
+                            })}
                         </div>
 
                         <div className="grid max-w-2xl grid-cols-1 gap-x-6 gap-y-6 sm:grid-cols-6">
@@ -361,10 +397,14 @@ export default function EntryForm({ moduleSlug, schema, languages, onSaved, onCa
                                         </span>
                                     </label>
                                     {renderInput(field, translations[activeLangId]?.[field.name], (v) => setTranslatedField(activeLangId, field.name, v))}
-                                    {/* Messages for every language, not just the
-                                        visible tab - otherwise an error on a tab
-                                        the user is not looking at is invisible. */}
-                                    {fieldErrorList(field)}
+                                    {/* Only this language's messages. They used
+                                        to be shown for every language at once so
+                                        an error on a hidden tab was not silent -
+                                        which marked the Greek box wrong because
+                                        the French one was empty. The tabs above
+                                        carry that job now, and the form opens on
+                                        the language that failed. */}
+                                    {fieldErrorList(field, getLangCode(languages.find((l) => l.id === activeLangId)))}
                                 </div>
                             ))}
                         </div>

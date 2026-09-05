@@ -382,6 +382,27 @@ array rendered above the table.
 > This is the lesson of **#75** applied before it is paid for a second time: an
 > endpoint that accepted whatever ids it was sent and trusted them.
 
+## Decisions taken (2026-09-05, second)
+
+**`required` on a translatable field means the default language.** Not every
+active one. Found when a human clicked Save on the demo content and could not,
+because French was active and untranslated (CHANGELOG §22).
+
+The stricter reading is defensible for a product that promises full
+translation. What is not defensible is the consequence: **adding a language
+retroactively breaks editing** of everything already written. An author cannot
+correct a Greek typo without first inventing a French translation.
+
+The map itself stays required, so an entry with no translations at all is still
+refused, and `Language::default()` is the single answer to which language is
+meant.
+
+> **The better answer is deferred, not rejected.** Demand every language **at
+> publish**, and let a draft be half-translated — `status` exists for exactly
+> that shape of rule. It needs `SchemaRuleBuilder` to know the entry's status,
+> which changes its signature and every caller, and it is not on the MVP list.
+> Filed as #95.
+
 ## Deferred deliberately
 
 Not dropped. Decided against *for now*, with the reason, so they cannot creep
@@ -1323,6 +1344,22 @@ would use on a list that size.
 
 Fetch it when a reorder is actually attempted, or not at all above a threshold
 — `Entry::MAX_REORDER` already says where that threshold is.
+
+### 95. Demand every translation at publish, not at save
+
+Deferred from the decision in CHANGELOG §22. `required` now means the default
+language, which unblocks editing; the stronger rule a multilingual CMS actually
+wants is **every active language, enforced when the entry is published**, with
+a draft allowed to be half-translated.
+
+`status` already exists for exactly that shape of rule (#56). What is missing is
+that `SchemaRuleBuilder::build()` does not know the entry's status — adding it
+changes the signature and every caller, including `ModuleController`, which
+validates a schema and has no entry at all.
+
+Worth doing before the first client publishes a site in two languages, because
+that is when "half the English is missing and nobody noticed" becomes a
+support call. Not before the MVP ships.
 
 ### 94. The panel has no component-test harness
 
