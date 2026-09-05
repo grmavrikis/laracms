@@ -274,13 +274,17 @@ Worked through a prioritised list; every item is either done or recorded in
   called, and recorded in `TASKS.md` → Amendments and → Decisions taken
   (2026-09-05, third). Read those before starting any of them; each rests on a
   decision that is not obvious from the code.
-  - **#96 translated interfaces — the public half is done** (ARCHITECTURE
-    §5a): `SetLocale` from the address, JSON translations keyed by their
-    English text, `lang/` for core and `site/lang/` for the theme. **What is
-    left is the panel** — ~13 sentences in `app/` and ~39 in the React
-    components. Content languages are **rows**; interface locales are
-    **files** — different axes, and they must not share the `languages`
-    table.
+  - **#96 translated interfaces — the public half is built but not finished**
+    (ARCHITECTURE §5a): `SetLocale` from the address, JSON translations keyed
+    by their English text, `lang/` for core and `site/lang/` for the theme.
+    Content languages are **rows**; interface locales are **files** —
+    different axes, and they must not share the `languages` table.
+    **Two things are left**: the panel (~13 sentences in `app/`, ~39 in the
+    React components, `users.locale`), and **#99–#110**, twelve review
+    findings against the half already written. Read that section before
+    touching translations: a Greek visitor is refused half in English right
+    now (#99), and three of the tests that look like they hold this mechanism
+    do not (#101, #102, #103).
   - **#97 static HTML pages.** A cache hit was measured at **four queries**,
     not none: the test that says none runs on `array` stores that exist only in
     `phpunit.xml`. Pages become files the web server serves before PHP boots,
