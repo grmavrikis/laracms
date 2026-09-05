@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\User;
 use Illuminate\Support\Facades\File;
+use RuntimeException;
 
 /**
  * Which language a *person* reads the panel in (TASKS.md #96).
@@ -28,14 +29,23 @@ use Illuminate\Support\Facades\File;
  */
 class InterfaceLocales
 {
+    /** @var array<int, string>|null */
+    private ?array $available = null;
+
     /**
      * The locales somebody has written a file for, sorted.
+     *
+     * **Read once.** `SetPanelLocale` asks on every API request and
+     * `forPanel()` asks twice more, so without this a single panel screen
+     * costs a dozen directory listings for an answer that cannot change
+     * inside one request. Registered as a singleton in `AppServiceProvider`
+     * so the saving is real rather than per-injection.
      *
      * @return array<int, string>
      */
     public function available(): array
     {
-        return collect(File::exists(lang_path()) ? File::files(lang_path()) : [])
+        return $this->available ??= collect(File::exists(lang_path()) ? File::files(lang_path()) : [])
             ->filter(fn($file) => $file->getExtension() === 'json')
             ->map(fn($file) => $file->getFilenameWithoutExtension())
             ->sort()
@@ -43,7 +53,17 @@ class InterfaceLocales
             ->all();
     }
 
-    /** @return array<string, string> */
+    /**
+     * The catalogue for one locale.
+     *
+     * A file that is not valid JSON **throws**, in the same words Laravel's
+     * own `FileLoader` uses on the same file. Swallowing it would make the
+     * public side strict and the panel silent about one editing mistake: a
+     * trailing comma in `el.json` would render the whole panel in English
+     * with nothing anywhere saying why.
+     *
+     * @return array<string, string>
+     */
     public function messages(string $locale): array
     {
         $path = lang_path("{$locale}.json");
@@ -53,7 +73,14 @@ class InterfaceLocales
             return [];
         }
 
-        return json_decode(File::get($path), true) ?: [];
+        $decoded = json_decode(File::get($path), true);
+
+        if (!is_array($decoded))
+        {
+            throw new RuntimeException("Translation file [{$path}] contains an invalid JSON structure.");
+        }
+
+        return $decoded;
     }
 
     /**
@@ -78,7 +105,11 @@ class InterfaceLocales
             }
         }
 
-        return (string) config('app.fallback_locale');
+        // Nothing configured has a file. Serving the fallback anyway would
+        // hand the reader an empty catalogue, which is the outcome the loop
+        // above exists to prevent - so take whatever is on disk instead, and
+        // only fall back to a bare code when the directory is empty too.
+        return $available[0] ?? (string) config('app.fallback_locale');
     }
 
     /**

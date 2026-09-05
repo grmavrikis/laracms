@@ -33,7 +33,14 @@ class SetPanelLocale
 
     public function handle(Request $request, Closure $next): Response
     {
-        App::setLocale($this->locales->resolve($request->user()));
+        // The `sanctum` guard first, because that is what the routes here
+        // authenticate with. `$request->user()` alone asks the *default*
+        // guard, which answers for the panel's session and returns null for a
+        // token client - who would then read the installation's language
+        // while `auth:sanctum` identified them perfectly well a moment later.
+        $user = $request->user('sanctum') ?? $request->user();
+
+        App::setLocale($this->locales->resolve($user));
 
         return $next($request);
     }

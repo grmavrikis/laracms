@@ -45,6 +45,29 @@ describe('translate', () => {
     });
 
     /**
+     * PHP replaces in **one pass** (`strtr`), so a value that happens to
+     * contain `:something` is left alone. Replacing one name at a time over
+     * the accumulating line rescans what was just inserted.
+     */
+    it('does not replace inside a value it has already inserted', () => {
+        // The inserted name has to be *shorter* than the one that carried it
+        // in, or the longest-first order hides the defect: with `:status` the
+        // inner placeholder is already spent by the time it arrives.
+        expect(translate({}, ':title — :id', { title: 'Room :id', id: 7 }))
+            .toBe('Room :id — 7');
+    });
+
+    /**
+     * `makeReplacements` registers `:key`, `:Key` and `:KEY`. A translator who
+     * starts a Greek sentence with `:Module` should not read `:Module`.
+     */
+    it('capitalises the way PHP does', () => {
+        expect(translate({}, ':name saved', { name: 'rooms' })).toBe('rooms saved');
+        expect(translate({}, ':Name saved', { name: 'rooms' })).toBe('Rooms saved');
+        expect(translate({}, ':NAME saved', { name: 'rooms' })).toBe('ROOMS saved');
+    });
+
+    /**
      * A replacement whose name is not in the line is not an error: the Greek
      * translation of a sentence may legitimately drop a value the English one
      * carried.

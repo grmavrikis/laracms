@@ -4,8 +4,10 @@ namespace Tests\Feature;
 
 use App\Models\Language;
 use App\Models\User;
+use App\Services\InterfaceLocales;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\File;
+use RuntimeException;
 use Tests\TestCase;
 
 /**
@@ -42,7 +44,7 @@ class PanelLocaleTest extends TestCase
     {
         $response = $user ? $this->actingAs($user)->get('/admin') : $this->get('/admin');
 
-        preg_match('/window\.miniCms\s*=\s*(\{.*?\});/s', $response->assertOk()->getContent(), $m);
+        preg_match('#window\.miniCms\s*=\s*(.*?);</script>#s', $response->assertOk()->getContent(), $m);
 
         $this->assertNotEmpty($m[1] ?? '', 'The panel page carries no injected settings.');
 
@@ -151,6 +153,119 @@ class PanelLocaleTest extends TestCase
         $this->putJson('/api/user/locale', ['locale' => 'el'])->assertUnauthorized();
     }
 
+    // --------------------------------------------------- the catalogue on disk
+
+    /**
+     * Point the application at a `lang/` of our own, so the cases below can be
+     * built rather than described.
+     */
+    private function withLangPath(array $files, callable $assertions): void
+    {
+        $dir = sys_get_temp_dir() . '/zz-lang-' . uniqid();
+        mkdir($dir);
+
+        foreach ($files as $name => $contents)
+        {
+            file_put_contents("{$dir}/{$name}", $contents);
+        }
+
+        $was = $this->app->langPath();
+        $this->app->useLangPath($dir);
+
+        try
+        {
+            $assertions();
+        }
+        finally
+        {
+            $this->app->useLangPath($was);
+            File::deleteDirectory($dir);
+        }
+    }
+
+    /**
+     * A broken catalogue must say so. Laravel's own loader throws on the same
+     * file, so swallowing it here would make the public side strict and the
+     * panel silent about one editing mistake.
+     */
+    public function test_a_catalogue_that_is_not_valid_json_is_refused(): void
+    {
+        $this->withLangPath(['el.json' => '{"Admin Panel": "Πίνακας",}'], function ()
+        {
+            $this->expectException(RuntimeException::class);
+
+            app(InterfaceLocales::class)->messages('el');
+        });
+    }
+
+    /**
+     * If nothing configured has a file, serve one that does. Returning the
+     * fallback regardless would hand the reader an empty catalogue - the very
+     * thing the availability check exists to prevent.
+     */
+    public function test_a_fallback_with_no_file_does_not_win_over_one_that_has_one(): void
+    {
+        config(['app.fallback_locale' => 'de', 'site.locale' => null]);
+
+        $this->withLangPath(['el.json' => '{"Admin Panel": "Πίνακας διαχείρισης"}'], function ()
+        {
+            $locales = app(InterfaceLocales::class);
+
+            $this->assertSame('el', $locales->resolve(null));
+            $this->assertNotSame([], $locales->forPanel(null)['messages']);
+        });
+    }
+
+    /**
+     * The directory is read once per request, not once per question. The
+     * middleware runs on every API call and `forPanel()` asks twice.
+     */
+    public function test_the_catalogue_directory_is_read_once(): void
+    {
+        $this->withLangPath(['en.json' => '{"Admin Panel": "Admin Panel"}'], function ()
+        {
+            $locales = app(InterfaceLocales::class);
+
+            $locales->forPanel(null);
+
+            File::deleteDirectory($this->app->langPath());
+
+            $this->assertSame(['en'], $locales->available(), 'The list was read from disk a second time.');
+        });
+    }
+
+    /**
+     * A locale is a filename, and a filename has no length limit; the column
+     * does. #76 was exactly this - a value the validator accepted and MySQL
+     * refused - and SQLite cannot see it, so the bound is asserted directly.
+     */
+    public function test_no_locale_on_disk_is_wider_than_the_column(): void
+    {
+        foreach (app(InterfaceLocales::class)->available() as $locale)
+        {
+            $this->assertLessThanOrEqual(
+                User::LOCALE_MAX_LENGTH,
+                strlen($locale),
+                "lang/{$locale}.json cannot be stored in users.locale."
+            );
+        }
+    }
+
+    public function test_a_locale_too_long_for_the_column_is_refused(): void
+    {
+        $user = User::factory()->create(['locale' => 'en']);
+        $long = str_repeat('a', User::LOCALE_MAX_LENGTH + 1);
+
+        $this->withLangPath(["{$long}.json" => '{}', 'en.json' => '{}'], function () use ($user, $long)
+        {
+            $this->actingAs($user)->putJson('/api/user/locale', ['locale' => $long])
+                ->assertStatus(422)
+                ->assertJsonValidationErrors('locale');
+        });
+
+        $this->assertSame('en', $user->fresh()->locale);
+    }
+
     // ------------------------------------------------------------- the API
 
     /**
@@ -178,6 +293,24 @@ class PanelLocaleTest extends TestCase
                 ->assertStatus(422)
                 ->json('errors.slug.0')
         );
+    }
+
+    /**
+     * The two halves of the picker, joined: change the language, then read the
+     * page. Each was covered on its own and the flow between them was not.
+     */
+    public function test_changing_the_language_changes_what_the_panel_serves(): void
+    {
+        $user = User::factory()->create(['locale' => 'en']);
+
+        $this->assertSame('Admin Panel', $this->panel($user)['messages']['Admin Panel']);
+
+        $this->actingAs($user)->putJson('/api/user/locale', ['locale' => 'el'])->assertOk();
+
+        $panel = $this->panel($user->fresh());
+
+        $this->assertSame('el', $panel['locale']);
+        $this->assertNotSame('Admin Panel', $panel['messages']['Admin Panel']);
     }
 
     /**

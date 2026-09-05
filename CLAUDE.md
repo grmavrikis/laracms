@@ -96,6 +96,7 @@ The `lib/` helpers are pure functions and carry the interesting decisions:
 | `resources/js/lib/apiErrors.js` | Turns an axios rejection into wording. Used by all three forms. |
 | `resources/js/lib/pagination.js` | Reduces Laravel's paginator envelope. |
 | `resources/js/lib/languages.js` | `getLangCode` + which language is the default. |
+| `resources/js/lib/i18n.js` | `t()` — the panel's strings. The catalogue is **injected by the server** into `window.miniCms`, never bundled, so a new language needs no rebuild. `translate` mirrors PHP's `strtr`: one pass, longest name first. |
 | `resources/js/lib/api.js` | One axios client. `signIn()` owns the CSRF-then-credentials ordering; `uploadImage()` owns the upload contract, shared by both editors. |
 | `resources/js/lib/fieldTypes.json` | **Generated** by `php artisan schema:sync-field-types`. Never edit by hand. |
 

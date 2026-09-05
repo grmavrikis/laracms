@@ -3,6 +3,7 @@ import api from '../lib/api';
 import { errorSummary } from '../lib/apiErrors';
 import { paginationFrom, rowsFrom, isPastLastPage } from '../lib/pagination';
 import { t } from '../lib/i18n';
+import fieldTypes from '../lib/fieldTypes.json';
 
 /**
  * The owner's enquiry inbox (TASKS.md #66).
@@ -75,7 +76,7 @@ export default function EnquiriesManager({ onBack }) {
                     <p className="text-sm text-gray-500">
                         {t(':total received. Kept for :months months, then deleted.', {
                             total: pagination?.total ?? enquiries.length,
-                            months: 24,
+                            months: fieldTypes.enquiryRetentionMonths,
                         })}
                     </p>
                 </div>

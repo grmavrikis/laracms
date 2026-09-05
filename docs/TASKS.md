@@ -916,11 +916,17 @@ the template all read, plus a test that reads the **actual** column definition
 — because editing a constant does not alter a column that already exists.
 
 The rest: `paginate(15)` and `paginate(20)` are two different page sizes for no
-stated reason; `EnquiriesManager.jsx` writes "Kept for 24 months" as a literal
-while the Blade template reads it from `Enquiry::RETENTION_MONTHS`; `max:2048`
-in `UploadController` is anonymous; `max:255` appears three times while
-`ModuleController::SLUG_MAX_LENGTH` exists. Findings are recorded per file in
-ARCHITECTURE, so a later pass knows what has been looked at.
+stated reason; `max:2048` in `UploadController` is anonymous; `max:255` appears
+three times while `ModuleController::SLUG_MAX_LENGTH` exists. Findings are
+recorded per file in ARCHITECTURE, so a later pass knows what has been looked
+at.
+
+**Two are done already**, both because #96 walked into them. `users.locale` now
+takes its width from `User::LOCALE_MAX_LENGTH`, which the migration, the
+validation rule and a test all read — the same split as #76, caught before it
+shipped. And `EnquiriesManager.jsx` reads the retention period from the
+generated `fieldTypes.json` rather than writing `24` beside a template that
+reads the constant.
 
 Folded in: **eight test files create the same two `Language` rows by hand.** A
 shared helper. Not a seeder — see Decisions for why tests build their own

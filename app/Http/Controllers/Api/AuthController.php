@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\User;
 use App\Services\InterfaceLocales;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -64,11 +65,20 @@ class AuthController extends Controller
      * Validated against the files on disk rather than a list in code, so the
      * rule and the picker cannot disagree: whatever `lang/` holds is what may
      * be chosen. Null is allowed and means "follow the installation".
+     *
+     * `max:` as well, from the same constant the column is built from: a
+     * filename has no length limit and a `varchar` does, so without it a long
+     * enough locale file turns this endpoint into a 500 (TASKS.md #98).
      */
     public function setLocale(Request $request, InterfaceLocales $locales)
     {
         $validated = $request->validate([
-            'locale' => ['nullable', 'string', Rule::in($locales->available())],
+            'locale' => [
+                'nullable',
+                'string',
+                'max:' . User::LOCALE_MAX_LENGTH,
+                Rule::in($locales->available()),
+            ],
         ]);
 
         $request->user()->update(['locale' => $validated['locale'] ?? null]);

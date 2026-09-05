@@ -611,7 +611,10 @@ for it exists, because both the column and the config are editable outside the
 application — and writes the result plus **the whole catalogue for that
 locale** into `window.miniCms`. `resources/js/lib/i18n.js` reads it and exposes
 `t()`, which is `__()`'s rule in four lines: the key is the English text, and
-`:name` placeholders are replaced longest-first (or `:to` eats `:total`).
+`:name`, `:Name` and `:NAME` are replaced in **one pass**, longest name
+first, which is what PHP's `strtr` does. One pass matters as much as the
+order: replacing a name at a time would rescan what it had just inserted, so a
+module title containing `:id` would have it substituted too.
 
 **Injected rather than bundled, and that is the point.** Vite never sees these
 strings, so adding a language is a file the owner drops in — no migration and

@@ -15,22 +15,45 @@
  *   - `:name` placeholders are replaced from the second argument.
  */
 
+const ucfirst = (value) => value.charAt(0).toUpperCase() + value.slice(1);
+
+const escapeForRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 /** @type {(messages: Record<string, string>, key: string, replacements?: Record<string, unknown>) => string} */
 export const translate = (messages, key, replacements = {}) => {
     // `??`, not `||`: a key deliberately translated to the empty string is a
     // translation, and falling back to the English key would undo it.
-    let line = messages?.[key] ?? key;
+    const line = messages?.[key] ?? key;
+    const names = Object.keys(replacements);
 
-    // Longest name first, or a short one eats a long one: replacing `:to`
-    // before `:total` turns "1–:to of :total" into "1–15 of 15tal". Laravel's
-    // `Translator::sortReplacements` does the same, for the same reason.
-    const names = Object.keys(replacements).sort((a, b) => b.length - a.length);
-
-    for (const name of names) {
-        line = line.split(`:${name}`).join(String(replacements[name]));
+    if (names.length === 0) {
+        return line;
     }
 
-    return line;
+    // `:name`, `:Name` and `:NAME`, which is what PHP's `makeReplacements`
+    // registers - a Greek sentence starting with `:Module` should not read
+    // `:Module`.
+    const forms = {};
+
+    for (const name of names) {
+        const value = String(replacements[name]);
+
+        forms[name] = value;
+        forms[ucfirst(name)] = ucfirst(value);
+        forms[name.toUpperCase()] = value.toUpperCase();
+    }
+
+    // **One pass**, longest name first, exactly as PHP's `strtr` does it.
+    // Replacing one name at a time over the accumulating line would rescan
+    // what was just inserted, so a value containing `:id` would have it
+    // substituted too; and it needs the length order anyway, or `:to` eats
+    // the start of `:total`.
+    const pattern = new RegExp(
+        ':(' + Object.keys(forms).sort((a, b) => b.length - a.length).map(escapeForRegExp).join('|') + ')',
+        'g'
+    );
+
+    return line.replace(pattern, (match, name) => forms[name]);
 };
 
 /** What the server put in the page, or nothing outside a browser. */

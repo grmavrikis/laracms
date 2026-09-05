@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import '../css/app.css';
 import api from './lib/api';
 import { t, locale, locales } from './lib/i18n';
+import { errorSummary } from './lib/apiErrors';
 import Login from './components/Login';
 import ModulesList from './components/ModulesList';
 import EntriesManager from './components/EntriesManager';
@@ -13,6 +14,7 @@ export default function App() {
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
     const [view, setView] = useState({ type: 'list', data: null });
+    const [localeError, setLocaleError] = useState(null);
 
     useEffect(() => {
         api.get('/user')
@@ -50,8 +52,19 @@ export default function App() {
                             value={locale}
                             aria-label={t('Panel language')}
                             onChange={async (event) => {
-                                await api.put('/user/locale', { locale: event.target.value });
-                                window.location.reload();
+                                // Without the catch the rejection is silent:
+                                // no reload, and React puts the select back
+                                // to `locale`, so an expired session looks
+                                // like a language that simply will not change.
+                                setLocaleError(null);
+
+                                try {
+                                    await api.put('/user/locale', { locale: event.target.value });
+                                    window.location.reload();
+                                } catch (err) {
+                                    console.error(err);
+                                    setLocaleError(errorSummary(err, t('Could not change the language.'))[0]);
+                                }
                             }}
                             className="bg-gray-700 text-white text-sm rounded px-2 py-1 border border-gray-600"
                         >
@@ -59,6 +72,9 @@ export default function App() {
                                 <option key={code} value={code}>{code.toUpperCase()}</option>
                             ))}
                         </select>
+                    )}
+                    {localeError && (
+                        <span role="alert" className="text-xs text-red-300">{localeError}</span>
                     )}
                     {/* Enquiries are a domain module: written once in core and
                         reached from the chrome rather than through the module

@@ -5,6 +5,7 @@ namespace App\Providers;
 use Illuminate\Cache\RateLimiting\Limit;
 use App\Models\Enquiry;
 use Illuminate\Http\Request;
+use App\Services\InterfaceLocales;
 use Illuminate\Mail\Markdown;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
@@ -33,7 +34,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        // One per request, because it caches the `lang/` listing and both the
+        // API middleware and the panel page ask for it several times (#96).
+        $this->app->singleton(InterfaceLocales::class);
     }
 
     /**

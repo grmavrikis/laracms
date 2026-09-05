@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Models\Enquiry;
 use App\Models\Entry;
 use App\Services\RichTextDocument;
 use App\Services\SchemaRuleBuilder;
@@ -49,6 +50,12 @@ class SyncFieldTypes extends Command
             // with every test still passing (TASKS.md #79). A key that moves
             // is `undefined` and fails where it is used.
             'entryStatuses' => array_combine(Entry::STATUSES, Entry::STATUSES),
+            // Also not a field type, and here for the same reason: the panel
+            // states the retention period to the owner and the public form
+            // states it to the visitor. The template reads the constant; the
+            // panel used to write 24 by hand, which is two promises that can
+            // drift (TASKS.md #98).
+            'enquiryRetentionMonths' => Enquiry::RETENTION_MONTHS,
         ];
     }
 

@@ -23,5 +23,6 @@
     "entryStatuses": {
         "draft": "draft",
         "published": "published"
-    }
+    },
+    "enquiryRetentionMonths": 24
 }
