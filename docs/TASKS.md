@@ -1017,6 +1017,22 @@ Each is separately verifiable, and the order is what keeps the site working:
 2. **The panel.** There is no module-update endpoint at all yet; this brings
    one, plus per-language name and slug fields in `ModuleBuilder`, and
    `EntriesManager` showing the name in the content language already selected.
+
+   **It also has to let the panel see inactive languages**, and that is what
+   blocks the agency's billable workflow rather than being a nicety.
+   `LanguageController::index` filters `where('is_active', true)`, so one
+   endpoint serves two audiences that need different answers:
+
+   | The language is | The public site | The panel |
+   |---|---|---|
+   | active | switcher links to a half-empty site while the client works | can translate |
+   | inactive | correct — 404, not offered | **cannot see it at all** |
+
+   Neither is usable. The agency inserts the language, the client fills it in,
+   and only then does it go live — which needs the panel to list every language
+   with its state, while `activeLanguages()` keeps deciding what a visitor
+   sees. That split exists everywhere else already; this endpoint is the one
+   place it does not.
 3. **#69 redirects**, so step 2's first rename does not cost the client their
    rankings.
 
@@ -1823,19 +1839,36 @@ costs nothing.
 A gap rather than a defect — filed here because the cost of deferring it rises
 with every upload.
 
-### 52. Languages have no write API
+### 52. Languages have no write API — and are not getting one
 
-`LanguageController` has `index` and nothing else, and no other route touches
-the table. Adding, renaming, deactivating or defaulting a language is a manual
-SQL statement.
+**This item used to argue the opposite**, and was wrong. It read: "the set of
+languages is configuration a user should own rather than a fixture." That
+contradicts `BUSINESS.md` §5, which lists languages as the **first of two
+revenue levers** — "an upsell, not a setting — which is why clients must not be
+able to add one themselves" — and BUSINESS.md outranks this file when the two
+disagree. Confirmed by the owner on 2026-09-06: **adding a language is a
+billable service the agency performs.**
 
-For a CMS whose central feature is translation, the set of languages is
-configuration a user should own rather than a fixture. It is also where #49's
-missing writer belongs: the "exactly one language is the default" rule needs
-somewhere to live, and there is currently no code that could hold it.
+So the absence is the feature. `LanguageController` has `index` and nothing
+else, and adding, renaming, deactivating or defaulting a language stays a
+manual SQL statement run by the agency.
 
-Also a gap rather than a defect, and the larger of the two — it is a controller,
-a policy question (these are installation-wide, not per-owner) and a screen.
+**What actually enforces it today is nothing.** There are no roles: `users`
+holds `id, name, email, password` and timestamps, and every signed-in person
+can do everything the API offers. The rule holds only because the endpoint does
+not exist — which is enough now, and is exactly why it is written down here.
+**Do not "complete" this API.** A write endpoint would hand every client a
+service they are meant to pay for, and there is no permission to hide it behind.
+
+Two real things remain, and neither needs a client-facing writer:
+
+- **#49's rule has nowhere to live.** "Exactly one language is the default" is
+  enforced by nobody. An agency-only artisan command is where that belongs.
+- **The panel cannot see an inactive language** — see #114, step 2. That is the
+  one that blocks the billable workflow today.
+
+If roles ever arrive (#72's tier work would need them), this becomes a screen
+behind an agency role rather than a thing to leave out.
 
 ### 49. `is_default` is read but never written
 

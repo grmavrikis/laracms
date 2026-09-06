@@ -285,6 +285,39 @@ class StaticPagesTest extends TestCase
     }
 
     /**
+     * **Withdrawing an entry withdraws it everywhere**, and this names the
+     * case rather than leaving it to the generic save above.
+     *
+     * The consequence is what makes it worth its own test: a page that has
+     * been unpublished but is still on disk is still being served, to
+     * everybody, with nothing in the panel to suggest it. And the mistake it
+     * guards against is specific - dropping only the default language's file
+     * would leave a Greek page gone and a French one live, which a test that
+     * saves an entry and checks one address would not notice.
+     */
+    public function test_unpublishing_an_entry_removes_its_page_in_every_language(): void
+    {
+        $module = $this->aModule();
+        $entry = $this->anEntry($module, ['el' => 'thea', 'en' => 'view']);
+
+        $this->get('/el/rooms/thea')->assertOk();
+        $this->get('/en/rooms/view')->assertOk();
+        $this->assertBaked('el/rooms/thea.html');
+        $this->assertBaked('en/rooms/view.html');
+
+        $entry->update(['status' => Entry::STATUS_DRAFT]);
+
+        $this->assertFileDoesNotExist($this->file('el/rooms/thea.html'));
+        $this->assertFileDoesNotExist(
+            $this->file('en/rooms/view.html'),
+            'A withdrawn page is still on disk in another language, and still being served.'
+        );
+
+        // And the address really is gone, not merely un-baked.
+        $this->get('/en/rooms/view')->assertNotFound();
+    }
+
+    /**
      * The listing it appears in, and the home page that links to the listing,
      * go with it: a published entry changes all three.
      */

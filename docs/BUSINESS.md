@@ -244,7 +244,10 @@ ceiling of the whole business.**
 
 1. **Languages are charged.** Near-zero marginal cost, pure margin. It is an
    upsell, not a setting — which is why clients must not be able to add one
-   themselves (`TASKS.md` #52, #49).
+   themselves (`TASKS.md` #52, #49). **What enforces that today is the absence
+   of an endpoint, not a permission**: there are no roles, so every signed-in
+   person can do everything the API offers. Adding a language is a manual SQL
+   statement run by the agency, deliberately. The price is not set yet.
 2. **The back office is the premium tier, not a feature.** #63 and #64 exist to
    make a more expensive package possible. That is the real argument for
    building them, and it is also why they come after the demo: they raise the

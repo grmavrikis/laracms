@@ -169,7 +169,7 @@ JS tests sit **beside** their source as `resources/js/lib/*.test.js`.
 ## Commands
 
 ```bash
-php artisan test                    # 413 tests
+php artisan test                    # 414 tests
 npm test                            # 184 tests
 npm run build
 php artisan schema:sync-field-types # after changing field type constants
@@ -240,7 +240,7 @@ Started from a repo that would not boot (eight files of merge conflicts).
 Worked through a prioritised list; every item is either done or recorded in
 `CHANGELOG.md` with its reasoning.
 
-- **413 PHP tests, 184 JS tests**, all passing. Build clean.
+- **414 PHP tests, 184 JS tests**, all passing. Build clean.
 - **The project has a commercial goal as of 2026-08-30**, and it now decides
   what gets worked on. A multilingual CMS that feeds client sites, owned
   outright, for a one-person web agency: **one installation per client site**,
@@ -278,6 +278,11 @@ Worked through a prioritised list; every item is either done or recorded in
   browser (#75 reordering across pages, #76 a long `slugs` key answering 500 on
   MySQL, #77 a failed slug write destroying an entry's URLs) are fixed and
   verified live. Do not go looking for them.
+- **Languages are added by the agency, with SQL, and that is deliberate**
+  (`BUSINESS.md` §5, `TASKS.md` #52). Adding one is a **billable service**, and
+  what enforces it is the *absence* of a write endpoint — there are no roles at
+  all, so every signed-in person can do everything the API offers. **Do not
+  give `LanguageController` a writer.**
 - **#114 is in progress** — a Module had no translation at all, so
   `/fr/ypiresies/petit-dejeuner` carried a Greek segment in a French URL and
   the page was titled *Υπηρεσίες*. Step 1 (the data and the public side) is
