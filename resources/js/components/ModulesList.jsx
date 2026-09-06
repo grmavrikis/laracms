@@ -120,9 +120,9 @@ export default function ModulesList({ onSelectModule, onCreateModule, onTranslat
                                         <button
                                             onClick={() => onTranslateModule(mod)}
                                             className="inline-flex items-center gap-1 rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
-                                            title={t('Rename this module')}
+                                            title={t('Edit this module')}
                                         >
-                                            {t('Rename')}
+                                            {t('Edit')}
                                         </button>
                                         <button
                                             onClick={() => onSelectModule(mod)}

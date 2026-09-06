@@ -939,6 +939,33 @@ Three things to know before touching it:
   explicit invalidation. A file has none, so anything that changes a page has
   to say so — which is why `Language` is observed now and never was.
 
+### 115. A Module's schema is editable, additively — DONE (CHANGELOG §31)
+
+Raised by the owner on 2026-09-07, immediately after #114's rename screen
+landed: *"why can I only rename? I might want to add a column. Leave out
+deleting a column or renaming one or changing its type, but what harm do the
+rest do? Why can I not make a field required after creating a module?"*
+
+None, and the objection was right. See **To discuss** → *What does editing a
+Module mean for its Entries?*, which is now settled: additive edits only.
+
+| Allowed | Refused, needs a migration |
+|---|---|
+| add a field | rename a field |
+| reorder fields | remove a field |
+| `required` | change a `type` |
+| `validation` | flip `translatable` |
+| a select's `options` | |
+
+`translatable` is the one that was not on the owner's own list and belongs
+there: it decides whether a stored value is a scalar or a map of language to
+value. `EntryPresenter` guards with `is_array`, so turning it on does not
+crash - it prints the Greek text on the French page, which is worse.
+
+`PUT /api/modules/{module}` takes a `schema` and refuses the four; `ModuleFields`
+is the shared editor and **disables** them on a field that already exists,
+rather than letting somebody fill in a form the API will reject.
+
 ### 114. A Module has no translation, and the front site shows it — P0
 
 Raised by the owner on 2026-09-06, from three live URLs:
@@ -2166,13 +2193,35 @@ the API boundary and not enforced at all below it. A schema written with
 Worth deciding deliberately whether that boundary is the right one, rather
 than continuing to arrive at it one finding at a time.
 
-### What does editing a Module mean for its Entries?
+### What does editing a Module mean for its Entries? — SETTLED (2026-09-07)
 
-`routes/api.php` offers `POST /modules` and `GET /modules` and nothing else — no
-`show`, no `update`, no `destroy`. A Module is created once and is then
-permanent, so a misspelled field name or a forgotten field means building a
+**Additive edits only**, the first of the three shapes below. Decided by the
+owner: *"why can I only rename? I might want to add a column, or make a field
+required after the fact."* Answered in #115 and CHANGELOG §31.
+
+The line drawn is not "editing is dangerous" but one question asked per change:
+**does this reshape data already stored?** Adding a field, reordering, and
+changing `required`, `validation` or `options` do not. Renaming, removing,
+retyping and flipping `translatable` do, and stay a hand-written migration.
+
+`translatable` was added to that list during the work and is not in the
+original analysis below: it decides whether a stored value is a scalar or a map
+of language to value, so it is a type change wearing a checkbox. Turned on, a
+stored scalar sits where a map is expected and the Greek text prints on the
+French page.
+
+The consequence the owner accepted knowingly is the third bullet below - a
+field made required leaves every entry that lacks it unsaveable until it is
+filled. Nothing is lost, and it is what "required" means.
+
+*The original analysis, kept because the two shapes not chosen are still the
+shapes:*
+
+`routes/api.php` offered `POST /modules` and `GET /modules` and nothing else —
+no `show`, no `update`, no `destroy`. A Module was created once and was then
+permanent, so a misspelled field name or a forgotten field meant building a
 second Module and re-entering its content by hand. For a product whose central
-feature is *defining content types*, that is the largest gap in it.
+feature is *defining content types*, that was the largest gap in it.
 
 The endpoint is the easy half. `Entry.data` is keyed by each field's `name`, and
 a schema field has no identity apart from that name, so every schema edit is a

@@ -1,10 +1,12 @@
 // resources/js/components/ModuleTranslator.jsx
-import { useState, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import api from '../lib/api';
 import { errorSummary } from '../lib/apiErrors';
 import { languagesFrom } from '../lib/languages';
 import { t } from '../lib/i18n';
+import { isGalleryField } from '../lib/gallery';
 import ModuleTranslations, { translationsPayload, translationsFrom } from './ModuleTranslations';
+import ModuleFields from './ModuleFields';
 
 /**
  * Rename a section, per language (TASKS.md #114).
@@ -14,14 +16,35 @@ import ModuleTranslations, { translationsPayload, translationsFrom } from './Mod
  * language left blank stayed that way - there was no edit anywhere in the
  * panel. An endpoint nothing can reach is not a feature.
  *
- * Names and addresses only. The schema is not editable here, and that is the
- * endpoint's decision rather than this screen's: what editing a schema means
- * for the entries already written against it is an open question (TASKS.md,
- * *To discuss*), and a rename screen is the wrong place to answer it.
+ * **The schema is editable too, up to the point where it would reshape data
+ * already stored** (#115). Add a field, reorder, change `required`,
+ * `validation` or a select's options. What a field already in the database
+ * cannot do is be renamed, retyped, made translatable or removed - those four
+ * change the shape of values in `entries.data` and nothing migrates them, so
+ * the API refuses them and `ModuleFields` disables them rather than letting
+ * somebody fill in a form that will be rejected.
  */
 export default function ModuleTranslator({ module, onSaved, onCancel }) {
     const [languages, setLanguages] = useState([]);
     const [translations, setTranslations] = useState(() => translationsFrom(module.slugs));
+
+    // The names that exist in the database right now. Captured once, so a
+    // field added in this session stays editable while the form is open and
+    // the ones that were already there stay locked.
+    const lockedNames = useRef(new Set((module.schema ?? []).map((f) => f.name))).current;
+    const nextId = useRef(1);
+
+    const [fields, setFields] = useState(() => (module.schema ?? []).map((f, i) => ({
+        _id: i,
+        name: f.name,
+        type: f.type,
+        translatable: !!f.translatable,
+        required: !!f.required,
+        validation: f.validation ?? '',
+        // The editor holds options as the comma-separated text somebody types;
+        // the API takes a list. Same shape the create screen uses.
+        options: Array.isArray(f.options) ? f.options.join(', ') : (f.options ?? ''),
+    })));
     const [submitting, setSubmitting] = useState(false);
     const [errors, setErrors] = useState([]);
 
@@ -39,6 +62,29 @@ export default function ModuleTranslator({ module, onSaved, onCancel }) {
     const setTranslation = (code, key, value) =>
         setTranslations((prev) => ({ ...prev, [code]: { ...prev[code], [key]: value } }));
 
+    const addField = () =>
+        setFields((prev) => [...prev, {
+            _id: (nextId.current += 1) + prev.length + module.schema.length,
+            name: '', type: 'string', translatable: false, required: false, validation: '', options: '',
+        }]);
+
+    const removeField = (id) => setFields((prev) => prev.filter((f) => f._id !== id));
+
+    const updateField = (id, key, value) =>
+        setFields((prev) => prev.map((f) => {
+            if (f._id !== id) return f;
+
+            const next = { ...f, [key]: value };
+
+            // A gallery cannot be translatable: the photographs are one set and
+            // only their alt text differs. `SchemaRuleBuilder` refuses the
+            // combination, so it is cleared here rather than assembling a
+            // schema the API will reject.
+            if (key === 'type' && isGalleryField(next)) next.translatable = false;
+
+            return next;
+        }));
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         setErrors([]);
@@ -47,6 +93,13 @@ export default function ModuleTranslator({ module, onSaved, onCancel }) {
         try {
             const { data: body } = await api.put(`/modules/${module.slug}`, {
                 translations: translationsPayload(translations),
+                schema: fields.map(({ _id, ...rest }) => ({
+                    ...rest,
+                    validation: rest.validation.trim(),
+                    options: rest.type === 'select'
+                        ? (rest.options || '').split(',').map((o) => o.trim()).filter(Boolean)
+                        : undefined,
+                })),
             });
 
             onSaved?.(body.data);
@@ -62,7 +115,7 @@ export default function ModuleTranslator({ module, onSaved, onCancel }) {
         <form onSubmit={handleSubmit} className="max-w-4xl mx-auto space-y-8 p-6 bg-white rounded-xl border border-gray-200 shadow-sm">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-gray-200 pb-5 gap-4">
                 <div>
-                    <h2 className="text-xl font-bold tracking-tight text-gray-900">{t('Rename this module')}</h2>
+                    <h2 className="text-xl font-bold tracking-tight text-gray-900">{t('Edit this module')}</h2>
                     <p className="text-sm text-gray-500">
                         {t('Changing an address changes every page under it. The old one stops working.')}
                     </p>
@@ -86,6 +139,14 @@ export default function ModuleTranslator({ module, onSaved, onCancel }) {
                 languages={languages}
                 value={translations}
                 onChange={setTranslation}
+            />
+
+            <ModuleFields
+                fields={fields}
+                onChange={updateField}
+                onAdd={addField}
+                onRemove={removeField}
+                lockedNames={lockedNames}
             />
 
             <div className="flex justify-end gap-3 border-t border-gray-200 pt-5">

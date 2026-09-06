@@ -701,12 +701,34 @@ The old pages stayed on disk and the web server went on serving them — found b
 renaming a section on the live site and watching its old address answer 200.
 The same trap `EntryController::syncSlugs` carries a comment for.
 
+**A Module's schema is editable, additively** (#115). The same endpoint takes
+a `schema`, and the line is one question per change: *does this reshape data
+already stored?* Adding a field, reordering, and changing `required`,
+`validation` or `options` do not — `EntryPresenter` reads
+`$entry->data[$name] ?? null`, so a field nobody has filled renders empty.
+
+Four do, and `refuseReshaping()` answers 422 for each with the field named:
+renaming orphans every value stored under the old key, removing hides values
+that are still there, the type decides how a value is read back, and
+**`translatable`** decides whether the value is a scalar or a map of language to
+value. That last one looks like a checkbox and is a type: turned on, a stored
+scalar sits where a map is expected and the Greek text prints on the French
+page. Those stay a hand-written migration, which is what TASKS.md → *To
+discuss* now records as settled.
+
+One consequence is accepted knowingly: a field made required leaves every entry
+that lacks it unsaveable until it is filled. Nothing is lost, and it is what
+"required" means.
+
 **The screen that reaches it** is `ModuleTranslator`, opened from *Rename* on
 each row of the module list. It shipped a commit late: the endpoint went in
 first with nothing in the panel that could call it, so a module created with a
 language left blank stayed that way and there was no edit anywhere. An endpoint
 nothing can reach is not a feature. `ModuleTranslations` is the per-language
-block itself, shared by the create and rename screens so they cannot drift, and
+block and `ModuleFields` is the field editor, both shared by the create and edit
+screens so they cannot drift — `ModuleFields` is handed the field names that
+already exist and disables renaming, retyping, translating and removing them,
+rather than letting somebody fill in a form the API will reject. And
 `GET /api/modules` now carries each module's translations so the list can show
 what is missing without a request per row.
 

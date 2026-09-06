@@ -169,7 +169,7 @@ JS tests sit **beside** their source as `resources/js/lib/*.test.js`.
 ## Commands
 
 ```bash
-php artisan test                    # 425 tests
+php artisan test                    # 438 tests
 npm test                            # 184 tests
 npm run build
 php artisan schema:sync-field-types # after changing field type constants
@@ -240,7 +240,7 @@ Started from a repo that would not boot (eight files of merge conflicts).
 Worked through a prioritised list; every item is either done or recorded in
 `CHANGELOG.md` with its reasoning.
 
-- **425 PHP tests, 184 JS tests**, all passing. Build clean.
+- **438 PHP tests, 184 JS tests**, all passing. Build clean.
 - **The project has a commercial goal as of 2026-08-30**, and it now decides
   what gets worked on. A multilingual CMS that feeds client sites, owned
   outright, for a one-person web agency: **one installation per client site**,
@@ -297,6 +297,13 @@ Worked through a prioritised list; every item is either done or recorded in
   published. The screen is `ModuleTranslator` (*Rename* on a module row);
   `ModuleTranslations` is the per-language block, shared with the create
   screen. Step 3 is #69.
+- **#115: a Module's schema is editable, additively.** Add a field, reorder,
+  change `required`, `validation` or a select's `options` — all fine. Renaming,
+  removing, retyping and **flipping `translatable`** are refused, because they
+  reshape data already in `entries.data` and nothing migrates it. That settles
+  *What does editing a Module mean for its Entries?* in `TASKS.md` → To
+  discuss: **additive edits only**. `ModuleFields` disables the four on a field
+  that already exists.
 - **Then #98**, plus the review that keeps #96 open. Both were added on
   2026-09-05 at a stop the owner called, and recorded in `TASKS.md` →
   Amendments and → Decisions taken (2026-09-05, third). Read those before

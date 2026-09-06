@@ -3224,3 +3224,76 @@ passed, and the endpoint was unreachable from the product.
 verified here is that the bundle builds and the panel boots, not that the
 button does what it says.
 
+---
+
+## 31. A schema can be edited, up to where it would reshape stored data
+
+#115, and the owner's objection an hour after #114's edit screen landed: *"why
+can I only rename? I might want to add a column. Leave out deleting a column or
+renaming one or changing its type - what harm do the rest do? Why can I not
+make a field required after creating a module?"*
+
+None, and the objection was right. The rule had been "editing a schema is
+dangerous, so there is no editing", which is a category answer to a question
+that is really asked once per change:
+
+> does this change the shape of what is already in `entries.data`?
+
+**No** for adding a field, reordering, `required`, `validation` and a select's
+`options`. Nothing stored becomes unreadable - `EntryPresenter` reads
+`$entry->data[$name] ?? null`, so a field nobody has filled renders empty, and
+an entry written before it existed keeps working.
+
+**Yes** for renaming a field, removing one, changing its type, and one the
+owner did not list: **`translatable`**. It looks like a checkbox and is a type.
+It decides whether the stored value is a scalar or a map of language to value,
+and nothing migrates what is already there. `EntryPresenter` guards with
+`is_array`, so turning it on does not crash - it leaves the scalar in place and
+**prints the Greek text on the French page**, which is worse than a crash
+because nobody is told.
+
+Those four stay a hand-written migration. That settles TASKS.md → *To discuss* →
+*What does editing a Module mean for its Entries?*, which had listed exactly
+this as the first of three shapes: **additive edits only**.
+
+### The consequence that is accepted rather than solved
+
+A field made `required` leaves every existing entry that lacks it unsaveable
+until it is filled. Nothing is lost and it is recoverable by un-requiring it -
+and it is what "required" means. The old analysis listed this as an argument
+*against* allowing the edit; it is really an argument for saying so out loud.
+
+### Refused in the API and disabled in the form
+
+`refuseReshaping()` answers 422 with the field named - *"The type of title
+cannot change once entries have been written against it"* - and `ModuleFields`
+disables those controls on a field that already exists, so nobody fills in a
+form that will be rejected. `ModuleFields` and `ModuleTranslations` are both
+shared by the create and edit screens; extracting the first one is what made
+the edit screen possible at all rather than a second copy to keep in step.
+
+### One defect the extraction introduced and the build did not see
+
+The extracted component read `fieldTypes.types`. The generated file calls it
+`supported`, so the type dropdown would have been **empty** on both screens -
+and `npm run build` is perfectly happy with a property that does not exist.
+Caught by reading the diff against the file it came from.
+
+### Checked
+
+Thirteen tests written first, eleven failing because the endpoint ignored
+`schema` entirely. Six mutations, all of which bite - including one that skips
+the reshaping check and one that never saves.
+
+Live over HTTP against a module with an entry already written against it: add,
+require and reorder all answered 200, and rename, remove, retype and flip
+`translatable` all answered 422 naming the field. The entry written before the
+new field still served its page with its title intact. The probe module was
+deleted and the deletion verified.
+
+438 PHP tests, 184 JS tests, build clean.
+
+**The screens need a person** (#94): the browser pane cannot reach the running
+Vite dev server, so the locking is verified by reading and by the API refusing
+the same four underneath it.
+

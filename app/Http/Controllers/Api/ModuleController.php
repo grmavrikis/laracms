@@ -12,6 +12,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class ModuleController extends Controller
 {
@@ -59,30 +60,7 @@ class ModuleController extends Controller
             ...$this->translationRules(),
 
             'schema' => 'required|array',
-            // Reported against the field itself, so the message points at
-            // schema.1 rather than at a key that does not exist.
-            'schema.*' => [function (string $attribute, mixed $value, callable $fail): void
-            {
-                $unknown = array_diff(array_keys((array) $value), self::SCHEMA_FIELD_KEYS);
-
-                if ($unknown !== [])
-                {
-                    $fail(__('Unknown field keys: :unknown. A field may have: :allowed.', [
-                        'unknown' => implode(', ', $unknown),
-                        'allowed' => implode(', ', self::SCHEMA_FIELD_KEYS),
-                    ]));
-                }
-            }],
-            'schema.*.name' => 'required|string|alpha_dash',
-            // Single source of truth, shared with the rule builder that has to
-            // turn these types into entry validation rules.
-            'schema.*.type' => ['required', 'string', Rule::in(SchemaRuleBuilder::SUPPORTED_TYPES)],
-            'schema.*.translatable' => 'required|boolean',
-            // Optional so a schema written before the flag existed still posts.
-            'schema.*.required' => 'nullable|boolean',
-            'schema.*.validation' => 'nullable|string',
-            'schema.*.options' => 'nullable|array',
-            'schema.*.options.*' => 'string'
+            ...$this->schemaFieldRules(),
         ], [
             'slug.regex' => __('The slug may only contain lowercase letters, numbers and single hyphens.'),
         ]);
@@ -136,16 +114,136 @@ class ModuleController extends Controller
     public function update(Request $request, Module $module): JsonResponse
     {
         $validated = $request->validate(
-            $this->translationRules($module),
+            [
+                ...$this->translationRules($module),
+                'schema' => 'sometimes|array',
+                ...$this->schemaFieldRules(),
+            ],
             ['translations.*.slug.regex' => __('The slug may only contain lowercase letters, numbers and single hyphens.')]
         );
 
-        $this->syncTranslations($module, $validated['translations'] ?? []);
+        if (array_key_exists('schema', $validated))
+        {
+            $this->refuseReshaping($module, $validated['schema']);
+
+            // A schema that cannot produce entry rules is not a usable schema,
+            // and the author should hear that here rather than the first time
+            // somebody tries to save an entry. The same check `store` makes,
+            // from the same builder.
+            SchemaRuleBuilder::build($validated['schema']);
+
+            // Through the model, so `StaticPageObserver` runs: every page under
+            // this module renders from the schema, and the baked ones were
+            // rendered from the previous one.
+            $module->update(['schema' => $validated['schema']]);
+        }
+
+        if (array_key_exists('translations', $validated))
+        {
+            $this->syncTranslations($module, $validated['translations']);
+        }
 
         return response()->json([
             'message' => __('Module updated.'),
             'data' => $module->fresh()->load('slugs'),
         ]);
+    }
+
+    /**
+     * **Refuse a change that would reshape data already stored.**
+     *
+     * The line is not "editing a schema is dangerous", it is one question
+     * asked per change: *does this change the shape of what is already in
+     * `entries.data`?* Adding a field, reordering, and changing `required`,
+     * `validation` or `options` do not - `EntryPresenter` reads
+     * `$entry->data[$name] ?? null`, so a field nobody has filled renders
+     * empty, and nothing stored becomes unreadable.
+     *
+     * Four do, and they stay a hand-written migration (TASKS.md → *To
+     * discuss*):
+     *
+     * - **renaming** a field orphans every value stored under the old key;
+     * - **removing** one hides values that are still there;
+     * - **the type** decides how a value is read back;
+     * - **`translatable`** decides whether the value is a scalar or a map of
+     *   language to value. It looks like a checkbox and is a type: turned on,
+     *   a stored scalar is left where a map is expected and the Greek text
+     *   prints on the French page; turned off, an array reaches something
+     *   expecting a string.
+     *
+     * @param array<int, array<string, mixed>> $schema
+     */
+    private function refuseReshaping(Module $module, array $schema): void
+    {
+        $was = collect($module->schema ?? [])->keyBy('name');
+        $now = collect($schema)->keyBy('name');
+
+        $gone = $was->keys()->diff($now->keys());
+
+        if ($gone->isNotEmpty())
+        {
+            throw ValidationException::withMessages(['schema' => __(
+                'These fields would lose the content already saved in them: :fields. Renaming or removing a field needs a migration.',
+                ['fields' => $gone->implode(', ')]
+            )]);
+        }
+
+        foreach ($was as $name => $before)
+        {
+            $after = $now[$name];
+
+            if (($after['type'] ?? null) !== ($before['type'] ?? null))
+            {
+                throw ValidationException::withMessages(['schema' => __(
+                    'The type of :field cannot change once entries have been written against it.',
+                    ['field' => $name]
+                )]);
+            }
+
+            if ((bool) ($after['translatable'] ?? false) !== (bool) ($before['translatable'] ?? false))
+            {
+                throw ValidationException::withMessages(['schema' => __(
+                    'Whether :field is translated cannot change once entries have been written against it: the values already stored have the other shape.',
+                    ['field' => $name]
+                )]);
+            }
+        }
+    }
+
+    /**
+     * What a schema field may hold. Shared by `store` and `update` so the two
+     * cannot come to disagree about what a field is.
+     *
+     * @return array<string, mixed>
+     */
+    private function schemaFieldRules(): array
+    {
+        return [
+            // Reported against the field itself, so the message points at
+            // schema.1 rather than at a key that does not exist.
+            'schema.*' => [function (string $attribute, mixed $value, callable $fail): void
+            {
+                $unknown = array_diff(array_keys((array) $value), self::SCHEMA_FIELD_KEYS);
+
+                if ($unknown !== [])
+                {
+                    $fail(__('Unknown field keys: :unknown. A field may have: :allowed.', [
+                        'unknown' => implode(', ', $unknown),
+                        'allowed' => implode(', ', self::SCHEMA_FIELD_KEYS),
+                    ]));
+                }
+            }],
+            'schema.*.name' => 'required|string|alpha_dash',
+            // Single source of truth, shared with the rule builder that has to
+            // turn these types into entry validation rules.
+            'schema.*.type' => ['required', 'string', Rule::in(SchemaRuleBuilder::SUPPORTED_TYPES)],
+            'schema.*.translatable' => 'required|boolean',
+            // Optional so a schema written before the flag existed still posts.
+            'schema.*.required' => 'nullable|boolean',
+            'schema.*.validation' => 'nullable|string',
+            'schema.*.options' => 'nullable|array',
+            'schema.*.options.*' => 'string',
+        ];
     }
 
     /**

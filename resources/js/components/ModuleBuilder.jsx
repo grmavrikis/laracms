@@ -4,30 +4,9 @@ import api from '../lib/api';
 import { errorSummary } from '../lib/apiErrors';
 import { languagesFrom, defaultLangCode } from '../lib/languages';
 import ModuleTranslations, { translationsPayload } from './ModuleTranslations';
-import fieldTypes from '../lib/fieldTypes.json';
+import ModuleFields from './ModuleFields';
 import { isGalleryField } from '../lib/gallery';
 import { t } from '../lib/i18n';
-
-// Which types exist is the backend's decision, so the values come from the
-// generated file rather than being listed again here. Labels are UI wording and
-// stay put; a type with no label shown gets its own name capitalised, so adding
-// one on the backend surfaces in this form without a second edit.
-const TYPE_LABELS = {
-    string: t('String'),
-    text: t('Text'),
-    integer: t('Integer'),
-    boolean: t('Boolean'),
-    date: t('Date'),
-    datetime: t('Datetime'),
-    select: t('Select'),
-    image: t('Image'),
-    gallery: t('Gallery'),
-};
-
-const FIELD_TYPES = fieldTypes.supported.map((value) => ({
-    value,
-    label: TYPE_LABELS[value] ?? value.charAt(0).toUpperCase() + value.slice(1),
-}));
 
 // There is deliberately no slugify here. This component used to transliterate
 // the name itself and send the result, which meant the stored slug came from a
@@ -177,117 +156,12 @@ export default function ModuleBuilder({ onCreated, onCancel }) {
                 </label>
             </div>
 
-            <div className="space-y-4 pt-4 border-t border-gray-200">
-                <div className="flex justify-between items-center">
-                    <div>
-                        <h3 className="text-base font-semibold text-gray-900">{t('Fields')}</h3>
-                        <p className="text-sm text-gray-500">{t('What each entry in this module holds.')}</p>
-                    </div>
-                    <button
-                        type="button"
-                        onClick={addField}
-                        className="inline-flex items-center justify-center rounded-lg bg-gray-900 px-3.5 py-2 text-sm font-semibold text-white shadow-sm hover:bg-gray-800 transition-all"
-                    >
-                        + {t('Add field')}
-                    </button>
-                </div>
-
-                <div className="space-y-3">
-                    {fields.map((field) => (
-                        <div key={field._id} className="bg-gray-50/50 border border-gray-200 rounded-xl p-4 space-y-3 transition-all hover:border-gray-300">
-                            <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center">
-                                <div className="sm:col-span-3">
-                                    <label className="block text-xs font-medium text-gray-500 mb-1 sm:hidden">{t('Field name')}</label>
-                                    <input
-                                        type="text"
-                                        placeholder={t('field_name')}
-                                        value={field.name}
-                                        onChange={(e) => updateField(field._id, 'name', e.target.value)}
-                                        className="w-full rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-900 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 font-mono text-xs"
-                                        required
-                                    />
-                                </div>
-                                <div className="sm:col-span-3">
-                                    <label className="block text-xs font-medium text-gray-500 mb-1 sm:hidden">{t('Type')}</label>
-                                    <select
-                                        value={field.type}
-                                        onChange={(e) => updateField(field._id, 'type', e.target.value)}
-                                        className="w-full rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-900 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-                                    >
-                                        {FIELD_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-                                    </select>
-                                </div>
-                                <div className="sm:col-span-4">
-                                    <label className="block text-xs font-medium text-gray-500 mb-1 sm:hidden">{t('Validation')}</label>
-                                    <input
-                                        type="text"
-                                        placeholder="required|max:60"
-                                        value={field.validation}
-                                        onChange={(e) => updateField(field._id, 'validation', e.target.value)}
-                                        className="w-full rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-900 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 font-mono text-xs"
-                                    />
-                                </div>
-                                <div className="sm:col-span-1 flex items-center justify-center sm:justify-start pt-2 sm:pt-0 gap-3">
-                                    <label
-                                        className={`flex items-center gap-1.5 text-sm select-none ${isGalleryField(field)
-                                            ? 'text-gray-400 cursor-not-allowed'
-                                            : 'text-gray-700 cursor-pointer'
-                                            }`}
-                                        title={isGalleryField(field)
-                                            ? t('A gallery is one set of images for every language; only the alt text is translated.')
-                                            : undefined}
-                                    >
-                                        <input
-                                            type="checkbox"
-                                            checked={field.translatable}
-                                            disabled={isGalleryField(field)}
-                                            onChange={(e) => updateField(field._id, 'translatable', e.target.checked)}
-                                            className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 disabled:opacity-40"
-                                        />
-                                        <span className="text-xs font-medium">{t('Lang')}</span>
-                                    </label>
-                                    {/* Beats asking someone to type "required" into the
-                                        validation box, which no field ever did. */}
-                                    <label className="flex items-center gap-1.5 text-sm text-gray-700 cursor-pointer select-none">
-                                        <input
-                                            type="checkbox"
-                                            checked={field.required}
-                                            onChange={(e) => updateField(field._id, 'required', e.target.checked)}
-                                            className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                                        />
-                                        <span className="text-xs font-medium">{t('Req')}</span>
-                                    </label>
-                                </div>
-                                <div className="sm:col-span-1 flex justify-end">
-                                    <button
-                                        type="button"
-                                        onClick={() => removeField(field._id)}
-                                        disabled={fields.length === 1}
-                                        className="inline-flex items-center justify-center p-2 text-gray-400 hover:text-red-600 rounded-lg transition-colors disabled:opacity-30 disabled:hover:text-gray-400"
-                                        title={t('Remove field')}
-                                    >
-                                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                        </svg>
-                                    </button>
-                                </div>
-                            </div>
-
-                            {field.type === 'select' && (
-                                <div className="pt-2">
-                                    <input
-                                        type="text"
-                                        placeholder={t('Comma separated options (e.g. Option 1, Option 2, Option 3)')}
-                                        value={field.options || ''}
-                                        onChange={(e) => updateField(field._id, 'options', e.target.value)}
-                                        className="w-full rounded-lg border border-indigo-200 bg-indigo-50/30 px-3 py-1.5 text-sm text-gray-900 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-                                    />
-                                </div>
-                            )}
-                        </div>
-                    ))}
-                </div>
-            </div>
+            <ModuleFields
+                fields={fields}
+                onChange={updateField}
+                onAdd={addField}
+                onRemove={removeField}
+            />
 
             <div className="flex items-center justify-end gap-3 pt-6 border-t border-gray-200">
                 {onCancel && (
