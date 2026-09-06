@@ -69,6 +69,27 @@ pointing at it survives. See *Assets* below for the same question about CSS.
 Nothing in `forms.js` knows what an enquiry is, so a newsletter box or a search
 uses the same three attributes. `resources/js/public-forms.test.js` is its test.
 
+### Modules arrive translated
+
+`theme::home` gets `$modules` as a plain list, already resolved to the page's
+language (#114):
+
+```blade
+@foreach ($modules as $module)
+    <li><a href="{{ $module['url'] }}">{{ $module['name'] }}</a></li>
+@endforeach
+```
+
+**Do not compose a module address in a template.** A module has a different
+slug in each language and none at all in a language nobody has translated it
+into, so `url('/' . $current->code . '/' . $module->slug)` produces addresses
+that answer 404. Core decides which modules a page lists; the theme lays them
+out.
+
+`theme::module` titles itself from `$title`, which is the module's name in this
+page's language. `$module->name` is the panel's name and is the same string in
+every language.
+
 ### Routes
 
 `routes.php` is loaded **before** the core pages, so a route here wins. That is

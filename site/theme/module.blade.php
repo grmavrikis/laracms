@@ -1,7 +1,9 @@
 @extends('theme::layout')
 
 @section('content')
-    <h1>{{ $module->name }}</h1>
+    {{-- `$title` rather than `$module->name`: the model's name is the
+         panel's, and this page is the visitor's (#114). --}}
+    <h1>{{ $title }}</h1>
 
     @if ($rows->isEmpty())
         <p>{{ __('Nothing published here yet.') }}</p>

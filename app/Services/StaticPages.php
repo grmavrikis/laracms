@@ -309,7 +309,15 @@ class StaticPages
     {
         foreach ($entry->slugs()->get() as $slug)
         {
-            $this->forget("{$slug->language_code}/{$module->slug}/{$slug->slug}.html");
+            // The module's address **in that entry's language** (#114). Using
+            // `$module->slug` here would compose a path the site never served
+            // and leave the real file behind.
+            $section = $module->slugFor($slug->language_code);
+
+            if ($section !== null)
+            {
+                $this->forget("{$slug->language_code}/{$section}/{$slug->slug}.html");
+            }
         }
 
         $this->forgetModule($module);
@@ -327,7 +335,13 @@ class StaticPages
     {
         foreach ($this->languages() as $code)
         {
-            $this->forget("{$code}/{$module->slug}.html");
+            $section = $module->slugFor($code);
+
+            if ($section !== null)
+            {
+                $this->forget("{$code}/{$section}.html");
+            }
+
             $this->forget("{$code}.html");
         }
 

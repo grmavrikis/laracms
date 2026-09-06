@@ -3039,3 +3039,79 @@ command, warm rebuilds, doctor passes.
 **The settings screen needs a human.** The checkbox is in the shipped bundle but
 has not been clicked; there is still no component harness (#94).
 
+---
+
+## 29. A Module became translatable, because the URL said it was not
+
+#114, step one of three. Raised by the owner from three live addresses:
+
+```
+/el/ypiresies/proino
+/en/ypiresies/breakfast
+/fr/ypiresies/petit-dejeuner
+```
+
+The entry was translated and the thing containing it was not. `modules` held
+one `name` and one `slug`, so every language carried the Greek transliteration
+in the middle of its URL - and checking the French page showed it was worse
+than the address: `<title>` and `<h1>` read **Υπηρεσίες**, and the French home
+page listed the Greek name of every module.
+
+That is this product's one differentiator failing in the shop window.
+BUSINESS.md puts the whole argument on multilingual-by-data-model against a
+cheap WordPress build, and a French URL reading `ypiresies` is the first thing
+a client sees in a demo.
+
+### `module_slugs`, and what `modules.slug` now means
+
+Rows rather than a JSON column, for the reason `entry_slugs` are rows: the
+public side resolves a module by a translated value on every cache miss, and
+#58 already settled that this has to be one read of one index. The rule is not
+"everything in tables", it is "whatever you search by goes in a table".
+
+`modules.name` and `modules.slug` **stay, with a narrower meaning**: they are
+the panel's. The admin API resolves `/api/modules/{module}` by slug, and that
+key cannot depend on a content language because the panel does not have one.
+Everything a visitor reads or types now comes from `module_slugs`.
+
+### Two rules, both the owner's
+
+**No translation means no page.** A module nobody has translated into French
+has no French address, is not in the French menu and is not in the sitemap. The
+alternative - falling back to the default language's slug - is exactly what
+produced `/fr/ypiresies`, and it tells a search engine that a Greek address is
+a French page. It follows through: an entry translated into a language whose
+*module* is not has no address there either, because there is no first segment
+to hang it on, so `alternatesForEntry` checks both.
+
+**A new module exists in every active language at once**, seeded on the model's
+`created` event rather than in the controller - a rule only the panel honours
+holds until somebody uses the API, the same reasoning `isSingleton()` rests on.
+"No translation" is about a language the owner has not reached yet, not about
+the moment of creation. The full suite said so before any of this was written:
+thirty-two tests create a Module directly, and every one of them went dark.
+
+### Checked
+
+Eleven tests written first, all eleven failing because nothing existed. Then
+eight mutations - **two survived**, and both were tests that never reached the
+code they claimed to cover: the alternates check only mattered for an entry
+whose module lacks a language, and the seeding was invisible inside a file that
+deletes the seeded rows. Two tests added, re-mutated, all eight bite.
+
+Then the migration on the live MySQL database: 39 rows for 13 modules across
+three languages, and **all three of the addresses this item was raised about
+still answered 200** - the backfill's whole job. Translating `ypiresies` by
+hand afterwards gave `/fr/prestations/petit-dejeuner`, titled *Petit-déjeuner*,
+with three `hreflang` alternates all pointing at addresses that exist.
+
+And `/en/ypiresies/breakfast` answered **404**, which is not a defect but the
+argument for step three: renaming a slug changes every URL beneath it, and #69
+stops being *first real client* work.
+
+413 PHP tests, 184 JS tests, build clean.
+
+**Steps two and three are not done.** There is still no endpoint that updates a
+Module - `ModuleController` has `store` and `index` and nothing else - so
+translating one means a hand-written UPDATE. That is next.
+

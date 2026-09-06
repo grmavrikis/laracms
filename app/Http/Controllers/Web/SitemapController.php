@@ -49,10 +49,21 @@ class SitemapController extends Controller
 
             foreach ($modules as $module)
             {
+                // Only the languages this module exists in (#114). A module
+                // nobody has translated into French has no French address, and
+                // advertising one is worse than omitting it: it is a 404 with
+                // an invitation attached.
                 foreach ($languages as $language)
                 {
+                    $section = $module->slugFor($language->code);
+
+                    if ($section === null)
+                    {
+                        continue;
+                    }
+
                     $urls[] = [
-                        'loc' => url("/{$language->code}/{$module->slug}"),
+                        'loc' => url("/{$language->code}/{$section}"),
                         'alternates' => $this->moduleAlternates($languages, $module),
                     ];
                 }
@@ -98,10 +109,13 @@ class SitemapController extends Controller
         foreach ($languages as $language)
         {
             $slug = $entry->slugFor($language->code);
+            $section = $module->slugFor($language->code);
 
-            if ($slug !== null)
+            // Both segments, since #114: an entry translated into a language
+            // whose module is not has no address there at all.
+            if ($slug !== null && $section !== null)
             {
-                $alternates[$language->code] = url("/{$language->code}/{$module->slug}/{$slug}");
+                $alternates[$language->code] = url("/{$language->code}/{$section}/{$slug}");
             }
         }
 
@@ -111,9 +125,19 @@ class SitemapController extends Controller
     /** @return array<string, string> */
     private function moduleAlternates($languages, Module $module): array
     {
-        return $languages
-            ->mapWithKeys(fn(Language $l) => [$l->code => url("/{$l->code}/{$module->slug}")])
-            ->all();
+        $alternates = [];
+
+        foreach ($languages as $language)
+        {
+            $section = $module->slugFor($language->code);
+
+            if ($section !== null)
+            {
+                $alternates[$language->code] = url("/{$language->code}/{$section}");
+            }
+        }
+
+        return $alternates;
     }
 
     /** @return array<string, string> */

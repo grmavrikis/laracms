@@ -169,7 +169,7 @@ JS tests sit **beside** their source as `resources/js/lib/*.test.js`.
 ## Commands
 
 ```bash
-php artisan test                    # 399 tests
+php artisan test                    # 413 tests
 npm test                            # 184 tests
 npm run build
 php artisan schema:sync-field-types # after changing field type constants
@@ -240,7 +240,7 @@ Started from a repo that would not boot (eight files of merge conflicts).
 Worked through a prioritised list; every item is either done or recorded in
 `CHANGELOG.md` with its reasoning.
 
-- **399 PHP tests, 184 JS tests**, all passing. Build clean.
+- **413 PHP tests, 184 JS tests**, all passing. Build clean.
 - **The project has a commercial goal as of 2026-08-30**, and it now decides
   what gets worked on. A multilingual CMS that feeds client sites, owned
   outright, for a one-person web agency: **one installation per client site**,
@@ -278,7 +278,14 @@ Worked through a prioritised list; every item is either done or recorded in
   browser (#75 reordering across pages, #76 a long `slugs` key answering 500 on
   MySQL, #77 a failed slug write destroying an entry's URLs) are fixed and
   verified live. Do not go looking for them.
-- **Next is #98**, plus the review that keeps #96 open. Both were added on
+- **#114 is in progress** — a Module had no translation at all, so
+  `/fr/ypiresies/petit-dejeuner` carried a Greek segment in a French URL and
+  the page was titled *Υπηρεσίες*. Step 1 (the data and the public side) is
+  done; step 2 is the panel, step 3 is #69. **`modules.name` and
+  `modules.slug` are now the panel's only** — everything a visitor reads comes
+  from `module_slugs`, and a module untranslated into a language has no page
+  there. Do not compose a module address from `$module->slug`.
+- **Then #98**, plus the review that keeps #96 open. Both were added on
   2026-09-05 at a stop the owner called, and recorded in `TASKS.md` →
   Amendments and → Decisions taken (2026-09-05, third). Read those before
   starting either; each rests on a decision that is not obvious from the code.

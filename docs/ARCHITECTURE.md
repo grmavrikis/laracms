@@ -623,6 +623,52 @@ images, everything else as escaped text. The templates in `resources/views/site/
 are deliberately plain — the bought theme replaces them in #62, and what has
 to be right now is the head.
 
+## 5d. A Module is translated too (TASKS.md #114)
+
+Raised by the owner from `/fr/ypiresies/petit-dejeuner`: the entry was
+translated and the thing containing it was not, so every language carried a
+Greek transliteration in the middle of its URL — and the page it served was
+titled *Υπηρεσίες*.
+
+`module_slugs` holds a **name and a slug per language**, rows rather than a
+JSON column for the same reason `entry_slugs` are rows: the public side
+resolves a module by a translated value on every cache miss, and #58 settled
+that this has to be one read of one index.
+
+**`modules.name` and `modules.slug` stay, and their meaning narrowed.** They
+are the *panel's*: the admin API resolves `/api/modules/{module}` by slug, and
+that key cannot depend on a content language because the panel does not have
+one. Everything a visitor reads or types comes from `module_slugs`.
+
+Two rules, both decided by the owner on 2026-09-06:
+
+- **No translation means no page.** A module nobody has translated into French
+  has no French address, is not in the French menu, and is not in the sitemap —
+  the rule entries already followed. Falling back to the default language's
+  slug is what produced `/fr/ypiresies`, and it tells a search engine a Greek
+  address is a French page. An entry translated into a language whose *module*
+  is not has no address there either: there is no first segment to hang it on,
+  so `alternatesForEntry` checks both.
+- **A new module exists in every active language at once**, seeded on the
+  model's `created` event rather than in the controller — a rule only the panel
+  honours holds until somebody uses the API. "No translation" is about a
+  language the owner has not reached yet, not about the moment of creation.
+
+The migration backfills every existing module with its current slug and name in
+every active language, so **the site is unchanged the moment it lands** —
+verified on the live database: 39 rows for 13 modules and three languages, and
+all three of the addresses above still answered 200.
+
+**Renaming a slug changes every URL under it**, and there is no redirect table
+yet: after translating `ypiresies` to `services`, `/en/ypiresies/breakfast`
+answers 404. That is why #69 is step three of this item rather than *first real
+client* work.
+
+The theme's contract changed with it: `theme::home` receives `$modules` as
+`['name' => …, 'url' => …]` already resolved to the page's language, so no
+template composes an address, and `theme::module` titles itself from `$title`
+rather than `$module->name`.
+
 ## 5a. Translations (TASKS.md #96 — public side done, panel not yet)
 
 **The address decides the language, not a header.** `SetLocale`, aliased as

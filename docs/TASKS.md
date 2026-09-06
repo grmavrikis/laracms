@@ -939,6 +939,94 @@ Three things to know before touching it:
   explicit invalidation. A file has none, so anything that changes a page has
   to say so — which is why `Language` is observed now and never was.
 
+### 114. A Module has no translation, and the front site shows it — P0
+
+Raised by the owner on 2026-09-06, from three live URLs:
+
+```
+/el/ypiresies/proino
+/en/ypiresies/breakfast
+/fr/ypiresies/petit-dejeuner
+```
+
+The **entry** is translated; the **module** is not. `modules` holds one `name`
+and one `slug`, so every language gets the Greek transliteration in the middle
+of its address. It is not only the URL — checked live on `/fr/ypiresies`:
+
+| | What a French visitor gets |
+|---|---|
+| URL | `/fr/ypiresies/petit-dejeuner` |
+| `<title>` and `<h1>` | **Υπηρεσίες** |
+| The home page's menu | the Greek names of every module |
+| `hreflang` alternates | three URLs that share one Greek segment |
+
+**This is the product's one differentiator failing in the shop window.**
+BUSINESS.md puts the whole argument on multilingual-by-data-model against a
+cheap WordPress build, and this is the first thing a client sees in a demo.
+
+### What it touches
+
+Fourteen call sites compose an address or print the name from those two
+columns: `PageController` (three actions, both alternate builders),
+`SitemapController` (three), `StaticPages::forgetEntry` and `forgetModule`,
+`StoreEntryRequest`, and the theme's `home` and `module` templates.
+
+And **there is no endpoint that updates a Module** — `ModuleController` has
+`store` and `index` and nothing else. Today a name and slug can only be set at
+creation, so this item either brings module editing with it or ships as a
+hand-written migration for existing rows.
+
+### The decisions it rests on
+
+1. **Rows, not JSON.** `module_slugs`, mirroring `entry_slugs`. The public
+   lookup `Module::where('slug', …)` runs on every cache miss and #56 already
+   settled that it has to stay one indexed read — a JSON column would make it
+   a scan. Same reasoning, one level up.
+2. **The name is content**, so it is translated per *content* language and the
+   panel shows it in the content language already selected. Not the panel
+   locale: that is #96's other axis, files rather than rows.
+3. **A module untranslated into a language has no page there.** *Decided by
+   the owner, 2026-09-06.* The rule entries already follow: no slug in a
+   language means no address in it, the listing does not show it and the
+   sitemap does not advertise it. The cost is accepted — a client who adds
+   French sees an empty menu until they translate — and the alternative was
+   rejected because falling back to the default language's slug is exactly
+   what produced `/fr/ypiresies` and tells Google a Greek address is a French
+   page.
+4. **Existing addresses are translated too, and #69 comes with this item.**
+   *Decided by the owner, 2026-09-06.* `/en/ypiresies/breakfast` becomes
+   `/en/services/breakfast`, so every URL a live site already has changes —
+   which is a mass 404 on the day of delivery unless redirects ship in the
+   same change. #69 stops being *first real client* work and becomes step
+   three of this one.
+
+### The three steps
+
+Each is separately verifiable, and the order is what keeps the site working:
+
+1. **The data and the public side — DONE** (CHANGELOG §29). `module_slugs`,
+   a per-language name, the lookup, all fourteen call sites, and a migration
+   that gives every existing row its current slug in every active language.
+   Verified on the live database: 39 rows for 13 modules across three
+   languages, and the three addresses this item was raised about still
+   answered 200 immediately afterwards. Then `ypiresies` was translated by
+   hand and `/fr/prestations/petit-dejeuner` served a page titled
+   *Petit-déjeuner* with all three `hreflang` alternates pointing at real
+   addresses — while `/en/ypiresies/breakfast` answered **404**, which is
+   step 3's whole reason for existing.
+2. **The panel.** There is no module-update endpoint at all yet; this brings
+   one, plus per-language name and slug fields in `ModuleBuilder`, and
+   `EntriesManager` showing the name in the content language already selected.
+3. **#69 redirects**, so step 2's first rename does not cost the client their
+   rankings.
+
+### Sequenced
+
+Bigger than #98 — comparable to #56/#57/#58. It also has to land **after
+#96's review**, because the panel screens it adds are new translated
+interface, and before **#62**, or the bought theme is wired to the old shape
+and done twice.
+
 ### 113. A module slug with a space in it is unreachable — P2
 
 `pages:warm` reported three addresses it could not bake, all of one module

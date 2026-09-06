@@ -67,7 +67,14 @@ class PageController extends Controller
             return ['page' => "{$current->code}.html", 'html' => view('theme::home', [
                 ...$this->chrome($current, $this->alternatesForHome()),
                 'title' => config('app.name'),
-                'modules' => Module::query()->orderBy('name')->get(),
+                // Prepared rather than handed the models, so the theme never
+                // composes an address: a module untranslated into this
+                // language has none, and a template deciding that is a
+                // template that can get it wrong (#114).
+                'modules' => Module::inLanguage($current->code)->get()->map(fn(Module $module) => [
+                    'name' => $module->translated_name,
+                    'url' => url("/{$current->code}/{$module->translated_slug}"),
+                ])->values(),
             ])->render()];
         });
     }
@@ -77,7 +84,7 @@ class PageController extends Controller
         return $this->serve(function () use ($language, $module)
         {
             $current = $this->language($language);
-            $found = Module::where('slug', $module)->first();
+            $found = $current === null ? null : Module::forSlug($current->code, $module)->first();
 
             if ($current === null || $found === null)
             {
@@ -101,13 +108,13 @@ class PageController extends Controller
                 ->get()
                 ->filter(fn(Entry $entry) => $entry->slugFor($current->code) !== null);
 
-            return ['page' => "{$current->code}/{$found->slug}.html", 'html' => view('theme::module', [
+            return ['page' => "{$current->code}/{$module}.html", 'html' => view('theme::module', [
                 ...$this->chrome($current, $this->alternatesForModule($found)),
-                'title' => $found->name,
+                'title' => $found->nameFor($current->code),
                 'module' => $found,
                 'rows' => $entries->map(fn(Entry $entry) => [
                     'title' => $this->presenter->title($found, $entry, $current->code),
-                    'url' => url("/{$current->code}/{$found->slug}/" . $entry->slugFor($current->code)),
+                    'url' => url("/{$current->code}/{$module}/" . $entry->slugFor($current->code)),
                 ])->values(),
             ])->render()];
         });
@@ -118,7 +125,7 @@ class PageController extends Controller
         return $this->serve(function () use ($language, $module, $slug)
         {
             $current = $this->language($language);
-            $found = Module::where('slug', $module)->first();
+            $found = $current === null ? null : Module::forSlug($current->code, $module)->first();
 
             if ($current === null || $found === null)
             {
@@ -148,7 +155,7 @@ class PageController extends Controller
             // "a 404 is never written" rule exists to prevent.
             if ($found->isSingleton())
             {
-                return ['redirect' => url("/{$current->code}/{$found->slug}")];
+                return ['redirect' => url("/{$current->code}/{$module}")];
             }
 
             return [
@@ -156,7 +163,7 @@ class PageController extends Controller
                 // for. They are equal - that is how the entry was found - but
                 // one of them is a database value and the other is a string a
                 // visitor typed, and only one of those may name a file.
-                'page' => "{$current->code}/{$found->slug}/{$entry->slugFor($current->code)}.html",
+                'page' => "{$current->code}/{$module}/{$entry->slugFor($current->code)}.html",
                 'html' => $this->entryHtml($current, $found, $entry, $this->alternatesForEntry($found, $entry)),
             ];
         });
@@ -184,7 +191,7 @@ class PageController extends Controller
         return [
             // The Module's address, because that is where a singleton's
             // content lives and the only address it has (#60).
-            'page' => "{$current->code}/{$module->slug}.html",
+            'page' => "{$current->code}/{$module->slugFor($current->code)}.html",
             'html' => $this->entryHtml($current, $module, $entry, $this->alternatesForModule($module)),
         ];
     }
@@ -300,10 +307,15 @@ class PageController extends Controller
         foreach ($this->activeLanguages() as $language)
         {
             $slug = $entry->slugFor($language->code);
+            $section = $module->slugFor($language->code);
 
-            if ($slug !== null)
+            // **Both**, since #114. An entry translated into a language whose
+            // module is not has no address there - there is no first segment
+            // to hang it from - and declaring one would point a search engine
+            // at a 404.
+            if ($slug !== null && $section !== null)
             {
-                $alternates[$language->code] = url("/{$language->code}/{$module->slug}/{$slug}");
+                $alternates[$language->code] = url("/{$language->code}/{$section}/{$slug}");
             }
         }
 
@@ -313,9 +325,19 @@ class PageController extends Controller
     /** @return array<string, string> */
     private function alternatesForModule(Module $module): array
     {
-        return $this->activeLanguages()
-            ->mapWithKeys(fn(Language $l) => [$l->code => url("/{$l->code}/{$module->slug}")])
-            ->all();
+        $alternates = [];
+
+        foreach ($this->activeLanguages() as $language)
+        {
+            $section = $module->slugFor($language->code);
+
+            if ($section !== null)
+            {
+                $alternates[$language->code] = url("/{$language->code}/{$section}");
+            }
+        }
+
+        return $alternates;
     }
 
     /** @return array<string, string> */
