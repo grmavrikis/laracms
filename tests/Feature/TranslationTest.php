@@ -75,17 +75,23 @@ class TranslationTest extends TestCase
      */
     public function test_a_visitor_is_refused_in_their_own_language(): void
     {
-        // Followed to the page rather than read out of the session: the
-        // message is only useful if it reaches the visitor, and #66's review
-        // found that stopping at the redirect is how a whole class of defect
-        // was missed.
-        $this->from('/el')->post('/el/enquiries', $this->enquiry(['consent' => null]));
-        $this->get('/el')->assertOk()->assertSee('στοιχεία σας', false);
+        // Read out of the answer the visitor's browser is handed, which since
+        // #97 is JSON: the form is a JS island and the page it sits on is
+        // cached, so a refusal never travels through the session and following
+        // the redirect would now assert against a page rendered before the
+        // submission existed. The rule behind #66's review still holds - the
+        // message is only useful if it reaches the visitor - and this is where
+        // it reaches them.
+        $greek = $this->postJson('/el/enquiries', $this->enquiry(['consent' => null]))
+            ->assertStatus(422)
+            ->json('errors.consent.0');
 
-        $this->flushSession();
+        $english = $this->postJson('/en/enquiries', $this->enquiry(['consent' => null]))
+            ->assertStatus(422)
+            ->json('errors.consent.0');
 
-        $this->from('/en')->post('/en/enquiries', $this->enquiry(['consent' => null]));
-        $this->get('/en')->assertOk()->assertSee('agree to us keeping', false);
+        $this->assertStringContainsString('στοιχεία σας', $greek);
+        $this->assertStringContainsString('agree to us keeping', $english);
     }
 
     // ------------------------------------------------------- the two spaces

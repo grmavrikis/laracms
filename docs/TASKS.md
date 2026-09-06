@@ -906,7 +906,10 @@ that prompted it and for the two design choices it rests on.
   come from `getOriginal()` before the write.
 - **A form on a page** no longer stops it being cached, because of #97's other
   half: one shared client-side submitter, CSRF fetched on first interaction,
-  the answer rendered from JSON.
+  the answer rendered from JSON. **DONE** (CHANGELOG §27) — `public/forms.js`,
+  `data-cms-form`, and `EnquiryController` answering in two shapes. Verified
+  live: `home:el` is in the cache for the first time, with no `_token` in it.
+  The file half below is what is left.
 
 **The deployment dependency has to fail loudly.** `.htaccess` covers Apache;
 nginx needs `try_files` in the server block, which `.htaccess` cannot reach. A

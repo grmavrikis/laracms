@@ -2709,3 +2709,94 @@ row was deleted.
 `SettingsManager` — the image upload and the per-language inputs especially —
 is verified by reading.
 
+---
+
+## 27. The form became an island, so the page could become a file
+
+#97, first half. §25 established that **a page carrying a form may not be
+cached**, because everything a form needs belongs to one visitor: the CSRF
+token, the confirmation, the errors, the values to type back in. That was found
+by posting the live form and reading 419.
+
+It was right about the cause and wrong about which half to keep. The page a
+form sits on is the home page, and #97's measurement put a cache *hit* at four
+queries in production while the test claiming none ran on `array` stores that
+exist only in `phpunit.xml`. "The most important page is never cached" was not
+a rule worth defending.
+
+**So the session state left the form instead.** The markup is still rendered by
+the server, in the visitor's language; only the submit is JavaScript. Nothing
+on the page differs between two visitors, so the page can be stored — and, in
+the second half of #97, written to disk.
+
+### What the client side is, and what it deliberately is not
+
+`public/forms.js`, 200 lines, no dependencies:
+
+- **One submitter for every form**, opted into with `data-cms-form`. The owner
+  chose this at the stop: a client's home page will carry an enquiry, a
+  newsletter box and a search, and three scripts that each fetch a token the
+  same way is three places to fix it.
+- **Not built, and served from a fixed path.** A cached page is a file, and a
+  hashed asset name baked into one is a script that disappears on the next
+  `npm run build` while the page pointing at it survives. The public site
+  already had no bundle; giving it one would have added a deployment
+  dependency to the exact item that warns about deployment dependencies.
+- **No wording in JavaScript.** The confirmation arrives in the JSON, already
+  translated; the one line the script owns — "it did not send" — is an
+  attribute on the form. A catalogue in the bundle would ship every language to
+  every visitor to say one sentence, which is what #96 took out of the panel.
+- **The first cookie is set on interaction**, not on load. Somebody who only
+  reads a page is never given one, which is most of #70 before it starts.
+
+The framework's own messages are deliberately **not** shown for a 429 or a 419:
+they are English until #99 lands, and a Greek visitor reading "Too Many
+Attempts." reads a broken site.
+
+### Two things found on the way
+
+**`shouldRenderJsonWhen` had been narrowed to `api/*`.** Passing a callback
+*replaces* Laravel's default rather than adding to it, so no route outside
+`api/*` could answer JSON however it was asked — the enquiry endpoint answered
+a 302 to `postJson`. The clause was written in §2 to force JSON for an API URL
+opened in a browser, and taking it away from everything else was a side effect
+nobody had asked for and no test pinned. Now both: forced for `api/*`, and
+Laravel's `expectsJson()` restored for the rest.
+
+**The suite was reading the developer's `.env`.** `SITE_LOCALE` is unset in
+`config/site.php`, so two tests changed their answer the day it was set on this
+machine — one asserting `app.fallback_locale` where it meant the installation's
+locale, one asserting an English label. Pinned in `phpunit.xml` and both tests
+now say what they depend on; the settings one asserts the schema's own label,
+so it is right in any language. Same family as the `array` cache store above:
+**a test is only as honest as the environment it names.**
+
+### Four tests were rewritten rather than deleted
+
+`test_a_page_with_a_form_is_not_cached` became `..._is_cached`, and the three
+that read the token, the confirmation and the errors out of a rendered page
+became one test that renders the partial **directly** with a flash, an error
+bag and old input in the session, and asserts none of them appear. Directly,
+because the page is cached now: a GET after a submission would answer with
+something rendered before the session had any of this in it, and would pass
+with the template unchanged.
+
+### Checked
+
+Six tests written first, all six failing for their own reason. Then six
+mutations — and one survived: removing `data-cms-form` from the form stops
+every submission, and the assertion stayed green because `data-cms-form-sending`
+contains the same substring. Tightened to the bare attribute, re-mutated, it
+bites.
+
+Then live over HTTP against MySQL: a submission refused for a departure before
+the arrival showed *«Η ημερομηνία αναχώρησης πρέπει να είναι μετά την άφιξη.»*
+in place with no reload; a corrected one showed the Greek confirmation and
+emptied the form; and with the `XSRF-TOKEN` cookie deleted the sequence was
+`GET /sanctum/csrf-cookie` → 204 → `POST` → 200, which is the path every real
+visitor takes. `home:el` is in the cache, 5498 bytes, with no `_token` in it —
+the first time the home page has ever been cached. The two probe enquiries were
+deleted.
+
+383 PHP tests, 168 JS tests, build clean.
+

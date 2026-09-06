@@ -690,8 +690,19 @@ Entry: the footer is on every page.
 application that accepts a write without a session (TASKS.md #66, CHANGELOG
 §25). Everything else sits behind `auth:sanctum`.
 
-A **web** route rather than an API one, because it is posted from a Blade form
-and that gives it the session, the CSRF token and `back()` with the errors.
+A **web** route rather than an API one, because the form it serves is a Blade
+form: the session, the CSRF machinery and `back()` are all there when a client's
+own page wants them.
+
+**It answers in two shapes since #97.** The shipped theme's form is a JS island
+and reads JSON — `{status, message}` on success, Laravel's `{message, errors}`
+on a 422 — with the wording translated by the server, so no catalogue ships to
+the browser. A plain Blade form with `@csrf`, which a client route may still
+render, gets its redirect and its flash exactly as before. Which shape is
+decided by `expectsJson()`, and `bootstrap/app.php` has the matching clause:
+`shouldRenderJsonWhen` had been narrowed to `api/*`, which replaced Laravel's
+default rather than adding to it and quietly took JSON errors away from every
+web route.
 
 - **The row is written first.** Notifying the owner is wrapped and its failure
   logged: a mail server that is down must not turn a stored enquiry into a 500
@@ -706,11 +717,31 @@ and that gives it the session, the CSRF token and `back()` with the errors.
 - **`enquiries:prune`** enforces the retention period the form states, daily
   from `routes/console.php`.
 
-> **A page with the form on it is not cached** — see §5, *the public site*.
-> The form needs session state and a cached page belongs to nobody, so the
-> whole page is rendered per visit. The first attempt substituted only the
-> CSRF token and was the wrong depth: the visitor still saw no confirmation
-> and no errors.
+### The form is a JS island (#97)
+
+**A page with the form on it is cached**, and that reverses §25. The rule there
+— session state may not be cached — is still right; what changed is that the
+form no longer carries any. No CSRF token, no confirmation, no error bag, no
+`old()`: the markup is the same for every visitor, and the page can therefore
+be a file.
+
+`public/forms.js` is the whole client side, and three things about it are
+deliberate:
+
+- **One submitter, not one per form.** A form opts in with `data-cms-form`;
+  nothing in the script knows what an enquiry is. A client's home page will
+  carry a newsletter box and a search before long.
+- **Not built and served from a fixed path.** A cached page is a file, and a
+  hashed asset name baked into one is a script that disappears on the next
+  `npm run build` while the page pointing at it survives.
+- **It sets the site's first cookie, and only on interaction.** The token is
+  fetched from `/sanctum/csrf-cookie` when a visitor first touches a form —
+  somebody who only reads a page is never given one, which is most of #70.
+
+`PageCache::carriesSessionState()` stays, and is not now unreachable: a client
+route rendering its own `@csrf` form is exactly the case it guards.
+
+The cost, accepted at the stop that decided this: the form needs JavaScript.
 
 The message the visitor writes reaches the owner's mail client, which trusts
 the sender because it is their own site. `Markdown::withSecuredEncoding()` is

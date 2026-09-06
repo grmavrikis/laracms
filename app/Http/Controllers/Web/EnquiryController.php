@@ -8,6 +8,7 @@ use App\Mail\EnquiryReceived;
 use App\Models\Enquiry;
 use App\Models\Language;
 use App\Services\SiteSettings;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
@@ -18,6 +19,12 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
  * The order of what happens here is the whole design. **The enquiry is stored
  * first**, and everything after it is a courtesy that cannot cost the row -
  * an owner who loses an enquiry loses a booking and blames the website.
+ *
+ * **It answers in two shapes** (#97). The shipped theme's form is a JS island
+ * and reads JSON; a client route in `site/routes.php` may render a plain Blade
+ * form with `@csrf`, and that one still gets its redirect and its flash. The
+ * second is not a leftover - such a page carries a token, so `PageCache`
+ * refuses to store it, which is exactly the case the guard exists for.
  */
 class EnquiryController extends Controller
 {
@@ -36,7 +43,7 @@ class EnquiryController extends Controller
         // feedback and costs us nothing.
         if (filled($request->input('website')))
         {
-            return back()->with('enquiry', 'sent');
+            return $this->sent($request);
         }
 
         $enquiry = Enquiry::create([
@@ -53,6 +60,27 @@ class EnquiryController extends Controller
         ]);
 
         $this->notify($enquiry);
+
+        return $this->sent($request);
+    }
+
+    /**
+     * One confirmation, in whichever shape the sender can read.
+     *
+     * The wording is translated here rather than in JavaScript: the answer is
+     * already being built by the server, in the language the `locale`
+     * middleware resolved from the address, and a catalogue in the island
+     * would ship every language to every visitor to say one sentence.
+     */
+    private function sent(Request $request)
+    {
+        if ($request->expectsJson())
+        {
+            return response()->json([
+                'status' => 'sent',
+                'message' => __('Thank you, we have your message.'),
+            ]);
+        }
 
         return back()->with('enquiry', 'sent');
     }

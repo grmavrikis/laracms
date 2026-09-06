@@ -29,6 +29,14 @@
         <env name="MAIL_MAILER" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="SESSION_DRIVER" value="array"/>
+        <!--
+            Unset in `config/site.php`, so without this the suite reads the
+            developer's own `.env` and two tests changed their answer the day
+            SITE_LOCALE was set on this machine. A fresh installation is what
+            the tests describe; one that has been configured is a fixture a
+            test states for itself.
+        -->
+        <env name="SITE_LOCALE" value="en"/>
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>

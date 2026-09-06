@@ -11,6 +11,7 @@ use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\MessageBag;
 use Illuminate\Support\ViewErrorBag;
 use Tests\TestCase;
 
@@ -331,20 +332,19 @@ class EnquiryTest extends TestCase
     }
 
     /**
-     * **A page carrying a form is not cached**, and this is the reason.
+     * **A page carrying a form is cached**, and #97 reversed §25 to get here.
      *
-     * The public pages are cached whole (#59), and everything a form needs is
-     * session state: the CSRF token, the confirmation after a submission, the
-     * errors after a failure, the values to type back into the boxes. A cached
-     * page has none of it - it was rendered before any of that existed and is
-     * handed to every visitor unchanged.
+     * §25 found that a cached page hands every visitor the first one's CSRF
+     * token, and answered by not caching such a page. That was right about the
+     * cause and wrong about the remedy once #97 measured what a cache hit
+     * actually costs: the home page is the page a form sits on and the page
+     * that matters most, and "never cached" was the wrong half to keep.
      *
-     * The token half was found by posting the live form and answered by
-     * substituting a placeholder. That was the wrong depth: the other three
-     * are arbitrary content and cannot be substituted, so what must not be
-     * cached is the page.
+     * What changed is the form, not the rule. Nothing on the page belongs to
+     * one visitor any more, so there is nothing for a cache to leak - see the
+     * test below, which is the one that has to keep this honest.
      */
-    public function test_a_page_with_a_form_is_not_cached(): void
+    public function test_a_page_with_a_form_is_cached(): void
     {
         $module = $this->aModule();
 
@@ -352,78 +352,132 @@ class EnquiryTest extends TestCase
 
         $this->quietlyRename($module);
 
-        $this->get('/el')->assertOk()->assertSee('Renamed', false);
+        $this->get('/el')->assertOk()->assertDontSee('Renamed', false);
     }
 
     /**
-     * A page with no form keeps its cache: the reason to skip one is the form
-     * in it, not the address.
+     * The precondition for the test above, and the one that must never be
+     * relaxed: **nothing on the page belongs to one visitor.**
+     *
+     * All four are checked rather than the token alone. The token is the one
+     * whose failure is loud - 419 for everybody but the first visitor - and
+     * that is exactly why it is not the dangerous one. A cached confirmation
+     * tells a visitor who has typed nothing that their message was sent, and
+     * cached errors show them somebody else's mistakes; both answer 200 and
+     * look like a working page.
      */
-    public function test_a_page_without_a_form_is_still_cached(): void
+    public function test_the_form_carries_nothing_that_belongs_to_one_visitor(): void
     {
-        $module = $this->aModule();
+        // The session is put in exactly the state the old template read from,
+        // and then the partial is rendered directly.
+        //
+        // **Directly, not through a page**, and that is not a shortcut: the
+        // page is cached now, so a GET after a submission would answer with
+        // whatever was rendered before the session had any of this in it - and
+        // the test would pass without the template having changed at all. What
+        // has to be proved is that the *render* consults none of it.
+        session()->flash('enquiry', 'sent');
+        session()->flashInput(['name' => 'WHAT THE LAST VISITOR TYPED']);
 
-        $this->get('/el/rooms')->assertOk()->assertSee('Rooms', false);
+        $errors = new ViewErrorBag();
+        $errors->put('default', new MessageBag(['email' => ['WHAT THE LAST VISITOR GOT WRONG']]));
 
-        $this->quietlyRename($module);
+        $html = view('theme::enquiry', ['errors' => $errors])->render();
 
-        $this->get('/el/rooms')->assertOk()->assertDontSee('Renamed', false);
+        $this->assertStringNotContainsString('_token', $html, 'The form still carries a CSRF token.');
+        $this->assertStringNotContainsString('WHAT THE LAST VISITOR TYPED', $html, 'The form still repeats what somebody typed.');
+        $this->assertStringNotContainsString('WHAT THE LAST VISITOR GOT WRONG', $html, 'The page still carries an error from the session.');
+        $this->assertStringNotContainsString(__('Thank you, we have your message.'), $html, 'The page still carries a confirmation from the session.');
     }
 
     /**
-     * The whole point of a contact form is that the visitor knows it worked.
+     * The page says which script drives it and the script is fetched from a
+     * fixed path.
+     *
+     * Fixed rather than built: a cached page is a **file**, and a hashed asset
+     * name baked into one is a script that disappears on the next
+     * `npm run build` while the page pointing at it survives. The public site
+     * has no bundle for the same reason it has no React.
      */
-    public function test_the_visitor_is_told_the_enquiry_was_sent(): void
+    public function test_the_form_declares_itself_to_the_shared_submitter(): void
     {
-        $this->get('/el')->assertOk();
+        $html = $this->get('/el')->assertOk()->getContent();
 
+        // The bare attribute, not the substring. `data-cms-form-sending` also
+        // contains "data-cms-form", so a plain search stayed green with the
+        // opt-in removed and the form submitting nothing at all - which a
+        // mutation found and a passing suite did not.
+        $this->assertMatchesRegularExpression(
+            '/<form[^>]*\sdata-cms-form[\s>]/',
+            $html,
+            'The form does not opt in to the submitter.'
+        );
+
+        $this->assertStringContainsString('/forms.js', $html, 'The page does not load the submitter.');
+    }
+
+    // ------------------------------------------------ what the island is told
+
+    /**
+     * The submitter reads the answer, so the answer is JSON - and it carries
+     * the wording, translated by the server. The alternative is a catalogue in
+     * JavaScript, which is the thing #96 took out of the panel's bundle.
+     */
+    public function test_a_submission_is_answered_in_json(): void
+    {
+        $response = $this->postJson('/el/enquiries', $this->valid())
+            ->assertOk()
+            ->assertJsonPath('status', 'sent');
+
+        $this->assertNotEmpty($response->json('message'), 'The answer carries no wording for the visitor.');
+        $this->assertSame(1, Enquiry::count());
+    }
+
+    /**
+     * The wording follows the address, like everything else public (#96).
+     */
+    public function test_the_answer_is_in_the_language_of_the_page(): void
+    {
+        $greek = $this->postJson('/el/enquiries', $this->valid())->json('message');
+        $english = $this->postJson('/en/enquiries', $this->valid())->json('message');
+
+        $this->assertNotSame($greek, $english, 'The confirmation is the same text in both languages.');
+    }
+
+    public function test_a_refused_submission_answers_the_errors_as_json(): void
+    {
+        $this->postJson('/el/enquiries', $this->valid(['email' => 'not-an-email']))
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('email');
+
+        $this->assertSame(0, Enquiry::count());
+    }
+
+    /**
+     * The honeypot answers a bot exactly what it answers a person, in this
+     * shape too - the reasoning in `store()` is about what the sender learns,
+     * not about which format they asked for.
+     */
+    public function test_a_filled_honeypot_looks_like_success_in_json_too(): void
+    {
+        $this->postJson('/el/enquiries', $this->valid(['website' => 'http://spam.example']))
+            ->assertOk()
+            ->assertJsonPath('status', 'sent');
+
+        $this->assertSame(0, Enquiry::count());
+    }
+
+    /**
+     * A form posted the old way still works, and this is not a leftover: a
+     * client route in `site/routes.php` may render its own Blade form with
+     * `@csrf` (#61). Such a page carries a token, so `PageCache` refuses to
+     * store it - the guard stays for exactly this.
+     */
+    public function test_a_plain_form_post_is_still_answered_with_a_redirect(): void
+    {
         $this->from('/el')->send()->assertRedirect('/el');
 
-        $this->get('/el')->assertOk()->assertSee('στάλθηκε', false);
-    }
-
-    /**
-     * And knows when it did not, and does not have to type it all again.
-     */
-    public function test_a_failed_submission_shows_the_error_and_keeps_what_was_typed(): void
-    {
-        $this->get('/el')->assertOk();
-
-        $this->from('/el')->send(['email' => 'not-an-email'])->assertRedirect('/el');
-
-        $this->get('/el')
-            ->assertOk()
-            ->assertSee('email', false)
-            ->assertSee('Μαρία Παπαδοπούλου', false);
-    }
-
-    /**
-     * A CSRF token belongs to one session, so it may never come out of a
-     * cache. Same rule as the tests above, pinned separately because it is the
-     * one whose failure is silent: a form that answers 419 for everybody but
-     * the first visitor.
-     */
-    public function test_the_token_on_the_form_belongs_to_the_session_reading_it(): void
-    {
-        $tokenOn = function (string $path): string
-        {
-            preg_match('/name="_token" value="([^"]+)"/', $this->get($path)->getContent(), $m);
-
-            $this->assertNotEmpty($m[1] ?? '', 'The page carries no form to speak of.');
-
-            return $m[1];
-        };
-
-        $first = $tokenOn('/el');
-
-        $this->flushSession();
-
-        // The request first: `csrf_token()` is null until a session that has
-        // been flushed is started again.
-        $second = $tokenOn('/el');
-
-        $this->assertSame(csrf_token(), $second, 'The token served is not the one this session would accept.');
-        $this->assertNotSame($first, $second, 'The page was cached and handed one visitor the token of another.');
+        $this->assertSame(1, Enquiry::count());
     }
 
     // ------------------------------------------------- the partial on its own

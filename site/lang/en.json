@@ -1,6 +1,5 @@
 {
     "Ask us": "Ask us",
-    "Thank you, we have your message.": "Thank you, we have your message.",
     "Name": "Name",
     "Email": "Email",
     "Phone": "Phone",
@@ -9,6 +8,8 @@
     "Guests": "Guests",
     "Message": "Message",
     "Send": "Send",
+    "Sending…": "Sending…",
+    "Your message could not be sent. Please try again in a moment.": "Your message could not be sent. Please try again in a moment.",
     "Website": "Website",
     "I agree to you keeping my details in order to reply. They are deleted after :months months.": "I agree to you keeping my details in order to reply. They are deleted after :months months.",
     "Home": "Home",

@@ -92,9 +92,15 @@ class PanelLocaleTest extends TestCase
      */
     public function test_a_locale_with_no_file_falls_back_rather_than_emptying_the_panel(): void
     {
+        // Stated rather than assumed. The chain ends at the installation's own
+        // locale, and this used to assert `app.fallback_locale` - which is the
+        // same string only while nobody has set SITE_LOCALE. The day somebody
+        // did, this test said the fallback was broken.
+        config(['site.locale' => 'en']);
+
         $panel = $this->panel(User::factory()->create(['locale' => 'de']));
 
-        $this->assertSame(config('app.fallback_locale'), $panel['locale']);
+        $this->assertSame('en', $panel['locale']);
         $this->assertNotSame([], $panel['messages']);
     }
 

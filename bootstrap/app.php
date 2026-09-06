@@ -77,7 +77,22 @@ return Application::configure(basePath: dirname(__DIR__))
     })
     ->withExceptions(function (Exceptions $exceptions): void
     {
+        // Two clauses, and they answer different questions.
+        //
+        // `api/*` is **forced**, header or no header: an API URL opened in a
+        // browser sends `Accept: text/html`, and answering it with a redirect
+        // to a login page this application does not have was a 500 (§2).
+        //
+        // `expectsJson()` is Laravel's own default, put back. Passing a
+        // callback *replaces* the default rather than adding to it, so
+        // narrowing to `api/*` quietly took JSON errors away from every other
+        // route - including the public enquiry endpoint, which since #97 is
+        // posted by JavaScript and reads the answer. Nothing pinned that,
+        // because until now nothing outside `api/*` ever asked.
+        //
+        // A plain browser form post sends no such header and still gets its
+        // redirect, which is what `EnquiryTest` keeps honest.
         $exceptions->shouldRenderJsonWhen(
-            fn(Request $request) => $request->is('api/*'),
+            fn(Request $request) => $request->is('api/*') || $request->expectsJson(),
         );
     })->create();

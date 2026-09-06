@@ -167,7 +167,7 @@ JS tests sit **beside** their source as `resources/js/lib/*.test.js`.
 ## Commands
 
 ```bash
-php artisan test                    # 380 tests
+php artisan test                    # 383 tests
 npm test                            # 165 tests
 npm run build
 php artisan schema:sync-field-types # after changing field type constants
@@ -235,7 +235,7 @@ Started from a repo that would not boot (eight files of merge conflicts).
 Worked through a prioritised list; every item is either done or recorded in
 `CHANGELOG.md` with its reasoning.
 
-- **380 PHP tests, 165 JS tests**, all passing. Build clean.
+- **383 PHP tests, 168 JS tests**, all passing. Build clean.
 - **The project has a commercial goal as of 2026-08-30**, and it now decides
   what gets worked on. A multilingual CMS that feeds client sites, owned
   outright, for a one-person web agency: **one installation per client site**,
@@ -292,11 +292,16 @@ Worked through a prioritised list; every item is either done or recorded in
     still refused half in English (#99, no `lang/el/validation.php`), and
     three of the tests that look like they hold this mechanism do not (#101,
     #102, #103).
-  - **#97 static HTML pages.** A cache hit was measured at **four queries**,
-    not none: the test that says none runs on `array` stores that exist only in
-    `phpunit.xml`. Pages become files the web server serves before PHP boots,
-    and forms become one shared JS island so a page with a form can still be a
-    file. `PageCache` is replaced, not extended.
+  - **#97 static HTML pages. The JS island half is done** (CHANGELOG §27):
+    `public/forms.js` is a shared, unbuilt submitter that any theme form opts
+    into with `data-cms-form`, and `EnquiryController` answers JSON or a
+    redirect depending on who asked. **§25's rule is reversed on purpose** — a
+    page with a form *is* cached now, because the form no longer carries
+    session state. Do not put `@csrf` back into `site/theme/enquiry.blade.php`.
+    What is left is the file half: a cache hit was measured at **four
+    queries**, not none, because the test that says none runs on `array` stores
+    that exist only in `phpunit.xml`. Pages become files the web server serves
+    before PHP boots. `PageCache` is replaced, not extended.
   - **#98 one source for a number.** The enquiry field widths live in three
     unconnected places, two exactly at the column limit — #76 waiting to
     happen, invisible to SQLite.

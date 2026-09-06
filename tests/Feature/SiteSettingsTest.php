@@ -125,7 +125,13 @@ class SiteSettingsTest extends TestCase
             'data' => ['facebook_url' => 'not a url'],
         ])->assertStatus(422)->json('errors')['data.facebook_url'][0];
 
-        $this->assertStringContainsString('Facebook page', $message);
+        // The label out of the schema rather than the English words, so
+        // this asserts the mechanism instead of the locale the suite happens
+        // to run in - it reads "Σελίδα Facebook" on an installation opening
+        // in Greek, and that is the same thing being right.
+        $label = collect(app(SiteSettings::class)->schema())->firstWhere('name', 'facebook_url')['label'];
+
+        $this->assertStringContainsString($label, $message);
         $this->assertStringNotContainsString('data.', $message);
     }
 
