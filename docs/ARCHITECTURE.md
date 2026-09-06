@@ -534,13 +534,17 @@ A `PageCacheObserver` on `Entry` and `Module` bumps it. **Model events do not
 cover everything** — `EntryController::reorder` writes one mass `UPDATE`,
 which fires none, so it invalidates by hand.
 
-**A page carrying a form is not cached at all.** Everything a form needs is one
-visitor's session — the CSRF token, the confirmation after a submission, the
-errors after a failure, the values to type back into the boxes — and a cached
-page has none of it. `PageCache` detects the case from the rendered HTML: any
-form posting back to this application carries a CSRF token, so the token is the
-marker and no theme has to declare anything. Which pages that costs is the
-client's decision, made by where their theme puts the form.
+**A page carrying a CSRF token is not cached.** Everything that token implies
+belongs to one visitor's session, and a cached page has none of it. `PageCache`
+detects the case from the rendered HTML — any form posting back to this
+application carries a token, so the token is the marker and no theme has to
+declare anything.
+
+Since #97 that is a **guard, not the normal case**: the shipped theme's form
+carries no token, because it is submitted by `public/forms.js` rather than by
+the browser, so the page it sits on *is* cached. What the guard catches now is
+a client route rendering its own Blade form with `@csrf` — see §5b, *the form
+is a JS island*, which is where the reasoning lives.
 
 The key also carries a **shape prefix** (`page.v3`), bumped by hand whenever
 what is stored changes. Both bumps so far were faults found only by opening the

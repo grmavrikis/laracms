@@ -2800,3 +2800,51 @@ deleted.
 
 383 PHP tests, 168 JS tests, build clean.
 
+### The review of it found ten, and one of them mattered
+
+**`PageCache::carriesSessionState()` had stopped being tested at all.** The
+only test that exercised it was the one this change inverted, and deleting the
+guard outright left all 383 tests green — a mutation, not a reading. It is the
+single thing standing between a client's own `@csrf` form and a repeat of §25,
+and it was being kept alive by a docblock. Three tests now pin it in both
+directions, through `remember()` rather than through a route: refuse a token,
+refuse a `csrf-token` meta tag, and **store an ordinary page**, because without
+the third "cache nothing" would satisfy the first two.
+
+Four were in `forms.js`, and all four were about it being a *shared* mechanism
+rather than the enquiry form's:
+
+- `[type="submit"]` does not match `<button>Send</button>`, whose default type
+  **is** submit, so such a form got no disabling — and with it no protection
+  against a second submission. There is now a `WeakSet` guard as well, because
+  Enter in a text field submits without touching a button at all.
+- A missing `data-cms-form-error` rendered a **visible, empty** alert box.
+- `form.action` and `form.reset` are replaced by any control of that name:
+  `HTMLFormElement` is `[LegacyOverrideBuiltIns]`, so named controls win over
+  methods too. Checked in Chrome rather than assumed — `f.action` came back an
+  `HTMLInputElement` and `f.reset` was not callable. Read as an attribute and
+  called off the prototype now.
+- A 2xx carrying no `message` emptied the form and said nothing, which reads as
+  failure; `data-cms-form-sent` is the floor.
+
+**And the file had no test at all.** It has sixteen now, in
+`resources/js/public-forms.test.js`, which loads `public/forms.js` from disk
+and evaluates it — the file that ships is the file under test, which is the
+whole point of it not being built. `jsdom` arrived with them, and is what #94
+has been waiting for.
+
+That harness immediately earned itself: **jsdom does not implement the named-
+property override**, so the first two shadowing tests passed whether the fix
+was there or not — one of them was detecting a relative-versus-absolute URL and
+claiming to detect shadowing. The property is now replaced by hand, which is
+what the browser does one layer down, and both bite.
+
+The rest were documentation telling the next session the opposite of the truth:
+ARCHITECTURE §5 still said "a page carrying a form is not cached at all" while
+§5b, added in the same commit, said it was; a `PageCacheTest` docblock still
+called the home page exempt; and `site/README.md` — the file client #2 is built
+from — did not mention `data-cms-form` or that `@csrf` silently costs a page its
+cache.
+
+386 PHP tests, 184 JS tests, build clean.
+

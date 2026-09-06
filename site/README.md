@@ -26,6 +26,49 @@ the `theme::` namespace resolves at all. A theme needs all four.
 Anything else a theme wants is its own business — a partial, an extra page
 rendered from `routes.php`, whatever the design needs.
 
+### Forms — read this before writing one
+
+**Do not write `@csrf` in a form.** It is the one thing here that quietly costs
+the page it sits on its cache: `PageCache` treats a CSRF token in the rendered
+HTML as proof the page belongs to one visitor and refuses to store it, so the
+busiest page on the site goes back to being rendered per request. That guard is
+deliberate and stays — it is what stops a client page handing every later
+visitor the first one's token — but it is not what a theme should be triggering.
+
+Forms are submitted by `public/forms.js`, which core ships and which any form
+opts into. The markup stays server-rendered, in the visitor's language; only
+the submit is JavaScript:
+
+```blade
+@once
+    <script src="{{ url('/forms.js') }}" defer></script>
+@endonce
+
+<form method="POST" action="{{ url('/' . $code . '/enquiries') }}"
+      data-cms-form
+      data-cms-form-sending="{{ __('Sending…') }}"
+      data-cms-form-error="{{ __('It could not be sent. Please try again.') }}"
+      data-cms-form-sent="{{ __('Thank you.') }}">
+
+    <p  data-cms-form-status role="status" hidden></p>
+    <ul data-cms-form-errors role="alert" hidden></ul>
+    …
+```
+
+Only `data-cms-form` is required. The two slots are filled from the answer —
+the endpoint's own confirmation wins over `data-cms-form-sent`, and the errors
+are whatever the server refused with, already translated. `data-cms-form-error`
+covers everything that is not a 422, because those messages come from the
+framework and are English until TASKS.md #99 lands.
+
+The script is served from a **fixed path and is not built**, which is why it is
+in `public/` rather than here: a cached page is a file on disk, and a hashed
+asset name baked into one disappears on the next `npm run build` while the page
+pointing at it survives. See *Assets* below for the same question about CSS.
+
+Nothing in `forms.js` knows what an enquiry is, so a newsletter box or a search
+uses the same three attributes. `resources/js/public-forms.test.js` is its test.
+
 ### Routes
 
 `routes.php` is loaded **before** the core pages, so a route here wins. That is

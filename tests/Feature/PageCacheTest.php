@@ -176,10 +176,11 @@ class PageCacheTest extends TestCase
     }
 
     /**
-     * Behaviour, not invalidation: the home page carries the enquiry form, so
-     * it is not cached at all (CHANGELOG §25) and there is nothing here for a
-     * write to drop. Invalidation on a page that *is* cached is pinned by the
-     * two tests above and by `EnquiryTest`.
+     * The home page is cached like any other since #97 (CHANGELOG §27), so
+     * this *is* an invalidation test: the second request answers with the new
+     * module only because creating one bumped the version through
+     * `PageCacheObserver`. It used to be exempt, and the comment here said so
+     * long after it stopped being true.
      */
     public function test_a_new_module_shows_on_the_home_page(): void
     {
@@ -243,6 +244,72 @@ class PageCacheTest extends TestCase
         $this->makeEntry('Νέο', 'oute-pou-yparxei');
 
         $this->get('/el/rooms/oute-pou-yparxei')->assertOk()->assertSee('Νέο', false);
+    }
+
+    // ------------------------------------------- what may not be stored
+
+    /**
+     * **A page carrying a CSRF token is never stored**, whoever rendered it.
+     *
+     * Since #97 the shipped theme's form carries no token, so nothing in the
+     * application exercises this by accident any more - and for a while
+     * nothing exercised it on purpose either: deleting the guard outright left
+     * all 383 tests green. It is not dead code. A client route in
+     * `site/routes.php` may render its own Blade form with `@csrf` (#61), and
+     * storing that page hands every later visitor the first one's token, which
+     * is 419 for all of them. That is CHANGELOG §25, and this is the only
+     * thing standing between it and a second occurrence.
+     *
+     * Exercised through `remember()` rather than through a route, because
+     * building a page that carries a token now means writing a whole client
+     * theme - and the guard is about what is handed to the cache, not about
+     * which URL produced it.
+     */
+    public function test_a_page_carrying_a_csrf_token_is_not_stored(): void
+    {
+        $cache = app(PageCache::class);
+
+        $page = ['html' => '<form><input type="hidden" name="_token" value="one-visitor"></form>'];
+
+        $this->assertSame($page, $cache->remember('probe:el', fn () => $page), 'The page was not even served.');
+        $this->assertNull(Cache::get($this->keyFor($cache, 'probe:el')), 'A page carrying a token was stored.');
+    }
+
+    /**
+     * The marker is `csrf-token` too: a theme that puts the token in a meta
+     * tag for its own script has the same problem as one that puts it in a
+     * form, and the regex covers both.
+     */
+    public function test_a_page_carrying_a_csrf_meta_tag_is_not_stored(): void
+    {
+        $cache = app(PageCache::class);
+
+        $page = ['html' => '<meta name="csrf-token" content="one-visitor">'];
+
+        $cache->remember('probe:el', fn () => $page);
+
+        $this->assertNull(Cache::get($this->keyFor($cache, 'probe:el')), 'A page carrying a token was stored.');
+    }
+
+    /**
+     * And the other half, so the guard cannot be made to refuse everything:
+     * an ordinary page is stored. Without this, "never cache anything" would
+     * satisfy the two tests above.
+     */
+    public function test_a_page_carrying_no_token_is_stored(): void
+    {
+        $cache = app(PageCache::class);
+
+        $page = ['html' => '<p>Nothing here belongs to anybody.</p>'];
+
+        $cache->remember('probe:el', fn () => $page);
+
+        $this->assertSame($page, Cache::get($this->keyFor($cache, 'probe:el')), 'An ordinary page was not stored.');
+    }
+
+    private function keyFor(PageCache $cache, string $path): string
+    {
+        return PageCache::PREFIX . ':' . $cache->version() . ':' . $path;
     }
 
     // ---------------------------------------------- what an old cache holds

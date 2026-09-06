@@ -475,7 +475,13 @@ class EnquiryTest extends TestCase
      */
     public function test_a_plain_form_post_is_still_answered_with_a_redirect(): void
     {
-        $this->from('/el')->send()->assertRedirect('/el');
+        $this->from('/el')->send()
+            ->assertRedirect('/el')
+            // The flash has exactly one consumer left - a client's own Blade
+            // form - because the shipped theme no longer reads it. Without
+            // this assertion, dropping `->with(...)` from `sent()` is green
+            // here and silently costs that page its confirmation.
+            ->assertSessionHas('enquiry', 'sent');
 
         $this->assertSame(1, Enquiry::count());
     }

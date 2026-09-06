@@ -18,11 +18,18 @@
  *
  * The contract, all optional except the form's own attribute:
  *
- *   <form data-cms-form data-cms-form-error="…" data-cms-form-sending="…">
+ *   <form data-cms-form
+ *         data-cms-form-sending="…" data-cms-form-error="…"
+ *         data-cms-form-sent="…">
  *     <p  data-cms-form-status role="status" hidden></p>
  *     <ul data-cms-form-errors role="alert" hidden></ul>
  *
- * The wording arrives translated: `data-cms-form-error` from the template,
+ * `data-cms-form-sent` is only a floor: the endpoint's own confirmation wins
+ * when it sends one, and a form pointed at an endpoint that does not - a 204,
+ * something a theme wrote - would otherwise empty itself and say nothing,
+ * which reads as a failure.
+ *
+ * The wording arrives translated: the attributes from the template,
  * the confirmation from the endpoint's JSON. There is deliberately no
  * catalogue in here - that is the thing #96 took out of the panel's bundle,
  * and it would be worse on a public page, where it would ship every language
@@ -33,6 +40,16 @@
     'use strict';
 
     var pending = null;
+
+    /**
+     * The forms whose answer has not come back yet.
+     *
+     * Disabling the submit button is not a guard: a form may have no button
+     * this can find, and Enter in a text field submits without touching one.
+     * Two enquiries from one impatient visitor is a real cost to the owner,
+     * who reads both.
+     */
+    var inFlight = new WeakSet();
 
     /* --------------------------------------------------------- the token */
 
@@ -96,9 +113,19 @@
             return;
         }
 
+        // Blanks are dropped rather than rendered. Every attribute except
+        // `data-cms-form` is optional, so a theme that omits
+        // `data-cms-form-error` would otherwise get a visible alert box
+        // holding one empty line - announced as nothing by a screen reader
+        // and read as a broken page by everybody else.
+        var lines = messages.filter(function (message)
+        {
+            return typeof message === 'string' && message !== '';
+        });
+
         list.textContent = '';
 
-        messages.forEach(function (message)
+        lines.forEach(function (message)
         {
             var item = document.createElement('li');
 
@@ -106,7 +133,7 @@
             list.appendChild(item);
         });
 
-        list.hidden = messages.length === 0;
+        list.hidden = lines.length === 0;
     }
 
     /**
@@ -126,9 +153,41 @@
 
     /* -------------------------------------------------------- the submit */
 
+    /**
+     * The button that submits this form, if it has one this can find.
+     *
+     * `[type="submit"]` alone is not enough: `<button>Send</button>` carries
+     * no type attribute and its default *is* submit, so a theme writing the
+     * shorter form got no disabling at all.
+     */
+    function submitButton(form)
+    {
+        return form.querySelector('button:not([type]), button[type="submit"], input[type="submit"]');
+    }
+
+    /**
+     * Where this form posts.
+     *
+     * Read as an **attribute**, not as `form.action`: a control named `action`
+     * shadows the property and hands back an element instead of a URL, and a
+     * search or filter form carrying `<input name="action">` is ordinary. The
+     * same shadowing is why `reset` is called off the prototype below.
+     */
+    function actionOf(form)
+    {
+        return form.getAttribute('action') || window.location.href;
+    }
+
     function send(form)
     {
-        var button = form.querySelector('[type="submit"]');
+        if (inFlight.has(form))
+        {
+            return;
+        }
+
+        inFlight.add(form);
+
+        var button = submitButton(form);
         var status = form.querySelector('[data-cms-form-status]');
 
         show(status, form.dataset.cmsFormSending || '');
@@ -142,7 +201,7 @@
         return token()
             .then(function (value)
             {
-                return fetch(form.action, {
+                return fetch(actionOf(form), {
                     method: 'POST',
                     credentials: 'same-origin',
                     headers: {
@@ -163,8 +222,8 @@
             {
                 if (answer.response.ok)
                 {
-                    form.reset();
-                    show(status, answer.body.message || '');
+                    HTMLFormElement.prototype.reset.call(form);
+                    show(status, answer.body.message || form.dataset.cmsFormSent || '');
 
                     return;
                 }
@@ -192,6 +251,8 @@
             })
             .then(function ()
             {
+                inFlight.delete(form);
+
                 if (button)
                 {
                     button.disabled = false;

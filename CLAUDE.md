@@ -99,6 +99,7 @@ The `lib/` helpers are pure functions and carry the interesting decisions:
 | `resources/js/lib/languages.js` | `getLangCode` + which language is the default. |
 | `resources/js/lib/i18n.js` | `t()` — the panel's strings. The catalogue is **injected by the server** into `window.miniCms`, never bundled, so a new language needs no rebuild. `translate` mirrors PHP's `strtr`: one pass, longest name first. |
 | `resources/js/lib/api.js` | One axios client. `signIn()` owns the CSRF-then-credentials ordering; `uploadImage()` owns the upload contract, shared by both editors. |
+| `public/forms.js` | **Not part of the bundle and not built.** The public site's only JavaScript: one submitter any theme form opts into with `data-cms-form` (#97). Tested by `resources/js/public-forms.test.js`, which loads the shipped file into jsdom. |
 | `resources/js/lib/fieldTypes.json` | **Generated** by `php artisan schema:sync-field-types`. Never edit by hand. |
 
 Components, in order of how much they will surprise you:
@@ -167,8 +168,8 @@ JS tests sit **beside** their source as `resources/js/lib/*.test.js`.
 ## Commands
 
 ```bash
-php artisan test                    # 383 tests
-npm test                            # 165 tests
+php artisan test                    # 386 tests
+npm test                            # 184 tests
 npm run build
 php artisan schema:sync-field-types # after changing field type constants
 ```
@@ -235,7 +236,7 @@ Started from a repo that would not boot (eight files of merge conflicts).
 Worked through a prioritised list; every item is either done or recorded in
 `CHANGELOG.md` with its reasoning.
 
-- **383 PHP tests, 168 JS tests**, all passing. Build clean.
+- **386 PHP tests, 184 JS tests**, all passing. Build clean.
 - **The project has a commercial goal as of 2026-08-30**, and it now decides
   what gets worked on. A multilingual CMS that feeds client sites, owned
   outright, for a one-person web agency: **one installation per client site**,
