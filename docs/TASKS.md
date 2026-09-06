@@ -1115,6 +1115,22 @@ form's fields (`name`, `email`, `phone`, `message`, `arrives_on`, `departs_on`,
 `guests`, `consent`, `source_url`) or the finding is marked done while the page
 still reads as half-translated.
 
+**The panel has it too**, confirmed live on 2026-09-06. #67 solved the
+`:attribute` half there — the settings screen passes its declared labels as
+`attributes`, so a bad URL is reported against the field's own wording — and
+that makes the remaining gap read as the exact mirror of the public form's:
+
+```
+The Σελίδα Facebook field must be a valid URL.
+```
+
+Greek field name, English sentence around it. So the file this needs is not
+only the public forms' rules: `url` is a settings rule and does not appear on
+an enquiry. Publishing `lang/el/validation.php` for the rules **both** surfaces
+use settles both, and the `attributes` array is only needed for the enquiry
+form, which is the one place the request key is what a reader would otherwise
+see.
+
 Decide with #109, which is the other half of the same `lang:publish`.
 
 ### 100. The owner's notification will be sent in the visitor's language — P2
