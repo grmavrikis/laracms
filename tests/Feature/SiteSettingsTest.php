@@ -8,6 +8,8 @@ use App\Models\Setting;
 use App\Models\User;
 use App\Services\SchemaRuleBuilder;
 use App\Services\SiteSettings;
+use App\Services\StaticPages;
+use Illuminate\Support\Facades\File;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
@@ -369,16 +371,30 @@ class SiteSettingsTest extends TestCase
      * Saving settings changes what a page says, so the cache cannot outlive
      * them - the same rule publishing an entry follows (#59).
      */
-    public function test_saving_settings_drops_the_page_cache(): void
+    public function test_saving_settings_drops_the_baked_pages(): void
     {
-        $this->get('/el')->assertOk();
+        $directory = storage_path('framework/testing/settings-pages-' . getmypid());
 
-        $before = app(\App\Services\PageCache::class)->version();
+        config(['site.pages' => $directory, 'site.page_cache' => true]);
 
-        $this->actingAs($this->owner())->putJson('/api/settings', [
-            'data' => ['phone' => '+30 26610 99999'],
-        ])->assertOk();
+        try
+        {
+            $this->get('/el')->assertOk();
 
-        $this->assertGreaterThan($before, app(\App\Services\PageCache::class)->version());
+            $this->assertTrue(app(StaticPages::class)->has('el.html'), 'The page was never baked.');
+
+            $this->actingAs($this->owner())->putJson('/api/settings', [
+                'data' => ['phone' => '+30 26610 99999'],
+            ])->assertOk();
+
+            $this->assertFalse(
+                app(StaticPages::class)->has('el.html'),
+                'The footer changed and the page on disk still carries the old number.'
+            );
+        }
+        finally
+        {
+            File::deleteDirectory($directory);
+        }
     }
 }

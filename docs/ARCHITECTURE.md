@@ -381,9 +381,11 @@ made a singleton after the fact. The sitemap lists the Module's address and not
 the entry's, so it never advertises a redirect. An empty singleton, or one
 holding only a draft, is a 404.
 
-The redirect is decided inside the cached closure rather than before it, so
-that path costs no queries either: `PageCache::remember` stores what the page
-*is* — `['html' => …]` or `['redirect' => …]` — not only its markup.
+The redirect is decided after the entry is resolved rather than before it,
+because redirecting first made every invented slug under the module a 301 —
+a soft 404 to a crawler. A redirect is **not baked**: a file that says "go
+somewhere else" is what the web server's own rules are for, so a singleton's
+entry address is the one public URL that always reaches PHP.
 
 **Reordering is one request for the module's whole order**, and the endpoint
 enforces that:
@@ -508,41 +510,82 @@ is what keeps a bare segment from swallowing `admin` or `sitemap.xml`; the
 code is then checked against the **active** languages, so a well-shaped but
 unknown one is a 404.
 
-**Everything is cached, and the lookup comes before the database.** Each
-action hands `PageCache` a path and a closure; the closure — which resolves
-the language, the module and the entry — runs only on a miss.
+**Every page is a file on disk, and the web server hands it over before PHP
+starts** (#97). `StaticPages` writes `public/cache/{lang}/{module}/{slug}.html`;
+two rewrite rules in `public/.htaccess` serve whatever is there, for GET only.
+A visitor on a baked page runs **no PHP and no queries at all** — verified live
+by response headers: `ETag` and `Last-Modified` present, no `Set-Cookie`, no
+`X-Powered-By`.
 
-**A hit costs four queries, not none** — and the test that counts them says
-none because `phpunit.xml` sets `CACHE_STORE=array` and `SESSION_DRIVER=array`,
-while the deployment uses `database` for both. Measured on a module page: one
-`sessions` read, two `cache` reads (the version, then the page), one `sessions`
-write. What the cache removes is the *content* queries — the language, the
-module and the entry — and that part is real. #97 replaces this whole mechanism
-with files the web server serves before PHP starts, which is what #59 asked
-for; until then, do not repeat the "no queries" claim.
+That replaced `PageCache`, and the reason is a measurement. A cache *hit* cost
+**four queries** in production — one `sessions` read, two `cache` reads, one
+`sessions` write — while the test that counted them said none, because
+`phpunit.xml` sets `CACHE_STORE=array` and `SESSION_DRIVER=array` and the
+deployment uses `database` for both. #59 asked for finished HTML without a
+query. A file is that sentence taken literally.
 
-Invalidation is **by version, not by key or tag**: `CACHE_STORE` is
-`database`, whose driver has no tag support, so a counter is embedded in every
-key and publishing increments it. That is O(1), needs no key bookkeeping, and
-is correct for the case key-based invalidation cannot handle — a **renamed
-slug**, whose old URL is not computable afterwards because the row that held
-it is gone. The version is site-wide, which is the price of keying on the path
-alone: without touching the database there is nothing to say which module a
-path belongs to.
+Two consequences worth knowing:
 
-A `PageCacheObserver` on `Entry` and `Module` bumps it. **Model events do not
-cover everything** — `EntryController::reorder` writes one mass `UPDATE`,
-which fires none, so it invalidates by hand.
+- **The site survives its own database.** A hotel whose MySQL falls over in
+  August still serves every page.
+- **There is no expiry.** The old cache had a seven-day TTL underneath its
+  explicit invalidation, which quietly cleaned up after anything nobody thought
+  to drop. A file does not expire, so **anything that changes a page must say
+  so** — which is why `Language` is observed now and never was before.
 
-**A page carrying a CSRF token is not cached.** Everything that token implies
-belongs to one visitor's session, and a cached page has none of it. `PageCache`
-detects the case from the rendered HTML — any form posting back to this
-application carries a token, so the token is the marker and no theme has to
-declare anything.
+**The address is composed from rows, never from the request path.** Each render
+closure builds it next to the rows it just resolved — the language row's code,
+the module's slug, the entry's slug — and `StaticPages` checks every segment
+again before touching the filesystem. Writing inside `public/` from something a
+visitor controls is how a crafted URL puts a file where it should not be. The
+dangerous direction is *deleting*: invalidation composes addresses straight from
+a slug column with no route pattern in between, so a row holding `../../x`
+would reach outside the directory. A page whose address fails the check is
+served and simply not baked — the live database has a module whose slug is
+`τεστ κεις`, and `pages:warm` reports it rather than hiding it.
+
+**Invalidation is precise**, which the version counter could not be: an author
+saving has the rows in hand. `StaticPageObserver` drops an entry's own
+addresses, its module's listings, the home pages and the sitemap; a `Module`,
+`Setting` or `Language` write empties everything, because each of those moves
+or changes every page. Measured live: touching one entry took 61 files to 51,
+and another module's pages survived.
+
+**Model events do not cover everything**, and here that shapes the code:
+
+- `EntryController::reorder` writes one mass `UPDATE` and fires none, so it
+  calls `forgetModule` by hand.
+- `syncSlugs` deletes the slug rows en masse, also firing none. **The entry is
+  therefore saved before the slugs are replaced**, so the observer reads the
+  old addresses while the rows still hold them. Swapping those two lines leaves
+  the old page on disk for ever; `StaticPagesTest::test_renaming_a_slug_removes_the_old_address`
+  is what says so.
+- `entry_slugs` cascades on delete, so the observer acts on `deleting` for an
+  Entry rather than `deleted` — one event earlier, for the same reason.
+
+**The switch is `PAGE_CACHE` in `.env` and a field on the settings screen**,
+the saved value winning. It controls only whether files are *written*: off
+means flush and stop writing, so an empty directory is what sends requests back
+to PHP and the fast path reads no setting and runs no query. `pages:warm` fills
+the directory by walking the sitemap — which *is* the list of public addresses,
+so the two cannot disagree — `pages:flush` empties it, and `pages:doctor` asks
+a running server whether the answer came from a file.
+
+**The deployment dependency fails silently and so has to be checked.**
+`.htaccess` covers Apache; nginx needs `try_files` in its server block, which an
+`.htaccess` cannot reach and no test can see. A missing rewrite breaks nothing —
+every page is quietly served through PHP again and the site looks entirely
+normal. That is what `pages:doctor` exists for; run it after any deployment.
+
+**A page carrying a CSRF token is not baked.** Everything that token implies
+belongs to one visitor's session, and a file is handed to everybody.
+`StaticPages::write` detects the case from the rendered HTML — any form posting
+back to this application carries a token, so the token is the marker and no
+theme has to declare anything.
 
 Since #97 that is a **guard, not the normal case**: the shipped theme's form
 carries no token, because it is submitted by `public/forms.js` rather than by
-the browser, so the page it sits on *is* cached. What the guard catches now is
+the browser, so the page it sits on *is* baked. What the guard catches now is
 a client route rendering its own Blade form with `@csrf` — see §5b, *the form
 is a JS island*, which is where the reasoning lives.
 
@@ -742,8 +785,11 @@ deliberate:
   fetched from `/sanctum/csrf-cookie` when a visitor first touches a form —
   somebody who only reads a page is never given one, which is most of #70.
 
-`PageCache::carriesSessionState()` stays, and is not now unreachable: a client
-route rendering its own `@csrf` form is exactly the case it guards.
+`StaticPages::carriesSessionState()` stays, and is not now unreachable: a
+client route rendering its own `@csrf` form is exactly the case it guards. It
+was nearly lost when `PageCache` was replaced — the guard went with the class
+and the tests pinning it went with the test file — so it is pinned in
+`StaticPagesTest` in both directions now.
 
 The cost, accepted at the stop that decided this: the form needs JavaScript.
 

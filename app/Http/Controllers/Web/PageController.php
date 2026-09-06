@@ -7,7 +7,7 @@ use App\Models\Entry;
 use App\Models\Language;
 use App\Models\Module;
 use App\Services\EntryPresenter;
-use App\Services\PageCache;
+use App\Services\StaticPages;
 use App\Services\SiteSettings;
 use Closure;
 use RuntimeException;
@@ -28,16 +28,22 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
  * URLs and the hreflang set is symmetric. `/` redirects to whichever language
  * is flagged default.
  *
- * **Nothing below touches the database on a cache hit.** Each action hands
- * PageCache a path and a closure, and the closure - which resolves the
- * language, the module and the entry - only runs on a miss. That ordering is
- * the requirement, not an optimisation.
+ * **A visitor normally never gets here.** Since #97 each page is written to a
+ * file the web server hands over before PHP starts, so what runs below is the
+ * *first* request for a page and nothing else. There is no lookup-before-the-
+ * database any more, because there is no lookup: a hit is Apache's.
+ *
+ * Each action therefore renders, and says where its result belongs. **The
+ * address is composed here, out of the rows just resolved** - the language
+ * row's code, the module's slug, the entry's slug - and never from the
+ * request path, which is something a visitor writes. `StaticPages` checks it
+ * again before touching the filesystem.
  */
 class PageController extends Controller
 {
     public function __construct(
         private readonly EntryPresenter $presenter,
-        private readonly PageCache $cache,
+        private readonly StaticPages $pages,
         private readonly SiteSettings $settings,
     ) {
     }
@@ -49,7 +55,7 @@ class PageController extends Controller
 
     public function home(string $language)
     {
-        return $this->serve("home:{$language}", function () use ($language)
+        return $this->serve(function () use ($language)
         {
             $current = $this->language($language);
 
@@ -58,7 +64,7 @@ class PageController extends Controller
                 return null;
             }
 
-            return ['html' => view('theme::home', [
+            return ['page' => "{$current->code}.html", 'html' => view('theme::home', [
                 ...$this->chrome($current, $this->alternatesForHome()),
                 'title' => config('app.name'),
                 'modules' => Module::query()->orderBy('name')->get(),
@@ -68,7 +74,7 @@ class PageController extends Controller
 
     public function index(string $language, string $module)
     {
-        return $this->serve("index:{$language}:{$module}", function () use ($language, $module)
+        return $this->serve(function () use ($language, $module)
         {
             $current = $this->language($language);
             $found = Module::where('slug', $module)->first();
@@ -95,7 +101,7 @@ class PageController extends Controller
                 ->get()
                 ->filter(fn(Entry $entry) => $entry->slugFor($current->code) !== null);
 
-            return ['html' => view('theme::module', [
+            return ['page' => "{$current->code}/{$found->slug}.html", 'html' => view('theme::module', [
                 ...$this->chrome($current, $this->alternatesForModule($found)),
                 'title' => $found->name,
                 'module' => $found,
@@ -109,7 +115,7 @@ class PageController extends Controller
 
     public function show(string $language, string $module, string $slug)
     {
-        return $this->serve("entry:{$language}:{$module}:{$slug}", function () use ($language, $module, $slug)
+        return $this->serve(function () use ($language, $module, $slug)
         {
             $current = $this->language($language);
             $found = Module::where('slug', $module)->first();
@@ -138,14 +144,21 @@ class PageController extends Controller
             // **After** the entry is resolved, not before: redirecting first
             // made every invented slug under the module a 301, which is a soft
             // 404 to a crawler and - because a redirect is not `null` - one
-            // cached entry per made-up address, the thing PageCache exists to
-            // prevent.
+            // baked file per made-up address, which is the thing the
+            // "a 404 is never written" rule exists to prevent.
             if ($found->isSingleton())
             {
                 return ['redirect' => url("/{$current->code}/{$found->slug}")];
             }
 
-            return ['html' => $this->entryHtml($current, $found, $entry, $this->alternatesForEntry($found, $entry))];
+            return [
+                // The entry's own slug row, not the `$slug` that was asked
+                // for. They are equal - that is how the entry was found - but
+                // one of them is a database value and the other is a string a
+                // visitor typed, and only one of those may name a file.
+                'page' => "{$current->code}/{$found->slug}/{$entry->slugFor($current->code)}.html",
+                'html' => $this->entryHtml($current, $found, $entry, $this->alternatesForEntry($found, $entry)),
+            ];
         });
     }
 
@@ -168,7 +181,12 @@ class PageController extends Controller
             return null;
         }
 
-        return ['html' => $this->entryHtml($current, $module, $entry, $this->alternatesForModule($module))];
+        return [
+            // The Module's address, because that is where a singleton's
+            // content lives and the only address it has (#60).
+            'page' => "{$current->code}/{$module->slug}.html",
+            'html' => $this->entryHtml($current, $module, $entry, $this->alternatesForModule($module)),
+        ];
     }
 
     /** @param array<string, string> $alternates */
@@ -193,29 +211,28 @@ class PageController extends Controller
     }
 
     /**
-     * Cache first, database second. A closure returning null means there is no
-     * such page, which becomes a 404 and is not cached.
+     * Render, answer, and bake.
      *
-     * The closure answers with what the page *is* - HTML, or a permanent
-     * redirect for a singleton's entry address - so that decision is cached
-     * alongside the document rather than costing a query on every hit.
+     * The closure answers with what the page *is*: `['page' => …, 'html' => …]`
+     * for a document, or `['redirect' => …]` for a singleton's entry address.
      *
-     * **What may be stored is PageCache's decision, not this one.** A page
-     * carrying a form is rendered on every visit, because a form is session
-     * state and a cached page belongs to nobody.
+     * Three shapes are deliberately **not** written to disk. A `null` is "no
+     * such page" - an unknown URL must not be able to fill the directory, or a
+     * crawler walking made-up addresses would. A redirect is not a document.
+     * And a page with no `page` key has no address this may name.
      */
-    private function serve(string $path, Closure $render)
+    private function serve(Closure $render)
     {
-        $page = $this->cache->remember($path, $render);
+        $page = $render();
 
         if ($page === null)
         {
             throw new NotFoundHttpException();
         }
 
-        // The query string is appended here rather than baked into the cached
-        // target: the cache key does not include it, so a stored redirect
-        // carrying one visitor's `utm_source` would be handed to the next.
+        // The query string is carried across rather than dropped, so a
+        // campaign link to a singleton's entry address does not lose its
+        // parameters on the way to the address that answers.
         if (isset($page['redirect']))
         {
             $query = request()->getQueryString();
@@ -229,6 +246,11 @@ class PageController extends Controller
         // indexed, all worse than a fault.
         if (isset($page['html']))
         {
+            if (isset($page['page']))
+            {
+                $this->pages->write($page['page'], $page['html']);
+            }
+
             return response($page['html']);
         }
 

@@ -53,6 +53,10 @@ class SiteSettings
     private const FIELDS = [
         ['name' => 'enquiries_to', 'type' => 'string', 'translatable' => false, 'validation' => 'email', 'group' => 'core'],
         ['name' => 'panel_locale', 'type' => 'select', 'translatable' => false, 'group' => 'core'],
+        // The owner's half of #97's switch. Off flushes the baked site through
+        // the observer on this very row, which is what "off" has to mean: an
+        // empty directory is what sends visitors back to PHP.
+        ['name' => 'page_cache', 'type' => 'boolean', 'translatable' => false, 'group' => 'core'],
 
         ['name' => 'phone', 'type' => 'string', 'translatable' => false, 'validation' => 'max:40', 'group' => 'site'],
         ['name' => 'email', 'type' => 'string', 'translatable' => false, 'validation' => 'email', 'group' => 'site'],
@@ -122,6 +126,7 @@ class SiteSettings
         {
             'enquiries_to' => __('Where enquiries are sent'),
             'panel_locale' => __('Language this panel opens in'),
+            'page_cache' => __('Serve pages from files (faster, recommended)'),
             'phone' => __('Telephone'),
             'email' => __('Public email address'),
             'address' => __('Address'),
@@ -283,6 +288,7 @@ class SiteSettings
         {
             'enquiries_to' => config('site.enquiries_to'),
             'panel_locale' => config('site.locale'),
+            'page_cache' => config('site.page_cache'),
             default => null,
         };
     }

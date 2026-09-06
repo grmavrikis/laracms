@@ -10,6 +10,8 @@ use App\Models\User;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Gate;
+use App\Services\StaticPages;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\MessageBag;
 use Illuminate\Support\ViewErrorBag;
@@ -343,16 +345,32 @@ class EnquiryTest extends TestCase
      * What changed is the form, not the rule. Nothing on the page belongs to
      * one visitor any more, so there is nothing for a cache to leak - see the
      * test below, which is the one that has to keep this honest.
+     *
+     * Asserted as **a file on disk**, because since #97 that is what caching a
+     * page means: the second request is answered by the web server and never
+     * reaches PHP, so asking for the page twice here would prove nothing.
      */
     public function test_a_page_with_a_form_is_cached(): void
     {
-        $module = $this->aModule();
+        $directory = storage_path('framework/testing/enquiry-pages-' . getmypid());
 
-        $this->get('/el')->assertOk()->assertSee('Rooms', false);
+        config(['site.pages' => $directory, 'site.page_cache' => true]);
 
-        $this->quietlyRename($module);
+        try
+        {
+            $this->aModule();
 
-        $this->get('/el')->assertOk()->assertDontSee('Renamed', false);
+            $this->get('/el')->assertOk()->assertSee('Rooms', false);
+
+            $this->assertTrue(
+                app(StaticPages::class)->has('el.html'),
+                'The page carrying the form was not written, so every visit still costs a render.'
+            );
+        }
+        finally
+        {
+            File::deleteDirectory($directory);
+        }
     }
 
     /**

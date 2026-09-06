@@ -137,8 +137,8 @@ behind would have shipped the change half-done.
 ### Phase 1 — content reaches the public (6–8 days)
 
 **Done: #68, #55, #56, #57, #58, the #75–#88 review of them, #59, #60, #61,
-#66 and #67.** Remaining: **#96** (built, its review open) plus **#97** and
-**#98**, and Phase 1 is closed. The first three were added on 2026-09-05 (see Amendments) and cost
+#66, #67 and #97.** Remaining: **#96** (built, its review open) and **#98**,
+and Phase 1 is closed. The first three were added on 2026-09-05 (see Amendments) and cost
 about five days; they come before #67 and #62 because both would be built on
 top of them.
 
@@ -885,7 +885,7 @@ catalogue nothing compares with the code (#103). **The item is not closable
 with those open**, and the CHANGELOG entry waits for the whole of it: half a
 decision is not a decision.
 
-### 97. Static HTML pages, served before PHP starts
+### 97. Static HTML pages, served before PHP starts — DONE (CHANGELOG §27, §28)
 
 Replaces `PageCache`. See Decisions (2026-09-05, third) for the measurement
 that prompted it and for the two design choices it rests on.
@@ -908,14 +908,43 @@ that prompted it and for the two design choices it rests on.
   half: one shared client-side submitter, CSRF fetched on first interaction,
   the answer rendered from JSON. **DONE** (CHANGELOG §27) — `public/forms.js`,
   `data-cms-form`, and `EnquiryController` answering in two shapes. Verified
-  live: `home:el` is in the cache for the first time, with no `_token` in it.
-  The file half below is what is left.
+  live: `home:el` was in the cache for the first time, with no `_token` in it.
 
 **The deployment dependency has to fail loudly.** `.htaccess` covers Apache;
 nginx needs `try_files` in the server block, which `.htaccess` cannot reach. A
 missing rewrite does not break the site — it silently serves every page through
 PHP, which looks like nothing at all. `pages:doctor` asks for a page known to
 be cached and reports whether the answer came from PHP.
+
+**Done** (CHANGELOG §28). `StaticPages` replaced `PageCache`, which is deleted.
+Verified live against Apache: `pages:warm` baked 60 of 63 pages and **named the
+three it could not** — a module whose slug is `τεστ κεις`, which the address
+guard refuses and which does not route publicly either — and `pages:doctor`
+answered *"Served from a file. PHP did not run."*, with `ETag` and
+`Last-Modified` present and no `Set-Cookie`. Touching one entry took 61 files to
+51 and left another module's pages alone.
+
+Two things to know before touching it:
+
+- **The entry is saved before its slugs are replaced**, and that order is what
+  lets the observer read the old addresses while the rows still hold them.
+  Swapping the two lines leaves the old page on disk for ever.
+- **There is no expiry.** The old cache had a seven-day TTL underneath its
+  explicit invalidation. A file has none, so anything that changes a page has
+  to say so — which is why `Language` is observed now and never was.
+
+### 113. A module slug with a space in it is unreachable — P2
+
+`pages:warm` reported three addresses it could not bake, all of one module
+whose slug is `τεστ κεις`. They answer **404**, and not because of #97: the
+`module` route pattern is `[a-z0-9]+(?:-[a-z0-9]+)*`, so that module has had no
+public page since #59 — the bake only made it visible.
+
+It is development data, so nothing is broken for a client. What is worth
+knowing is that **nothing stops the row existing**: `ModuleController` derives
+a safe slug on create, but there is no endpoint that updates a Module, so this
+one was written by hand. If module editing is ever added, the slug needs the
+same derivation, and the existing rows need a migration.
 
 ### 98. One source for a number
 

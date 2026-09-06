@@ -2,7 +2,7 @@
 
 namespace App\Models;
 
-use App\Observers\PageCacheObserver;
+use App\Observers\StaticPageObserver;
 use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Model;
 
@@ -17,7 +17,7 @@ use Illuminate\Database\Eloquent\Model;
  * fixed key by hand, so a `#[Fillable]` here would be a guard over a door
  * nobody uses - and would read as one that had been thought about.
  */
-#[ObservedBy(PageCacheObserver::class)]
+#[ObservedBy(StaticPageObserver::class)]
 class Setting extends Model
 {
     protected function casts(): array

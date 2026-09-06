@@ -7,7 +7,7 @@ use App\Http\Requests\StoreEntryRequest;
 use App\Http\Requests\UpdateEntryRequest;
 use App\Models\Entry;
 use App\Models\Module;
-use App\Services\PageCache;
+use App\Services\StaticPages;
 use App\Services\RichTextDocument;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -26,7 +26,7 @@ class EntryController extends Controller
 {
     public function __construct(
         private readonly RichTextDocument $richText,
-        private readonly PageCache $pages,
+        private readonly StaticPages $pages,
     ) {
     }
 
@@ -147,6 +147,18 @@ class EntryController extends Controller
         // entry's live pages alive: syncSlugs deletes before it inserts, so
         // an insert that failed used to commit the delete on its own and take
         // every existing public URL with it (TASKS.md #77).
+        // **The entry is saved first, and that order is load-bearing** (#97).
+        // Saving fires the observer, which reads the entry's slug rows to work
+        // out which baked files to delete - and at this moment those rows still
+        // hold the addresses the site is serving. `syncSlugs` then deletes them
+        // en masse, which fires no model events at all, so afterwards nothing
+        // can say where the old files were: they would sit at URLs no row
+        // mentions, served for ever. That is the case the old version counter
+        // could not handle either.
+        //
+        // Swapping these two lines leaves the old address on disk, and
+        // `StaticPagesTest::test_renaming_a_slug_removes_the_old_address` is
+        // what says so.
         DB::transaction(function () use ($validated, $module, $entry)
         {
             $entry->update($this->attributes($validated, $module, $entry));
@@ -247,7 +259,7 @@ class EntryController extends Controller
         // The write above is one mass UPDATE, which fires no model events - so
         // the observer that drops the public cache never runs and the listing
         // would keep its old order until the cache expired (TASKS.md #59).
-        $this->pages->invalidate();
+        $this->pages->forgetModule($module);
 
         return response()->noContent();
     }

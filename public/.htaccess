@@ -13,6 +13,37 @@
     RewriteCond %{HTTP:x-xsrf-token} .
     RewriteRule .* - [E=HTTP_X_XSRF_TOKEN:%{HTTP:X-XSRF-Token}]
 
+    # Serve a baked page without starting PHP (TASKS.md #97)
+    #
+    # This is the whole point of the item: the public site is written to files
+    # under `public/cache`, and a visitor is handed one before the framework
+    # boots. A cache *hit* used to cost four queries; this costs none, and the
+    # site keeps answering when the database does not.
+    #
+    # GET only. Nothing else may ever be answered from a file: a POST is a
+    # write, and a HEAD or an OPTIONS is not what these were rendered for.
+    #
+    # The query string is deliberately not part of the match - `?utm_source=x`
+    # does not change the page, and including it would bake one file per
+    # campaign link.
+    #
+    # `sitemap.xml` has its own rule because the extension decides the content
+    # type: served as `sitemap.xml.html` it would be `text/html`, which is a
+    # sitemap no crawler reads.
+    #
+    # **If these rules are removed, nothing breaks.** Every page is simply
+    # served through PHP again, which looks like nothing at all - so
+    # `php artisan pages:doctor` asks a running server whether the answer came
+    # from a file, and nginx, which this file cannot reach, needs the
+    # equivalent `try_files` in its server block.
+    RewriteCond %{REQUEST_METHOD} =GET
+    RewriteCond %{DOCUMENT_ROOT}/cache/sitemap.xml -f
+    RewriteRule ^sitemap\.xml$ cache/sitemap.xml [L]
+
+    RewriteCond %{REQUEST_METHOD} =GET
+    RewriteCond %{DOCUMENT_ROOT}/cache/$1.html -f
+    RewriteRule ^(.*)$ cache/$1.html [L]
+
     # Redirect Trailing Slashes If Not A Folder...
     RewriteCond %{REQUEST_FILENAME} !-d
     RewriteCond %{REQUEST_URI} (.+)/$

@@ -2,13 +2,13 @@
 
 namespace App\Models;
 
-use App\Observers\PageCacheObserver;
+use App\Observers\StaticPageObserver;
 use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[ObservedBy(PageCacheObserver::class)]
+#[ObservedBy(StaticPageObserver::class)]
 class Module extends Model
 {
     protected $fillable = ['user_id', 'name', 'slug', 'schema', 'is_singleton'];

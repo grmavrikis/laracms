@@ -6,7 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Entry;
 use App\Models\Language;
 use App\Models\Module;
-use App\Services\PageCache;
+use App\Services\StaticPages;
 
 /**
  * `sitemap.xml`, generated from the entries rather than maintained by hand.
@@ -21,18 +21,21 @@ use App\Services\PageCache;
  * are the same content in two languages, and the multilingual advantage - the
  * whole sales argument in this market - is invisible to it (TASKS.md #59).
  *
- * Cached like every public page, and dropped by the same version bump: any
- * entry write changes it.
+ * Baked like every public page (#97), and dropped by the same observer: any
+ * entry write changes it. It is written as `sitemap.xml` rather than
+ * `sitemap.xml.html`, and `public/.htaccess` has its own rule for it - the
+ * extension is what decides the content type, and a sitemap served as
+ * `text/html` is a sitemap no crawler reads.
  */
 class SitemapController extends Controller
 {
-    public function __construct(private readonly PageCache $cache)
+    public function __construct(private readonly StaticPages $pages)
     {
     }
 
     public function show()
     {
-        $xml = $this->cache->remember('sitemap', function ()
+        $xml = (function ()
         {
             $languages = Language::where('is_active', true)->orderBy('id')->get();
             $modules = Module::query()->orderBy('name')->get();
@@ -79,10 +82,12 @@ class SitemapController extends Controller
                 }
             }
 
-            return ['html' => view('sitemap', ['urls' => $urls])->render()];
-        });
+            return view('sitemap', ['urls' => $urls])->render();
+        })();
 
-        return response($xml['html'])->header('Content-Type', 'application/xml');
+        $this->pages->write('sitemap.xml', $xml);
+
+        return response($xml)->header('Content-Type', 'application/xml');
     }
 
     /** @return array<string, string> */

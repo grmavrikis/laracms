@@ -265,7 +265,7 @@ class SingletonModuleTest extends TestCase
      * The redirect is for the entry's *own* address, not for the module's whole
      * URL space. Returning it before the entry was looked up made every
      * invented slug a 301 - a soft 404 for a crawler, and a cache entry per
-     * made-up address, which is exactly what PageCache says must not happen.
+     * made-up address, which is exactly what StaticPages must not do.
      */
     public function test_a_slug_that_matches_nothing_is_still_a_404(): void
     {

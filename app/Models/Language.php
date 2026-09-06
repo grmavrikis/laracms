@@ -2,8 +2,16 @@
 
 namespace App\Models;
 
+use App\Observers\StaticPageObserver;
+use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Model;
 
+/**
+ * Observed since #97, which `PageCache` never was: switching a language on or
+ * off changes the hreflang set of **every** page, and a baked page does not
+ * expire the way a cache entry did.
+ */
+#[ObservedBy(StaticPageObserver::class)]
 class Language extends Model
 {
     protected $fillable = ['name', 'code', 'is_default', 'is_active'];

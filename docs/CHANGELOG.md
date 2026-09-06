@@ -2848,3 +2848,119 @@ cache.
 
 386 PHP tests, 184 JS tests, build clean.
 
+---
+
+## 28. The public site became files, and PageCache was deleted
+
+#97, second half. `StaticPages` writes every public page to
+`public/cache/{lang}/{module}/{slug}.html`, and two rewrite rules in
+`public/.htaccess` hand them over **for GET only, before PHP starts**.
+
+The claim being replaced was in ARCHITECTURE: that a cache hit "touches the
+database not at all". Measured through the real kernel against the real `.env`
+it cost **four queries** - a `sessions` read, two `cache` reads, a `sessions`
+write - and the test that said none ran under `CACHE_STORE=array` and
+`SESSION_DRIVER=array`, which exist only in `phpunit.xml`. #59 asked for
+finished HTML without a query; a file is that sentence taken literally.
+
+Verified live against Apache: `ETag` and `Last-Modified` present, **no
+`Set-Cookie` and no `X-Powered-By`**. The framework did not boot.
+
+### The address comes from rows, and the dangerous direction is deleting
+
+Each render closure composes its address next to the rows it just resolved, and
+`StaticPages` checks every segment again before touching the filesystem.
+
+The obvious worry is a crafted URL writing a file somewhere it should not - and
+that turned out to be the *protected* direction: every segment a page is baked
+under has already passed a route pattern, because that is how the row was
+found. **Invalidation has no such protection.** `forgetModule` composes
+addresses straight from a slug column and hands them to `File::delete`, so a
+row holding `../../x` reaches outside the directory entirely. The first version
+of that test set an unsafe slug and asked for the page, which 404s - it proved
+nothing, and a mutation said so.
+
+Not hypothetical: `pages:warm` on the development database baked 60 of 63 pages
+and **named the three it refused**, all belonging to a module whose slug is
+`τεστ κεις`. Recorded as #113 - those pages have answered 404 since #59 and the
+bake only made it visible.
+
+### Invalidation got more precise, and the ordering is what makes it work
+
+The version counter existed because a *visitor's* path cannot be mapped to a
+module without a query. An *author* saving has the rows in hand, so the pages
+to remove are computable - including the renamed slug, the one case the counter
+could not handle. Measured live: touching one entry took 61 files to 51 and
+left another module's pages alone.
+
+Three places where model events do not cover it, and one of them is subtle:
+
+- `reorder` writes one mass `UPDATE` and fires nothing, so it calls
+  `forgetModule` by hand - as it always has.
+- `entry_slugs` cascades on delete, so the observer acts on **`deleting`** for
+  an Entry: by `deleted` the rows naming its files are gone.
+- `syncSlugs` deletes those rows en masse, also firing nothing. The first fix
+  was an explicit `forgetEntry` call there - and a mutation showed it changed
+  nothing, because `EntryController::update` **saves the entry first**, so the
+  observer has already read the old addresses. The dead call was removed and
+  the ordering it depended on written down; swapping those two lines does fail
+  a test, so the dependency is pinned rather than merely commented.
+
+### There is no expiry any more
+
+`PageCache` carried a seven-day TTL underneath its explicit invalidation, which
+quietly cleaned up after anything nobody thought to drop. A file does not
+expire, so **anything that changes a page must say so** - which is why
+`Language` is observed now and never was: switching one on changes the hreflang
+set of every page, and a wrong one would have sat on disk for ever rather than
+for a week.
+
+### The guard that nearly did not survive
+
+**A page carrying a CSRF token is still never written**, and it was almost lost
+here. Replacing `PageCache` took `carriesSessionState()` with it, and the three
+tests pinning it went with the test file that was replaced too - so the suite
+stayed green with the guard gone. That is the *same* defect the review of the
+first half had found and fixed two commits earlier, arriving by a different
+route. It is back in `StaticPages::write`, pinned in both directions in
+`StaticPagesTest`, and mutation-checked.
+
+### The deployment dependency fails silently, so a command asks
+
+`.htaccess` covers Apache; nginx needs `try_files` in its server block, which an
+`.htaccess` cannot reach and no test can see. A missing rewrite breaks nothing -
+every page is quietly served through PHP and the site looks entirely normal.
+`pages:doctor` fetches a page known to be on disk and reads the answer's own
+account of where it came from: a `Set-Cookie` means the framework ran. It prints
+the nginx block when it fails.
+
+`pages:warm` fills the directory by **walking the sitemap**, which *is* the list
+of public addresses - so the bake and the sitemap cannot grow two different
+ideas of what the site has. `pages:flush` empties it, and the two stay separate
+commands because emptying and filling are different decisions.
+
+### Checked
+
+20 tests written first, 8 failing because nothing wrote anything. Then twelve
+mutations - **two survived**, and both were right to: the address guard was
+pinned by a test that never reached it, and the `syncSlugs` call was dead code.
+Both fixed, re-mutated, and every mutation now bites.
+
+One more defect came out of the live check, and only because `pages:doctor`
+refused to run straight after `artisan test`: **the suite was deleting the
+development machine's baked site.** Every Module write calls `flush()`, which
+deletes the whole directory, and with the default configuration that directory
+is `public/cache` - the one the machine is serving. Nothing broke, because
+pages rebuild on the next visit, but on an installation where `public/cache`
+*is* what visitors get, running the tests takes the site offline for a moment.
+`Tests\TestCase` now points the path at `storage/` for every test. Same family
+as the `SITE_LOCALE` leak in §27: **a suite is only as honest as the
+environment it names.**
+
+Live: `pages:warm`, then `pages:doctor` answering *"Served from a file. PHP did
+not run."*; the enquiry form submitted successfully **on a page served by
+Apache** (`GET /el` static, then `/sanctum/csrf-cookie` 204 and `POST` 200),
+which is the point where both halves of #97 meet. The probe enquiries were
+deleted.
+
+393 PHP tests, 184 JS tests, build clean.

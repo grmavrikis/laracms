@@ -73,4 +73,26 @@ return [
 
     'enquiries_to' => env('ENQUIRY_NOTIFY'),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Baked pages (TASKS.md #97)
+    |--------------------------------------------------------------------------
+    |
+    | `pages` is where the public site is written as files. It has to match
+    | the path in `public/.htaccess`, which is what serves them: PHP never
+    | reads one back. A value rather than a literal so a test can point it
+    | somewhere that is not the served directory of the machine it runs on.
+    |
+    | `page_cache` controls only whether files are **written**. Off means
+    | flush and stop writing - an empty directory is what sends every request
+    | to PHP, so the fast path needs no setting and no query to know. The
+    | owner has the same switch on the settings screen (#67); this is the
+    | development one.
+    |
+    */
+
+    'pages' => env('PAGE_CACHE_PATH', public_path('cache')),
+
+    'page_cache' => (bool) env('PAGE_CACHE', true),
+
 ];

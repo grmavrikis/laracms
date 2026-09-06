@@ -73,6 +73,7 @@ Read all of these before touching backend behaviour. They are small.
 | `app/Services/SchemaRuleBuilder.php` | **The heart of the project.** Turns a Module's JSON schema into Laravel rules. Owns `SUPPORTED_TYPES`, requiredness, the two-level translatable rules, and the checks that reject contradictory validation. Most findings live here. |
 | `app/Services/RichTextDocument.php` | Rich text is stored as a **Tiptap JSON document, never HTML**. This rebuilds every incoming document from an allowlist. Read the class docblock — it explains why. |
 | `app/Services/RichTextRenderer.php` | The other half: document → HTML for public pages. Normalises first, escapes everything, returns an `HtmlString` so no template writes `{!! !!}`. Takes the language as a second argument — a translatable field holds a map, not a document. |
+| `app/Services/StaticPages.php` | The public site is **files on disk**, served by Apache before PHP starts (#97). Replaced `PageCache`, which is gone. Addresses are composed from rows and re-checked here; a page carrying a CSRF token is never written. |
 | `app/Services/SiteSettings.php` | What a client may change about their own site (#67). Declares the fields **in a Module schema's shape**, so `SchemaRuleBuilder` validates them; `config('site.*')` is the default for a key nobody has saved, never the answer for one that was. One row, fixed key. |
 | `app/Http/Controllers/Api/ModuleController.php` | Slug derivation (single-query collision resolution, length, format) and schema validation at creation. |
 | `app/Http/Controllers/Api/EntryController.php` | Authorization calls, pagination, and where documents get normalised. Short. |
@@ -168,10 +169,13 @@ JS tests sit **beside** their source as `resources/js/lib/*.test.js`.
 ## Commands
 
 ```bash
-php artisan test                    # 386 tests
+php artisan test                    # 393 tests
 npm test                            # 184 tests
 npm run build
 php artisan schema:sync-field-types # after changing field type constants
+php artisan pages:warm              # bake the public site to files (#97)
+php artisan pages:flush             # empty it
+php artisan pages:doctor            # is the web server actually serving them?
 ```
 
 Checking the live app needs a session. This exact sequence works — the token
@@ -236,7 +240,7 @@ Started from a repo that would not boot (eight files of merge conflicts).
 Worked through a prioritised list; every item is either done or recorded in
 `CHANGELOG.md` with its reasoning.
 
-- **386 PHP tests, 184 JS tests**, all passing. Build clean.
+- **393 PHP tests, 184 JS tests**, all passing. Build clean.
 - **The project has a commercial goal as of 2026-08-30**, and it now decides
   what gets worked on. A multilingual CMS that feeds client sites, owned
   outright, for a one-person web agency: **one installation per client site**,
@@ -274,13 +278,13 @@ Worked through a prioritised list; every item is either done or recorded in
   browser (#75 reordering across pages, #76 a long `slugs` key answering 500 on
   MySQL, #77 a failed slug write destroying an entry's URLs) are fixed and
   verified live. Do not go looking for them.
-- **Next is #97 and #98**, plus the review that keeps #96 open. All three were
-  added on 2026-09-05 at a stop the owner called, and recorded in `TASKS.md` →
+- **Next is #98**, plus the review that keeps #96 open. Both were added on
+  2026-09-05 at a stop the owner called, and recorded in `TASKS.md` →
   Amendments and → Decisions taken (2026-09-05, third). Read those before
-  starting any of them; each rests on a decision that is not obvious from the
-  code. **#67 is done** (CHANGELOG §26): site settings are one core table, not
-  the singleton Module the item first described — core cannot read the
-  notification address out of a row the client owns and could delete.
+  starting either; each rests on a decision that is not obvious from the code.
+  **#67 is done** (CHANGELOG §26): site settings are one core table, not the
+  singleton Module the item first described — core cannot read the notification
+  address out of a row the client owns and could delete.
   - **#96 translated interfaces — both halves are built; the review is not
     done** (ARCHITECTURE §5a). Public: `SetLocale` from the address, `lang/`
     for core and `site/lang/` for the theme. Panel: `InterfaceLocales`,
@@ -293,16 +297,20 @@ Worked through a prioritised list; every item is either done or recorded in
     still refused half in English (#99, no `lang/el/validation.php`), and
     three of the tests that look like they hold this mechanism do not (#101,
     #102, #103).
-  - **#97 static HTML pages. The JS island half is done** (CHANGELOG §27):
-    `public/forms.js` is a shared, unbuilt submitter that any theme form opts
-    into with `data-cms-form`, and `EnquiryController` answers JSON or a
-    redirect depending on who asked. **§25's rule is reversed on purpose** — a
-    page with a form *is* cached now, because the form no longer carries
-    session state. Do not put `@csrf` back into `site/theme/enquiry.blade.php`.
-    What is left is the file half: a cache hit was measured at **four
-    queries**, not none, because the test that says none runs on `array` stores
-    that exist only in `phpunit.xml`. Pages become files the web server serves
-    before PHP boots. `PageCache` is replaced, not extended.
+  - **#97 static HTML pages — DONE** (CHANGELOG §27 and §28). The public site
+    is written to `public/cache/{lang}/{module}/{slug}.html` and Apache serves
+    it before PHP starts; `PageCache` is **deleted**. Commands: `pages:warm`,
+    `pages:flush`, `pages:doctor` — run the doctor after any deployment,
+    because a missing rewrite breaks nothing and silently sends every page back
+    through PHP. Forms are a JS island (`public/forms.js`, `data-cms-form`), so
+    **§25's rule is reversed on purpose**: a page with a form *is* baked. Do
+    not put `@csrf` back into `site/theme/enquiry.blade.php` — and the guard
+    that refuses to bake a page carrying a token is still there and still
+    needed, for a client route rendering its own form. **The entry is saved
+    before its slugs are replaced** in `EntryController::update`, and that
+    order is what lets the observer read the old addresses; swapping the two
+    lines leaves the old page on disk for ever. There is no TTL any more, so
+    anything that changes a page must invalidate it.
   - **#98 one source for a number.** The enquiry field widths live in three
     unconnected places, two exactly at the column limit — #76 waiting to
     happen, invisible to SQLite.
