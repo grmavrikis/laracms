@@ -669,6 +669,46 @@ The theme's contract changed with it: `theme::home` receives `$modules` as
 template composes an address, and `theme::module` titles itself from `$title`
 rather than `$module->name`.
 
+### The panel half
+
+`PUT /api/modules/{module}` is the **first endpoint that has ever edited a
+Module** — `ModuleController` had `store` and `index` and nothing else, so
+translating one meant a hand-written UPDATE. It is deliberately narrow: names
+and addresses only. The schema is not editable there, because what editing one
+means for the entries already written against it is an open question (TASKS.md,
+*To discuss*), and a rename endpoint is the wrong place to answer it by
+accident.
+
+**The slug is derived per language, from that language's own name.** `Str::slug`
+transliterates rather than translates — from *Υπηρεσίες* it produces
+`ypiresies` whatever language you ask for, which is how `/fr/ypiresies` came
+about. PHP cannot translate and must not try: the person types the name in each
+language and the derivation runs once per language on those words. An explicit
+slug still means "exactly this", and a duplicate is a 422 rather than a silent
+rename — per language, since `/el/services` and `/en/services` are different
+pages.
+
+**A language left out of the payload loses its translation**, the same rule
+`syncSlugs` follows for an entry: that is how a client removes a section from a
+language. And `modules.slug` never moves after creation — it is the panel's
+route key, and a key that changed under a rename would break every address the
+panel is holding at that moment.
+
+**Renaming flushes the baked site**, and that had to be added after the fact:
+`syncTranslations` deletes the slug rows en masse, which fires no model events,
+and the module row itself is never saved, so `StaticPageObserver` never runs.
+The old pages stayed on disk and the web server went on serving them — found by
+renaming a section on the live site and watching its old address answer 200.
+The same trap `EntryController::syncSlugs` carries a comment for.
+
+`LanguageController::index` **stopped filtering `is_active`**. One endpoint was
+answering two audiences that need different answers: a language switched on so
+the client can translate puts a link in the public switcher to a half-empty
+site, and switched off it is invisible in the panel so they cannot translate at
+all. The public side never asked this endpoint anything — `PageController` and
+`SitemapController` query `is_active` themselves — so what a visitor sees is
+unchanged, and the panel now shows each language with its state.
+
 ## 5a. Translations (TASKS.md #96 — public side done, panel not yet)
 
 **The address decides the language, not a header.** `SetLocale`, aliased as

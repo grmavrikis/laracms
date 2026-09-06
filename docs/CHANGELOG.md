@@ -3115,3 +3115,87 @@ stops being *first real client* work.
 Module - `ModuleController` has `store` and `index` and nothing else - so
 translating one means a hand-written UPDATE. That is next.
 
+---
+
+## 30. The panel learned to name a section in each language
+
+#114, step two. The owner went to add a module and found nowhere to put a
+second language - no per-language name, no per-language address, and a slug
+generated automatically. Their objection was the sharp one: **how is PHP
+supposed to translate?**
+
+It is not, and it must not try. `Str::slug` **transliterates**: from Υπηρεσίες
+it produces `ypiresies` whatever language you ask it for, which is exactly how
+`/fr/ypiresies` came about. The resolution is that translation is not the
+machine's job. The person types the name in each language, and the derivation
+runs once per language on that language's own words - `Prestations` gives
+`prestations`. Automatic generation stays; it just stops being asked to do
+something it cannot do.
+
+### The first endpoint that has ever edited a Module
+
+`ModuleController` had `store` and `index` and nothing else, so translating one
+meant a hand-written UPDATE. `PUT /api/modules/{module}` is deliberately
+narrow - names and addresses only. The schema is not editable there: what
+editing one means for the entries already written against it is an open
+question (TASKS.md, *To discuss*), and a rename endpoint is the wrong place to
+answer it by accident.
+
+Three rules came with it. A language left out of the payload **loses** its
+translation, the same rule `syncSlugs` follows for an entry - that is how a
+client removes a section from a language. An explicit slug still means "exactly
+this", and a duplicate is a 422 rather than a silent rename, **per language**,
+since `/el/services` and `/en/services` are different pages. And `modules.slug`
+never moves after creation: it is the panel's route key, and a key that changed
+under a rename would break every address the panel is holding at that moment.
+
+### One endpoint was answering two audiences
+
+`LanguageController::index` filtered `is_active`, and that quietly blocked a
+**paid** workflow. Adding a language is a service the agency performs
+(BUSINESS.md 5, TASKS.md #52 - there is deliberately no endpoint for it), and
+the client then fills it in. But an active language puts a link in the public
+switcher to a half-empty site while they work, and an inactive one is invisible
+in the panel so they cannot work at all. Neither is usable.
+
+The filter is gone. The public side never asked this endpoint anything -
+`PageController` and `SitemapController` query `is_active` themselves - so what
+a visitor sees is untouched, and the panel now shows each language with its
+state, marking one that is not published yet.
+
+### Two things the checking caught
+
+**A rename left the old pages on disk**, and the live probe is what found it:
+after renaming the French section, its old address still answered 200.
+`syncTranslations` deletes the slug rows en masse, which fires no model events,
+and the module row is never saved, so `StaticPageObserver` never runs. Nothing
+had any reason to remove the file. That is precisely the trap
+`EntryController::syncSlugs` carries a comment about, walked into again in an
+endpoint written a day later. It flushes now, and a test renames a section and
+asserts both the module page and an entry page under it are gone.
+
+**`TranslationTest` refused a translation key.** The new per-language label was
+`Name`, which the *theme* already translates for the enquiry form - and core
+translating it too is exactly what `test_core_and_the_client_do_not_claim_the_same_key`
+forbids, because which catalogue wins would be an accident of load order. The
+panel has its own word for this and now uses it.
+
+### Checked
+
+Ten tests written first, eight failing because the endpoint did not exist and
+two because the derivation used one name for every language. Then six
+mutations, all of which bite.
+
+Live over HTTP: a module created in three languages answered on all three
+addresses, renaming the French one moved it and **retired the old address to
+404**, and asking for an address another section already holds was refused
+`422` with the field named. The probe module was deleted and the deletion
+verified rather than assumed - the previous two cleanups in this session
+reported success and left rows behind.
+
+424 PHP tests, 184 JS tests, build clean.
+
+**The screen itself has not been clicked.** There is still no component harness
+(#94), so `ModuleBuilder`'s per-language block is verified by reading and by the
+API underneath it.
+

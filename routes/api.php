@@ -45,6 +45,17 @@ Route::middleware('auth:sanctum')->group(function ()
     Route::post('/modules', [ModuleController::class, 'store']);
     Route::get('/modules', [ModuleController::class, 'index']);
 
+    /*
+     * What a Module is called and where it lives, per language (#114). The
+     * only thing that edits a Module - before this there was no update
+     * endpoint at all, and translating one meant a hand-written UPDATE.
+     *
+     * `{module}` resolves by `modules.slug`, which this deliberately never
+     * changes: that key is the panel's, and moving it would break every
+     * address the panel is holding at that moment.
+     */
+    Route::put('/modules/{module}', [ModuleController::class, 'update']);
+
     // Entries Routes
     //
     // {module} resolves by slug (Module::getRouteKeyName). scopeBindings()

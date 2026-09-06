@@ -1014,9 +1014,10 @@ Each is separately verifiable, and the order is what keeps the site working:
    *Petit-déjeuner* with all three `hreflang` alternates pointing at real
    addresses — while `/en/ypiresies/breakfast` answered **404**, which is
    step 3's whole reason for existing.
-2. **The panel.** There is no module-update endpoint at all yet; this brings
-   one, plus per-language name and slug fields in `ModuleBuilder`, and
-   `EntriesManager` showing the name in the content language already selected.
+2. **The panel — DONE** (CHANGELOG §30). `PUT /api/modules/{module}`, the
+   first endpoint that has ever edited a Module; per-language name and address
+   fields in `ModuleBuilder`; and `LanguageController` no longer hiding a
+   language the public site has not published.
 
    **It also has to let the panel see inactive languages**, and that is what
    blocks the agency's billable workflow rather than being a nicety.
@@ -1031,8 +1032,8 @@ Each is separately verifiable, and the order is what keeps the site working:
    Neither is usable. The agency inserts the language, the client fills it in,
    and only then does it go live — which needs the panel to list every language
    with its state, while `activeLanguages()` keeps deciding what a visitor
-   sees. That split exists everywhere else already; this endpoint is the one
-   place it does not.
+   sees. That split exists everywhere else already; this endpoint was the one
+   place it did not. **Fixed with step 2.**
 3. **#69 redirects**, so step 2's first rename does not cost the client their
    rankings.
 

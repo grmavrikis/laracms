@@ -31,18 +31,40 @@ class LanguageEndpointTest extends TestCase
         $this->getJson('/api/languages')->assertUnauthorized();
     }
 
-    public function test_it_returns_only_active_languages(): void
+    /**
+     * **Every language, including one the public site does not serve yet**
+     * (TASKS.md #114). This test asserted the opposite until then.
+     *
+     * The filter made one endpoint answer two audiences that need different
+     * answers. A language switched on so the client can translate into it puts
+     * a link in the public switcher to a half-empty site while they work;
+     * switched off, the panel could not see it and they could not translate at
+     * all. Neither is usable, and the workflow it blocked is a paid one: the
+     * agency adds the language, the client fills it in, and only then does it
+     * go live.
+     *
+     * What a visitor sees did not change - `PageController` and
+     * `SitemapController` ask `is_active` themselves and never used this.
+     */
+    public function test_it_returns_every_language_so_the_panel_can_translate_ahead(): void
     {
         $this->makeLanguage('gr', 'Greek');
         $this->makeLanguage('en', 'English');
         $this->makeLanguage('de', 'German', active: false);
 
-        $codes = $this->actingAs(User::factory()->create())
+        $languages = $this->actingAs(User::factory()->create())
             ->getJson('/api/languages')
             ->assertOk()
-            ->json('*.code');
+            ->json();
 
-        $this->assertSame(['gr', 'en'], $codes);
+        $this->assertSame(['gr', 'en', 'de'], array_column($languages, 'code'));
+
+        // And the panel is told which of them a visitor can actually reach,
+        // so it can say so rather than presenting them as equals.
+        $this->assertFalse(
+            collect($languages)->firstWhere('code', 'de')['is_active'],
+            'The panel cannot tell a published language from one being prepared.'
+        );
     }
 
     public function test_the_order_is_deterministic(): void

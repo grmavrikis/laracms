@@ -303,6 +303,222 @@ class ModuleTranslationTest extends TestCase
         }
     }
 
+    // ------------------------------------------------------- the panel API
+
+    /**
+     * **The name is typed per language and the slug is derived from it.**
+     *
+     * `Str::slug` transliterates, it does not translate: from Υπηρεσίες it
+     * produces `ypiresies` whatever language you ask for, which is how
+     * `/fr/ypiresies` came about in the first place. PHP cannot translate and
+     * must not try. The human supplies the translated name, and the derivation
+     * runs once per language on that language own words.
+     */
+    public function test_each_language_derives_its_slug_from_its_own_name(): void
+    {
+        $this->actingAs($this->owner)->postJson('/api/modules', [
+            'name' => 'Υπηρεσίες',
+            'schema' => [['name' => 'title', 'type' => 'string', 'translatable' => true]],
+            'translations' => [
+                'el' => ['name' => 'Υπηρεσίες'],
+                'en' => ['name' => 'Services'],
+                'fr' => ['name' => 'Prestations'],
+            ],
+        ])->assertCreated();
+
+        $module = Module::latest('id')->first();
+
+        $this->assertSame('ypiresies', $module->slugFor('el'));
+        $this->assertSame('services', $module->slugFor('en'));
+        $this->assertSame('prestations', $module->slugFor('fr'));
+        $this->assertSame('Prestations', $module->nameFor('fr'));
+    }
+
+    public function test_a_slug_can_be_given_instead_of_derived(): void
+    {
+        $this->actingAs($this->owner)->postJson('/api/modules', [
+            'name' => 'Services',
+            'schema' => [['name' => 'title', 'type' => 'string', 'translatable' => true]],
+            'translations' => [
+                'el' => ['name' => 'Υπηρεσίες', 'slug' => 'ypiresies-mas'],
+                'en' => ['name' => 'Services'],
+                'fr' => ['name' => 'Prestations'],
+            ],
+        ])->assertCreated();
+
+        $this->assertSame('ypiresies-mas', Module::latest('id')->first()->slugFor('el'));
+    }
+
+    /**
+     * A module created the old way - no `translations` at all - still works.
+     * The API is public and every client that exists sends that shape.
+     */
+    public function test_a_module_created_without_translations_still_gets_them(): void
+    {
+        $this->actingAs($this->owner)->postJson('/api/modules', [
+            'name' => 'Δωμάτια',
+            'schema' => [['name' => 'title', 'type' => 'string', 'translatable' => true]],
+        ])->assertCreated();
+
+        $module = Module::latest('id')->first();
+
+        $this->assertSame('domatia', $module->slugFor('el'));
+        $this->assertSame('domatia', $module->slugFor('fr'));
+    }
+
+    /**
+     * There was **no endpoint that updates a Module at all** before this -
+     * `ModuleController` had `store` and `index`, so translating one meant a
+     * hand-written UPDATE.
+     */
+    public function test_a_module_can_be_translated_after_it_exists(): void
+    {
+        $module = $this->aModule(['el' => ['Υπηρεσίες', 'ypiresies']]);
+
+        $this->actingAs($this->owner)->putJson("/api/modules/{$module->slug}", [
+            'translations' => [
+                'el' => ['name' => 'Υπηρεσίες'],
+                'fr' => ['name' => 'Prestations'],
+            ],
+        ])->assertOk();
+
+        $module = $module->fresh();
+
+        $this->assertSame('prestations', $module->slugFor('fr'));
+        $this->assertSame('Prestations', $module->nameFor('fr'));
+        $this->get('/fr/prestations')->assertOk();
+    }
+
+    /**
+     * A language left out of the payload loses its translation, which is what
+     * "these are the module addresses" has to mean - the same rule
+     * `EntryController::syncSlugs` follows for an entry.
+     */
+    public function test_a_language_left_out_of_the_payload_is_removed(): void
+    {
+        $module = $this->translated();
+
+        $this->actingAs($this->owner)->putJson("/api/modules/{$module->slug}", [
+            'translations' => ['el' => ['name' => 'Υπηρεσίες']],
+        ])->assertOk();
+
+        $this->assertNull($module->fresh()->slugFor('fr'));
+        $this->get('/fr/prestations')->assertNotFound();
+    }
+
+    /**
+     * **Renaming a section retires the pages it used to serve.**
+     *
+     * Found live rather than by reading: after renaming the French section,
+     * its old address still answered 200. Nothing had invalidated anything -
+     * `syncTranslations` deletes the slug rows en masse, which fires no model
+     * events, and the module row itself is never saved, so the observer never
+     * runs. The old file simply stayed on disk and Apache went on serving it.
+     *
+     * Exactly the trap `EntryController::syncSlugs` is commented for, walked
+     * into again in the endpoint written a day later.
+     */
+    public function test_renaming_a_module_retires_its_old_addresses(): void
+    {
+        $directory = storage_path('framework/testing/module-rename-' . getmypid());
+
+        config(['site.pages' => $directory, 'site.page_cache' => true]);
+        File::deleteDirectory($directory);
+
+        try
+        {
+            $module = $this->translated();
+            $this->anEntry($module, ['fr' => 'petit-dejeuner']);
+
+            $this->get('/fr/prestations')->assertOk();
+            $this->get('/fr/prestations/petit-dejeuner')->assertOk();
+            $this->assertFileExists($directory . '/fr/prestations.html');
+
+            $this->actingAs($this->owner)->putJson("/api/modules/{$module->slug}", [
+                'translations' => [
+                    'el' => ['name' => 'Υπηρεσίες', 'slug' => 'ypiresies'],
+                    'fr' => ['name' => 'Manifestations'],
+                ],
+            ])->assertOk();
+
+            $this->assertFileDoesNotExist(
+                $directory . '/fr/prestations.html',
+                'The old address is still on disk and still being served.'
+            );
+            $this->assertFileDoesNotExist(
+                $directory . '/fr/prestations/petit-dejeuner.html',
+                'An entry page under the old address survived the rename.'
+            );
+
+            $this->get('/fr/prestations')->assertNotFound();
+            $this->get('/fr/manifestations')->assertOk();
+        }
+        finally
+        {
+            File::deleteDirectory($directory);
+        }
+    }
+
+    /**
+     * The panel own key never moves. `/api/modules/{module}` resolves by
+     * `modules.slug`, and a key that changed when somebody renamed the module
+     * would break every address the panel is holding at that moment.
+     */
+    public function test_translating_a_module_does_not_move_the_panel_key(): void
+    {
+        $module = $this->aModule(['el' => ['Υπηρεσίες', 'ypiresies']]);
+
+        $this->actingAs($this->owner)->putJson("/api/modules/{$module->slug}", [
+            'translations' => ['el' => ['name' => 'Εντελώς άλλο']],
+        ])->assertOk();
+
+        $this->assertSame('ypiresies', $module->fresh()->slug);
+    }
+
+    public function test_two_modules_are_refused_the_same_address_in_one_language(): void
+    {
+        $this->aModule(['fr' => ['Prestations', 'prestations']], 'ypiresies');
+        $other = $this->aModule(['fr' => ['Autre', 'autre']], 'allo');
+
+        $this->actingAs($this->owner)->putJson("/api/modules/{$other->slug}", [
+            'translations' => ['fr' => ['name' => 'Autre', 'slug' => 'prestations']],
+        ])->assertStatus(422)->assertJsonValidationErrors('translations.fr.slug');
+    }
+
+    public function test_translating_a_module_needs_a_session(): void
+    {
+        $module = $this->aModule(['el' => ['Υπηρεσίες', 'ypiresies']]);
+
+        $this->putJson("/api/modules/{$module->slug}", [
+            'translations' => ['fr' => ['name' => 'Prestations']],
+        ])->assertStatus(401);
+    }
+
+    /**
+     * **The panel sees a language the public site does not.**
+     *
+     * `LanguageController::index` filtered `is_active`, so one endpoint served
+     * two audiences that need different answers: an active language links the
+     * public switcher to a half-empty site while the client is still
+     * translating, and an inactive one is invisible in the panel, so they
+     * cannot translate at all. The agency adds a language, the client fills it
+     * in, and only then does it go live - adding one is a billable service
+     * (BUSINESS.md 5), which is why there is no endpoint for it.
+     */
+    public function test_the_panel_is_offered_a_language_that_is_not_published_yet(): void
+    {
+        Language::create(['name' => 'German', 'code' => 'de', 'is_active' => false]);
+
+        $codes = collect($this->actingAs($this->owner)->getJson('/api/languages')->json())
+            ->pluck('code')
+            ->all();
+
+        $this->assertContains('de', $codes, 'The panel cannot translate into a language it is not shown.');
+
+        // And the public side is untouched by that.
+        $this->get('/de')->assertNotFound();
+    }
+
     // ------------------------------------------------------------ the rules
 
     public function test_two_modules_cannot_share_an_address_in_one_language(): void

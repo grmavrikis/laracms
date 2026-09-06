@@ -3,8 +3,11 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Language;
 use App\Models\Module;
+use App\Models\ModuleSlug;
 use App\Services\SchemaRuleBuilder;
+use App\Services\StaticPages;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -48,6 +51,13 @@ class ModuleController extends Controller
             // (TASKS.md #60). Absent means a collection, so nothing that
             // already exists is reinterpreted.
             'is_singleton' => 'sometimes|boolean',
+
+            // What the module is called, and where it lives, in each language
+            // (#114). Optional, because the API is public and every client
+            // that exists sends the old shape - a module without them still
+            // gets a row per active language from the model.
+            ...$this->translationRules(),
+
             'schema' => 'required|array',
             // Reported against the field itself, so the message points at
             // schema.1 rather than at a key that does not exist.
@@ -105,10 +115,162 @@ class ModuleController extends Controller
             'is_singleton' => $validated['is_singleton'] ?? false,
         ]);
 
+        $this->syncTranslations($module, $validated['translations'] ?? null);
+
         return response()->json([
             'message' => __('Module created.'),
-            'data' => $module
+            'data' => $module->load('slugs'),
         ], 201);
+    }
+
+    /**
+     * Rename a Module, per language (TASKS.md #114).
+     *
+     * The first endpoint that has ever edited a Module. Deliberately narrow:
+     * it changes the names and addresses a **visitor** sees and nothing else.
+     * The schema is not editable here - what editing one means for the entries
+     * already written against it is an open question (TASKS.md, To discuss),
+     * and answering it by accident in a rename endpoint would be the wrong
+     * place to answer it.
+     */
+    public function update(Request $request, Module $module): JsonResponse
+    {
+        $validated = $request->validate(
+            $this->translationRules($module),
+            ['translations.*.slug.regex' => __('The slug may only contain lowercase letters, numbers and single hyphens.')]
+        );
+
+        $this->syncTranslations($module, $validated['translations'] ?? []);
+
+        return response()->json([
+            'message' => __('Module updated.'),
+            'data' => $module->fresh()->load('slugs'),
+        ]);
+    }
+
+    /**
+     * The rules for the per-language names and addresses.
+     *
+     * Uniqueness is **per language and excludes this module**: `/el/services`
+     * and `/en/services` are different pages, and a client whose Greek and
+     * English names coincide is ordinary, but two modules cannot share the
+     * first segment of a path in one language.
+     *
+     * @return array<string, mixed>
+     */
+    private function translationRules(?Module $module = null): array
+    {
+        return [
+            'translations' => 'sometimes|array',
+            'translations.*.name' => 'required|string|max:255',
+            'translations.*.slug' => [
+                'nullable',
+                'string',
+                'max:' . self::SLUG_MAX_LENGTH,
+                'regex:/^[a-z0-9]+(?:-[a-z0-9]+)*$/',
+                function (string $attribute, mixed $value, callable $fail) use ($module): void
+                {
+                    // `translations.fr.slug` -> `fr`.
+                    $language = explode('.', $attribute)[1] ?? '';
+
+                    $taken = ModuleSlug::query()
+                        ->where('language_code', $language)
+                        ->where('slug', $value)
+                        ->when($module !== null, fn($q) => $q->where('module_id', '!=', $module->id))
+                        ->exists();
+
+                    if ($taken)
+                    {
+                        $fail(__('Another section already uses :slug in that language.', ['slug' => $value]));
+                    }
+                },
+            ],
+        ];
+    }
+
+    /**
+     * Replace the module's per-language names and addresses.
+     *
+     * **A language left out loses its translation**, which is what "these are
+     * the module's names" has to mean - the same rule `syncSlugs` follows for
+     * an entry's addresses, and it is how a client removes a language they no
+     * longer want a section to appear in.
+     *
+     * `null` means the client said nothing about translations at all, so the
+     * rows the model created on `created` are left alone.
+     */
+    private function syncTranslations(Module $module, ?array $translations): void
+    {
+        if ($translations === null)
+        {
+            return;
+        }
+
+        // **Before the delete, and it has to be here.** A rename moves every
+        // address under this module, and nothing else notices: the delete
+        // below is a mass delete, which fires no model events, and the module
+        // row itself is never saved, so `StaticPageObserver` never runs. The
+        // old pages would stay on disk and the web server would go on serving
+        // them - found live, after the old French address answered 200 from a
+        // file nothing had any reason to remove.
+        //
+        // The same trap `EntryController::syncSlugs` carries a comment for.
+        app(StaticPages::class)->flush();
+
+        $module->slugs()->delete();
+
+        foreach ($translations as $language => $translation)
+        {
+            $name = $translation['name'];
+
+            $module->slugs()->create([
+                'language_code' => $language,
+                'name' => $name,
+                // Derived from **this language's own name**, never from the
+                // module's. `Str::slug` transliterates rather than translates,
+                // so deriving every language from one name is what produced
+                // `/fr/ypiresies` - the defect this whole item exists for.
+                'slug' => $translation['slug'] ?? $this->generateModuleSlug($name, $language, $module),
+            ]);
+        }
+
+        $module->unsetRelation('slugs');
+    }
+
+    /**
+     * A free address for `$name` in `$language`.
+     *
+     * The same shape as `generateSlug` below, against `module_slugs` and
+     * within one language: `/el/services` and `/en/services` are different
+     * pages, so a slug taken in Greek says nothing about English.
+     */
+    private function generateModuleSlug(string $name, string $language, Module $module): string
+    {
+        $base = Str::slug($name) ?: 'section';
+        $base = rtrim(substr($base, 0, self::SLUG_MAX_LENGTH - self::SLUG_SUFFIX_BUDGET), '-') ?: 'section';
+
+        $taken = array_flip(
+            ModuleSlug::query()
+                ->where('language_code', $language)
+                ->where('module_id', '!=', $module->id)
+                ->where('slug', 'like', $base . '%')
+                ->pluck('slug')
+                ->all()
+        );
+
+        if (!isset($taken[$base]))
+        {
+            return $base;
+        }
+
+        $suffix = 2;
+
+        while (isset($taken[$base . '-' . $suffix]))
+        {
+            $suffix++;
+        }
+
+        return $base . '-' . $suffix;
     }
 
     /**
