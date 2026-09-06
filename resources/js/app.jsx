@@ -8,6 +8,7 @@ import Login from './components/Login';
 import ModulesList from './components/ModulesList';
 import EntriesManager from './components/EntriesManager';
 import ModuleBuilder from './components/ModuleBuilder';
+import ModuleTranslator from './components/ModuleTranslator';
 import EnquiriesManager from './components/EnquiriesManager';
 import SettingsManager from './components/SettingsManager';
 
@@ -107,6 +108,13 @@ export default function App() {
                         onCancel={() => setView({ type: 'list' })}
                     />
                 )}
+                {view.type === 'translate' && (
+                    <ModuleTranslator
+                        module={view.data}
+                        onSaved={() => setView({ type: 'list' })}
+                        onCancel={() => setView({ type: 'list' })}
+                    />
+                )}
                 {view.type === 'entries' && (
                     <EntriesManager module={view.data} onBack={() => setView({ type: 'list' })} />
                 )}
@@ -120,6 +128,7 @@ export default function App() {
                     <ModulesList
                         onSelectModule={(mod) => setView({ type: 'entries', data: mod })}
                         onCreateModule={() => setView({ type: 'create' })}
+                        onTranslateModule={(mod) => setView({ type: 'translate', data: mod })}
                     />
                 )}
             </main>

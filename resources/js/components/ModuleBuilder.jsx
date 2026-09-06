@@ -2,7 +2,8 @@
 import { useState, useRef, useEffect } from 'react';
 import api from '../lib/api';
 import { errorSummary } from '../lib/apiErrors';
-import { languagesFrom, getLangCode, defaultLangCode } from '../lib/languages';
+import { languagesFrom, defaultLangCode } from '../lib/languages';
+import ModuleTranslations, { translationsPayload } from './ModuleTranslations';
 import fieldTypes from '../lib/fieldTypes.json';
 import { isGalleryField } from '../lib/gallery';
 import { t } from '../lib/i18n';
@@ -90,26 +91,15 @@ export default function ModuleBuilder({ onCreated, onCancel }) {
         setErrors([]);
         setSubmitting(true);
 
-        // Only the languages that were actually filled in. A blank name is
-        // "not translated yet", which is a real state: that language then has
-        // no page for this section rather than a page with the wrong words.
-        const filled = Object.entries(translations)
-            .map(([code, t]) => [code, { name: (t?.name ?? '').trim(), slug: (t?.slug ?? '').trim() }])
-            .filter(([, t]) => t.name !== '');
+        const filled = translationsPayload(translations);
 
         const payload = {
             // The panel's own key, which never moves again once created. It
             // comes from the default language so the module reads sensibly in
             // the admin list; what a visitor sees comes from `translations`.
-            name: (translations[defaultLangCode(languages)]?.name ?? filled[0]?.[1].name ?? '').trim(),
+            name: (translations[defaultLangCode(languages)]?.name ?? Object.values(filled)[0]?.name ?? '').trim(),
             is_singleton: isSingleton,
-            translations: Object.fromEntries(filled.map(([code, t]) => [
-                code,
-                // Omitted when blank, so the server derives it from that
-                // language's own name. Sending one means "exactly this", and a
-                // duplicate is then a 422 rather than a silent rename.
-                t.slug === '' ? { name: t.name } : { name: t.name, slug: t.slug },
-            ])),
+            translations: filled,
             schema: fields.map(({ _id, ...rest }) => ({
                 ...rest,
                 validation: rest.validation.trim(),
@@ -159,51 +149,11 @@ export default function ModuleBuilder({ onCreated, onCancel }) {
                 <div className="bg-red-50 border border-red-200 text-red-700 text-sm p-4 rounded-xl">{languagesError}</div>
             )}
 
-            <div className="space-y-4">
-                <p className="text-sm text-gray-500">
-                    {t('A section needs a name in each language it should appear in. Leave a language blank and the section simply has no page in it.')}
-                </p>
-
-                {languages.map((language) => {
-                    const code = getLangCode(language);
-
-                    return (
-                        <div key={language.id ?? code} className="grid grid-cols-1 sm:grid-cols-2 gap-4 rounded-xl border border-gray-200 p-4">
-                            <div>
-                                <label className="flex items-center gap-2 text-sm font-semibold text-gray-900 mb-1.5">
-                                    <span className="inline-flex h-5 min-w-8 items-center justify-center rounded bg-gray-100 px-1.5 text-xs font-bold uppercase text-gray-600">{code}</span>
-                                    {t('Module name')}
-                                    {!language.is_active && (
-                                        <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-800">
-                                            {t('not published yet')}
-                                        </span>
-                                    )}
-                                </label>
-                                <input
-                                    type="text"
-                                    placeholder={t('e.g. Rooms')}
-                                    value={translations[code]?.name ?? ''}
-                                    onChange={(e) => setTranslation(code, 'name', e.target.value)}
-                                    className="w-full rounded-lg border border-gray-300 px-3.5 py-2 text-sm text-gray-900 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-semibold text-gray-900 mb-1.5">
-                                    {t('Address')} <span className="font-normal text-gray-500">{t('(optional)')}</span>
-                                </label>
-                                <input
-                                    type="text"
-                                    placeholder={t('generated from the name')}
-                                    value={translations[code]?.slug ?? ''}
-                                    onChange={(e) => setTranslation(code, 'slug', e.target.value)}
-                                    className="w-full rounded-lg border border-gray-300 px-3.5 py-2 text-sm font-mono text-gray-900 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-                                />
-                                <p className="mt-1.5 text-xs text-gray-500">/{code}/{(translations[code]?.slug ?? '') || t('generated from the name')}</p>
-                            </div>
-                        </div>
-                    );
-                })}
-            </div>
+            <ModuleTranslations
+                languages={languages}
+                value={translations}
+                onChange={setTranslation}
+            />
 
             {/* "About" is one entry; "Blog" is many (TASKS.md #60). Worded as
                 what the client will see rather than as a flag, because that is

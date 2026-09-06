@@ -3199,3 +3199,28 @@ reported success and left rows behind.
 (#94), so `ModuleBuilder`'s per-language block is verified by reading and by the
 API underneath it.
 
+### The endpoint had nothing that could reach it
+
+Reported by the owner an hour after the above landed: they created a module,
+left French blank, and then could not change it - there is no edit on a module
+row and never has been. `PUT /api/modules/{module}` had shipped with no screen
+calling it, so the item was half done and looked finished.
+
+That is the failure worth naming: **an API nothing can reach is not a feature**,
+and the test suite cannot tell the difference. Every test written for step two
+passed, and the endpoint was unreachable from the product.
+
+- `ModuleTranslator` is the screen, opened from **Rename** on each row.
+- `ModuleTranslations` is the per-language block itself, now **shared** by the
+  create and rename screens rather than copied - two copies would drift the
+  first time one gained a field.
+- `GET /api/modules` carries each module's translations, so the list can show
+  which languages a section is missing without a request per row. That is the
+  half that would have prevented the report: the owner could not see that
+  French was blank.
+
+425 PHP tests, 184 JS tests, build clean. **The screens still need a person**
+(#94): the browser pane cannot reach the running Vite dev server, so what is
+verified here is that the bundle builds and the panel boots, not that the
+button does what it says.
+

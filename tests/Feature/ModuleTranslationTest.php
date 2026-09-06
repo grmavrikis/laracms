@@ -519,6 +519,26 @@ class ModuleTranslationTest extends TestCase
         $this->get('/de')->assertNotFound();
     }
 
+    /**
+     * **The list carries each module translations**, so the panel can show
+     * which languages a section is missing without asking once per row.
+     *
+     * This is the half that was missing when the endpoint landed: a module was
+     * created with French left blank and there was no way to see that, and no
+     * screen to go back and fill it in. An API nothing can reach is not a
+     * feature.
+     */
+    public function test_the_module_list_says_which_languages_each_one_has(): void
+    {
+        $this->aModule(['el' => ['Υπηρεσίες', 'ypiresies'], 'en' => ['Services', 'services']]);
+
+        $listed = $this->actingAs($this->owner)->getJson('/api/modules')->assertOk()->json();
+
+        $codes = collect($listed[0]['slugs'] ?? [])->pluck('language_code')->all();
+
+        $this->assertSame(['el', 'en'], $codes, 'The panel cannot tell which languages a section is missing.');
+    }
+
     // ------------------------------------------------------------ the rules
 
     public function test_two_modules_cannot_share_an_address_in_one_language(): void

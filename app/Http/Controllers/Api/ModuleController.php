@@ -335,7 +335,10 @@ class ModuleController extends Controller
      */
     public function index(): JsonResponse
     {
-        $modules = Module::latest()->orderByDesc('id')->get();
+        // With their translations (#114), so the panel can show which
+        // languages a section is missing without a request per row - and so
+        // the rename screen opens already filled in.
+        $modules = Module::with('slugs')->latest()->orderByDesc('id')->get();
 
         return response()->json($modules);
     }

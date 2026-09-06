@@ -701,6 +701,15 @@ The old pages stayed on disk and the web server went on serving them — found b
 renaming a section on the live site and watching its old address answer 200.
 The same trap `EntryController::syncSlugs` carries a comment for.
 
+**The screen that reaches it** is `ModuleTranslator`, opened from *Rename* on
+each row of the module list. It shipped a commit late: the endpoint went in
+first with nothing in the panel that could call it, so a module created with a
+language left blank stayed that way and there was no edit anywhere. An endpoint
+nothing can reach is not a feature. `ModuleTranslations` is the per-language
+block itself, shared by the create and rename screens so they cannot drift, and
+`GET /api/modules` now carries each module's translations so the list can show
+what is missing without a request per row.
+
 `LanguageController::index` **stopped filtering `is_active`**. One endpoint was
 answering two audiences that need different answers: a language switched on so
 the client can translate puts a link in the public switcher to a half-empty

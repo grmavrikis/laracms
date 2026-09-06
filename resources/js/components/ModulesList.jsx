@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import api from '../lib/api';
 import { t } from '../lib/i18n';
 
-export default function ModulesList({ onSelectModule, onCreateModule }) {
+export default function ModulesList({ onSelectModule, onCreateModule, onTranslateModule }) {
     const [modules, setModules] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -117,6 +117,13 @@ export default function ModulesList({ onSelectModule, onCreateModule }) {
                                     </td>
                                     <td className="py-4 px-3 font-mono text-xs text-gray-500">{mod.slug}</td>
                                     <td className="py-4 pl-3 pr-6 text-right font-medium">
+                                        <button
+                                            onClick={() => onTranslateModule(mod)}
+                                            className="inline-flex items-center gap-1 rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                                            title={t('Rename this module')}
+                                        >
+                                            {t('Rename')}
+                                        </button>
                                         <button
                                             onClick={() => onSelectModule(mod)}
                                             className="inline-flex items-center gap-1.5 text-indigo-600 hover:text-indigo-900 font-semibold text-sm transition-colors"

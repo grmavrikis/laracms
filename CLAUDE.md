@@ -169,7 +169,7 @@ JS tests sit **beside** their source as `resources/js/lib/*.test.js`.
 ## Commands
 
 ```bash
-php artisan test                    # 424 tests
+php artisan test                    # 425 tests
 npm test                            # 184 tests
 npm run build
 php artisan schema:sync-field-types # after changing field type constants
@@ -240,7 +240,7 @@ Started from a repo that would not boot (eight files of merge conflicts).
 Worked through a prioritised list; every item is either done or recorded in
 `CHANGELOG.md` with its reasoning.
 
-- **424 PHP tests, 184 JS tests**, all passing. Build clean.
+- **425 PHP tests, 184 JS tests**, all passing. Build clean.
 - **The project has a commercial goal as of 2026-08-30**, and it now decides
   what gets worked on. A multilingual CMS that feeds client sites, owned
   outright, for a one-person web agency: **one installation per client site**,
@@ -294,7 +294,9 @@ Worked through a prioritised list; every item is either done or recorded in
   the slug is derived **per language from that language's own name** (`Str::slug`
   transliterates, it does not translate), and `LanguageController` now returns
   every language so the panel can translate into one the public site has not
-  published. Step 3 is #69.
+  published. The screen is `ModuleTranslator` (*Rename* on a module row);
+  `ModuleTranslations` is the per-language block, shared with the create
+  screen. Step 3 is #69.
 - **Then #98**, plus the review that keeps #96 open. Both were added on
   2026-09-05 at a stop the owner called, and recorded in `TASKS.md` →
   Amendments and → Decisions taken (2026-09-05, third). Read those before
