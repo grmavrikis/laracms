@@ -3,6 +3,7 @@
 namespace Tests;
 
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
+use Illuminate\Support\Facades\File;
 
 abstract class TestCase extends BaseTestCase
 {
@@ -28,6 +29,15 @@ abstract class TestCase extends BaseTestCase
          * it. `StaticPagesTest` narrows it further, to one directory per
          * process.
          */
-        config(['site.pages' => storage_path('framework/testing/pages')]);
+        $pages = storage_path('framework/testing/pages');
+
+        config(['site.pages' => $pages]);
+
+        // Emptied per test, not merely redirected. One shared directory that
+        // nothing cleans lets a file written by one test decide the answer of
+        // the next, and survives between runs - so a test can pass on the
+        // second run for a reason that did not exist on the first. That is the
+        // same shape as the `.env` leak #97 fixed, one directory along.
+        File::deleteDirectory($pages);
     }
 }

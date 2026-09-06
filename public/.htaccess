@@ -20,8 +20,10 @@
     # boots. A cache *hit* used to cost four queries; this costs none, and the
     # site keeps answering when the database does not.
     #
-    # GET only. Nothing else may ever be answered from a file: a POST is a
-    # write, and a HEAD or an OPTIONS is not what these were rendered for.
+    # GET and HEAD, and nothing else: a POST is a write. HEAD is included
+    # because crawlers and uptime monitors ask with it before fetching, and
+    # `=GET` matched GET exactly - so every one of those booted the framework
+    # to render a page the file already held.
     #
     # The query string is deliberately not part of the match - `?utm_source=x`
     # does not change the page, and including it would bake one file per
@@ -31,18 +33,30 @@
     # type: served as `sitemap.xml.html` it would be `text/html`, which is a
     # sitemap no crawler reads.
     #
+    # **The directory is refused directly.** It sits inside the document root,
+    # so without the first rule below `/cache/el.html` serves the same page at
+    # a second address - which is the one thing #59 exists to prevent - and the
+    # half-written `.writing` files are readable too.
+    #
+    # **`[END]`, not `[L]`.** In per-directory context `[L]` restarts the whole
+    # ruleset against the rewritten path, so the internal rewrite to
+    # `cache/el.html` would come back round and be refused by that same first
+    # rule. `[END]` stops rewriting altogether. (Apache 2.4+.)
+    #
     # **If these rules are removed, nothing breaks.** Every page is simply
     # served through PHP again, which looks like nothing at all - so
     # `php artisan pages:doctor` asks a running server whether the answer came
     # from a file, and nginx, which this file cannot reach, needs the
     # equivalent `try_files` in its server block.
-    RewriteCond %{REQUEST_METHOD} =GET
-    RewriteCond %{DOCUMENT_ROOT}/cache/sitemap.xml -f
-    RewriteRule ^sitemap\.xml$ cache/sitemap.xml [L]
+    RewriteRule ^cache/ - [F]
 
-    RewriteCond %{REQUEST_METHOD} =GET
+    RewriteCond %{REQUEST_METHOD} ^(GET|HEAD)$
+    RewriteCond %{DOCUMENT_ROOT}/cache/sitemap.xml -f
+    RewriteRule ^sitemap\.xml$ cache/sitemap.xml [END]
+
+    RewriteCond %{REQUEST_METHOD} ^(GET|HEAD)$
     RewriteCond %{DOCUMENT_ROOT}/cache/$1.html -f
-    RewriteRule ^(.*)$ cache/$1.html [L]
+    RewriteRule ^(.*)$ cache/$1.html [END]
 
     # Redirect Trailing Slashes If Not A Folder...
     RewriteCond %{REQUEST_FILENAME} !-d

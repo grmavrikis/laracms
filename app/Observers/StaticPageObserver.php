@@ -58,8 +58,19 @@ class StaticPageObserver
         }
     }
 
+    /**
+     * Everything except an Entry, whose pages `deleting` has already dropped -
+     * running it again here would re-query slug rows that have cascaded away
+     * and re-delete files that are already gone, and would leave a reader
+     * unable to tell which of the two hooks is the load-bearing one.
+     */
     public function deleted(mixed $model): void
     {
+        if ($model instanceof Entry)
+        {
+            return;
+        }
+
         $this->drop($model);
     }
 

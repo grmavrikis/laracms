@@ -571,11 +571,33 @@ the directory by walking the sitemap — which *is* the list of public addresses
 so the two cannot disagree — `pages:flush` empties it, and `pages:doctor` asks
 a running server whether the answer came from a file.
 
-**The deployment dependency fails silently and so has to be checked.**
-`.htaccess` covers Apache; nginx needs `try_files` in its server block, which an
-`.htaccess` cannot reach and no test can see. A missing rewrite breaks nothing —
-every page is quietly served through PHP again and the site looks entirely
-normal. That is what `pages:doctor` exists for; run it after any deployment.
+**A deployment invalidates the whole site, and `pages:warm` is the deploy
+step.** Nothing else notices a release: a `.stamp` beside the pages holds a
+fingerprint of the templates the markup came from, but the check only runs when
+PHP renders — and after a deployment every page is already on disk, so Apache
+answers and PHP never starts. Verified on the live site: touching a template
+and asking for the page left all 62 files exactly as they were. Warming renders
+through PHP, so its first write finds the moved fingerprint and takes the stale
+release with it. `pages:doctor` refuses when the stamp is stale, which covers a
+deployment nobody warmed.
+
+**The rest of the deployment dependency fails silently too.** `.htaccess`
+covers Apache; nginx needs `try_files` in its server block, which an `.htaccess`
+cannot reach and no test can see. A missing rewrite breaks nothing — every page
+is quietly served through PHP again and the site looks entirely normal. That is
+the other half of what `pages:doctor` is for.
+
+**Baking may never cost a visitor their page.** `write()` catches everything and
+logs: `mkdir` and `file_put_contents` are unguarded inside `File`, Laravel turns
+their warnings into exceptions, and the write happens before the response is
+returned — so a `public/cache` the web user cannot write answered **500 for the
+whole public site**, which is the ordinary permissions mismatch of a deploy.
+
+**The directory is refused directly.** `public/cache` is inside the document
+root, so `/cache/el.html` served the same page at a second address until a
+`RewriteRule ^cache/ - [F]` closed it — and the serving rules use `[END]` rather
+than `[L]`, because in per-directory context `[L]` restarts the ruleset and the
+internal rewrite would come back round and be refused by that same rule.
 
 **A page carrying a CSRF token is not baked.** Everything that token implies
 belongs to one visitor's session, and a file is handed to everybody.

@@ -6,6 +6,7 @@ use App\Services\StaticPages;
 use Illuminate\Console\Command;
 use Illuminate\Contracts\Http\Kernel;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\File;
 
 /**
  * Bake the whole public site in one go (TASKS.md #97).
@@ -72,6 +73,13 @@ class WarmPages extends Command
         $this->newLine(2);
         $this->components->info($baked . ' of ' . count($addresses) . ' pages baked into ' . $pages->directory());
 
+        $orphans = $this->sweep($pages);
+
+        if ($orphans > 0)
+        {
+            $this->components->info('Swept ' . $orphans . ' half-written page(s) a process died in the middle of.');
+        }
+
         foreach ($skipped as $address)
         {
             $this->components->warn('Not baked: ' . $address);
@@ -99,13 +107,60 @@ class WarmPages extends Command
 
     private function fetch(Kernel $kernel, string $address): int
     {
-        $response = $kernel->handle(Request::create($address, 'GET'));
-
-        return $response->getStatusCode();
+        return $this->request($kernel, $address)->getStatusCode();
     }
 
     private function body(Kernel $kernel, string $address): string
     {
-        return $kernel->handle(Request::create($address, 'GET'))->getContent() ?: '';
+        return $this->request($kernel, $address)->getContent() ?: '';
+    }
+
+    /**
+     * One request through the real kernel, **terminated**.
+     *
+     * `handle()` and `terminate()` come in pairs: without the second, no
+     * terminable middleware runs and every request's state stays in the
+     * container for the rest of the command. On sixty pages that is only
+     * untidy; on a catalogue it is what runs the process out of memory, and
+     * the middleware that is silently skipped is whatever somebody adds later.
+     */
+    private function request(Kernel $kernel, string $address)
+    {
+        $request = Request::create($address, 'GET');
+        $response = $kernel->handle($request);
+
+        $kernel->terminate($request, $response);
+
+        return $response;
+    }
+
+    /**
+     * Half-written pages a process died in the middle of.
+     *
+     * `StaticPages::write` moves a temporary file into place and cleans it up
+     * when the move fails - but not when the process is killed between the two,
+     * and nothing expires a file any more, so one left behind stays for ever.
+     */
+    private function sweep(StaticPages $pages): int
+    {
+        $directory = $pages->directory();
+
+        if (!is_dir($directory))
+        {
+            return 0;
+        }
+
+        $orphans = 0;
+
+        foreach (File::allFiles($directory) as $file)
+        {
+            if (str_ends_with($file->getFilename(), '.writing'))
+            {
+                File::delete($file->getPathname());
+                $orphans++;
+            }
+        }
+
+        return $orphans;
     }
 }

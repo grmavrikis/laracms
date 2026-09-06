@@ -104,6 +104,24 @@ export default function SettingsManager({ onBack }) {
             );
         }
 
+        // A switch, not a text box. Without this branch a `boolean` field fell
+        // through to the plain input at the bottom: the owner saw the word
+        // "true" in a text box, and typing into it made the value a string -
+        // which Laravel's `boolean` rule refuses for anything but "1" and "0".
+        if (field.type === 'boolean') {
+            return (
+                <label className="flex items-center gap-2">
+                    <input
+                        type="checkbox"
+                        checked={value === true || value === 1 || value === '1'}
+                        onChange={(e) => setValue(field.name, e.target.checked)}
+                        className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                    />
+                    <span className="text-sm text-gray-600">{field.label}</span>
+                </label>
+            );
+        }
+
         if (field.type === 'image') {
             return (
                 <div className="space-y-2">

@@ -51,9 +51,26 @@ class DoctorPages extends Command
 
         $page = $language->code . '.html';
 
-        if (!$pages->has($page))
+        // The local disk says nothing about another server. Asked about one,
+        // this checks only what the answer itself reveals - the local copy may
+        // be empty while the remote is baked correctly, or stale while the
+        // remote has nothing at all.
+        if ($this->argument('url') === null && !$pages->has($page))
         {
             $this->components->error($page . ' is not on disk. Run `php artisan pages:warm` first, then this.');
+
+            return self::FAILURE;
+        }
+
+        // Asked before the request, because it is the one failure the answer
+        // itself cannot reveal: a stale page is served exactly as briskly as a
+        // current one. After a deployment PHP never runs - Apache answers from
+        // the file - so nothing else notices that the release moved on.
+        if ($this->argument('url') === null && $pages->releaseIsStale())
+        {
+            $this->components->error('The pages on disk were rendered by a different release.');
+            $this->line('  Run `php artisan pages:warm` - it rebuilds from the release that is deployed.');
+            $this->newLine();
 
             return self::FAILURE;
         }

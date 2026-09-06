@@ -409,6 +409,131 @@ class StaticPagesTest extends TestCase
         $this->assertFileDoesNotExist($this->file('el/rooms.html'));
     }
 
+    // ------------------------------------- when baking cannot happen at all
+
+    /**
+     * **A page that cannot be baked is still served.** Baking is a side
+     * benefit; it may never cost a visitor the page they asked for.
+     *
+     * The realistic trigger is the ordinary deployment: the tree is owned by
+     * the deploy user and php-fpm runs as somebody else, so `public/cache` is
+     * not writable. `File::ensureDirectoryExists` and `File::put` call `mkdir`
+     * and `file_put_contents` unguarded, Laravel's error handler turns the
+     * warning into an `ErrorException`, and `serve()` writes **before** it
+     * returns - so the whole public site answered 500 over a directory
+     * permission. That inverts the rule the switch is built on: no cache means
+     * slower, never broken.
+     */
+    public function test_a_page_is_served_even_when_it_cannot_be_written(): void
+    {
+        $this->aModule('Rooms', 'rooms');
+
+        // A file where the directory has to go, so `mkdir` cannot succeed.
+        $blocker = storage_path('framework/testing/blocker-' . getmypid());
+        File::put($blocker, 'not a directory');
+
+        config(['site.pages' => $blocker . '/cache']);
+
+        try
+        {
+            $this->get('/el')->assertOk()->assertSee('Rooms', false);
+        }
+        finally
+        {
+            File::delete($blocker);
+        }
+    }
+
+    // -------------------------------------------------- what a release does
+
+    /**
+     * **A deployment invalidates the whole site.** Nothing else does, and
+     * without it a release that changes a template leaves every page on disk
+     * serving the old markup - with no TTL underneath it, possibly for months.
+     *
+     * `PageCache` had a hand-bumped shape prefix for exactly this, and its own
+     * docblock recorded that it "has been needed twice - both times found by
+     * opening the deployed app". Files removed the prefix *and* the seven-day
+     * expiry that used to clean up after anything missed. A stamp beside the
+     * pages carries a fingerprint of what the markup is rendered from; when it
+     * stops matching, the directory goes.
+     */
+    public function test_changing_a_template_empties_the_site(): void
+    {
+        $this->aModule();
+
+        $this->get('/el')->assertOk();
+        $this->assertBaked('el.html');
+
+        $restore = $this->deploy();
+
+        try
+        {
+            $this->get('/el')->assertOk();
+
+            $this->assertBaked('el.html');
+            $this->assertFileExists(
+                $this->file('.stamp'),
+                'Nothing records what the baked pages were rendered from.'
+            );
+        }
+        finally
+        {
+            $restore();
+        }
+    }
+
+    /**
+     * Stand in for a deployment: change the mtime of a file the markup is
+     * rendered from, and put it back afterwards.
+     *
+     * The value has to differ from whatever another test used - two tests
+     * setting `time() + 10` inside the same second leave the fingerprint
+     * unchanged, and the second one then passes because nothing happened. That
+     * is exactly how the first version of this read as green.
+     */
+    private function deploy(): callable
+    {
+        $template = config('site.theme') . '/layout.blade.php';
+        $was = filemtime($template);
+
+        touch($template, $was + random_int(1000, 100000));
+        clearstatcache();
+
+        return function () use ($template, $was)
+        {
+            touch($template, $was);
+            clearstatcache();
+        };
+    }
+
+    public function test_a_release_drops_pages_it_has_not_rebuilt_yet(): void
+    {
+        $module = $this->aModule();
+        $this->anEntry($module);
+
+        $this->get('/el')->assertOk();
+        $this->get('/el/rooms/thea')->assertOk();
+        $this->assertBaked('el/rooms/thea.html');
+
+        $restore = $this->deploy();
+
+        try
+        {
+            // One page is asked for; the rest of the stale release goes with it.
+            $this->get('/el')->assertOk();
+
+            $this->assertFileDoesNotExist(
+                $this->file('el/rooms/thea.html'),
+                'A page from the previous release is still on disk and still being served.'
+            );
+        }
+        finally
+        {
+            $restore();
+        }
+    }
+
     // ------------------------------------------------------------ the switch
 
     /**
@@ -459,6 +584,85 @@ class StaticPagesTest extends TestCase
         $this->get('/el')->assertOk();
 
         $this->assertFileDoesNotExist($this->file('el.html'), 'It is off and still writing.');
+    }
+
+    /**
+     * `pages:doctor` may be pointed at another server, and then the local
+     * disk says nothing about it: the local copy may be empty while the
+     * remote one is baked correctly, or stale while the remote has nothing.
+     */
+    public function test_the_doctor_does_not_check_this_disk_when_asked_about_another_server(): void
+    {
+        $this->aModule();
+
+        // Nothing baked here at all.
+        app(StaticPages::class)->flush();
+
+        $this->artisan('pages:doctor', ['url' => 'http://127.0.0.1:9'])
+            ->doesntExpectOutputToContain('is not on disk')
+            ->assertFailed();
+    }
+
+    /**
+     * The one failure the answer itself cannot reveal: a page rendered by the
+     * previous release is served exactly as briskly as a current one.
+     *
+     * It matters because the stamp inside `write()` is a **net rather than the
+     * mechanism** - after a deployment every page is already on disk, Apache
+     * answers, and PHP never runs to check anything. Verified on the live site:
+     * touching a template and asking for the page left all 62 files untouched.
+     */
+    public function test_the_doctor_refuses_when_the_pages_are_from_another_release(): void
+    {
+        $this->aModule();
+        $this->get('/el')->assertOk();
+
+        $restore = $this->deploy();
+
+        try
+        {
+            $this->artisan('pages:doctor')
+                ->expectsOutputToContain('rendered by a different release')
+                ->assertFailed();
+        }
+        finally
+        {
+            $restore();
+        }
+    }
+
+    /**
+     * And warming is what fixes it, which is why it is the deploy step: its
+     * own first write finds the moved fingerprint and takes the whole stale
+     * release with it.
+     */
+    public function test_warm_rebuilds_a_site_left_by_the_previous_release(): void
+    {
+        $module = $this->aModule();
+        $this->anEntry($module);
+
+        $this->artisan('pages:warm')->assertSuccessful();
+        $this->assertBaked('el/rooms/thea.html');
+
+        $stale = File::get($this->file('el/rooms/thea.html'));
+
+        $restore = $this->deploy();
+
+        try
+        {
+            $this->artisan('pages:warm')->assertSuccessful();
+
+            $this->assertBaked('el/rooms/thea.html');
+            $this->assertFalse(
+                app(StaticPages::class)->releaseIsStale(),
+                'The site still says it was rendered by the previous release.'
+            );
+            $this->assertNotSame('', $stale);
+        }
+        finally
+        {
+            $restore();
+        }
     }
 
     // ---------------------------------------------------------- the commands
@@ -519,10 +723,35 @@ class StaticPagesTest extends TestCase
         $htaccess = File::get(public_path('.htaccess'));
 
         $this->assertStringContainsString('cache', $htaccess, 'The rewrite that serves baked pages is gone.');
-        $this->assertMatchesRegularExpression(
-            '/RewriteCond\s+%\{REQUEST_METHOD\}\s+=GET/',
+
+        // GET **and HEAD**, on **both** serving rules. Crawlers and uptime
+        // monitors ask with HEAD before fetching, and `=GET` matches GET
+        // exactly - so every one of those booted the framework and rendered a
+        // page the file already held.
+        //
+        // Counted rather than merely found: with one assertion the sitemap
+        // rule satisfied it on its own, and narrowing the page rule back to
+        // GET stayed green. Matched on the directive, never on the prose
+        // around it - the comment in that file names `=GET` to explain why it
+        // is gone.
+        $this->assertSame(
+            2,
+            preg_match_all('/RewriteCond\s+%\{REQUEST_METHOD\}\s+\^\(GET\|HEAD\)\$/', $htaccess),
+            'A serving rule does not answer HEAD, so those requests are rendered by PHP.'
+        );
+
+        $this->assertDoesNotMatchRegularExpression(
+            '/RewriteCond\s+%\{REQUEST_METHOD\}\s+=/',
             $htaccess,
-            'Baked pages would be served for a POST as well.'
+            'A method match was left behind.'
+        );
+
+        // The directory is inside the document root, so without a rule of its
+        // own every page has a second public address - see the test below.
+        $this->assertMatchesRegularExpression(
+            '#RewriteRule\s+\^cache/#',
+            $htaccess,
+            'public/cache is reachable directly, giving every page two addresses.'
         );
     }
 }

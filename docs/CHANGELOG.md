@@ -2964,3 +2964,78 @@ which is the point where both halves of #97 meet. The probe enquiries were
 deleted.
 
 393 PHP tests, 184 JS tests, build clean.
+
+### The review of the file half found ten, and two of them were serious
+
+**A cache that could not be written took the site down.** `write()` runs before
+`serve()` returns the response, and `File::ensureDirectoryExists` and
+`File::put` call `mkdir` and `file_put_contents` unguarded - Laravel turns those
+warnings into exceptions. Probed: an unwritable path throws
+`ErrorException: mkdir(): No such file or directory`, so **every public page
+answers 500**. The trigger is the ordinary deployment, where the tree belongs to
+the deploy user and php-fpm runs as somebody else. That inverts the rule the
+whole switch is built on: no cache means slower, never broken. It is caught and
+logged now.
+
+**Nothing invalidated a deployment.** The shape prefix went with `PageCache` and
+the seven-day TTL went with it, and a grep of every file mentioning
+`pages:flush` found not one telling anybody to run it on a release. That is the
+third time this trap has appeared, and the mechanism that half-caught it twice
+had just been deleted.
+
+The fix was a `.stamp` holding a fingerprint of the templates - and **checking
+it live is what showed the fix did not work**. Touching a template on the
+running site and asking for the page left all 62 files exactly as they were: the
+check runs from `write()`, `write()` runs only when PHP renders, and after a
+deployment every page is already on disk so Apache answers and PHP never starts.
+The stamp is a net, not the mechanism. **`pages:warm` is the deploy step** - it
+renders through PHP, so its first write finds the moved fingerprint and takes
+the stale release with it - and `pages:doctor` now refuses outright when the
+stamp is stale, which is the case where somebody deployed and warmed nothing.
+
+Two more were live findings against the web server:
+
+- **Every baked page had a second address.** `GET /cache/el.html` returned 200
+  with the full page, because the directory is inside the document root - the
+  one thing #59 exists to prevent. Refused now, and the serving rules had to
+  move from `[L]` to `[END]`: in per-directory context `[L]` restarts the
+  ruleset, so the internal rewrite to `cache/el.html` would have come back round
+  and been refused by that same rule.
+- **HEAD bypassed the files.** `=GET` matches GET exactly, and crawlers and
+  uptime monitors ask with HEAD before fetching - each one booting the framework
+  to render a page the file already held.
+
+And one that was mine from two commits earlier: **the owner's `page_cache`
+switch had no widget.** `SettingsManager` special-cases `select` and `image` and
+lets everything else fall through to a text input, so the switch appeared as a
+box containing the word `true`, and typing in it made the value a string that
+Laravel's `boolean` rule refuses for anything but "1" and "0". The screen was
+never opened after the field was added - #94, again.
+
+The rest: `pages:doctor` checked the local disk while asking a possibly remote
+server; `deleting` and `deleted` both dropped an Entry's pages; `TestCase`
+pointed every test at one shared directory it never emptied; half-written
+`.writing` files were left behind and were web-readable; and `pages:warm` never
+terminated the kernel it handled with.
+
+**One fix was itself a bug.** The fingerprint was memoised per instance, which
+looked free - and silently disabled the whole mechanism, because the service
+outlives a single request and carried the stale hash with it. Removed after
+measuring what it saved: the scan is twenty files on a path that has already run
+a full render. **Measure before optimising**, including when the optimisation is
+one line and obviously harmless.
+
+Six mutations, one of which survived and was right to: the HEAD assertion was
+satisfied by the sitemap rule on its own, so narrowing the page rule back to GET
+stayed green. Counted rather than found now.
+
+Live afterwards: `/el` still served from a file with no cookie, `/cache/el.html`
+**403**, `HEAD /el` served from the file, `sitemap.xml` still `application/xml`,
+and the whole deploy story - touch a template, doctor refuses and names the
+command, warm rebuilds, doctor passes.
+
+399 PHP tests, 184 JS tests, build clean.
+
+**The settings screen needs a human.** The checkbox is in the shipped bundle but
+has not been clicked; there is still no component harness (#94).
+

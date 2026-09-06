@@ -6,6 +6,8 @@ use App\Models\Entry;
 use App\Models\Language;
 use App\Models\Module;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Log;
+use Throwable;
 
 /**
  * The public site as files on disk, served before PHP starts (TASKS.md #97).
@@ -107,21 +109,135 @@ class StaticPages
             return;
         }
 
-        File::ensureDirectoryExists(dirname($file));
-
-        $temporary = $file . '.' . getmypid() . '.writing';
-
-        File::put($temporary, $contents);
-
-        if (!@rename($temporary, $file))
+        // **Baking may never cost a visitor their page.** `mkdir` and
+        // `file_put_contents` are unguarded inside `File`, and Laravel turns
+        // their warnings into exceptions - and `PageController` writes before
+        // it returns the response, so a directory it cannot write answered 500
+        // for the entire public site. The realistic trigger is the ordinary
+        // deployment, where the tree belongs to the deploy user and php-fpm
+        // runs as somebody else.
+        //
+        // The whole point of the switch is that no cache means slower, never
+        // broken. A failure here has to mean the same.
+        try
         {
-            File::delete($file);
+            $this->retireStaleRelease();
+
+            File::ensureDirectoryExists(dirname($file));
+
+            $temporary = $file . '.' . getmypid() . '.writing';
+
+            File::put($temporary, $contents);
 
             if (!@rename($temporary, $file))
             {
-                File::delete($temporary);
+                File::delete($file);
+
+                if (!@rename($temporary, $file))
+                {
+                    File::delete($temporary);
+                }
             }
         }
+        catch (Throwable $e)
+        {
+            // Logged rather than swallowed: a site silently serving every page
+            // through PHP is the failure `pages:doctor` exists to find, and
+            // this is the other way it happens.
+            Log::warning('Could not bake ' . $page . ': ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Has the deployed release moved on from what is on disk?
+     *
+     * The stamp beside the pages holds a fingerprint of the files the markup
+     * is rendered from. `PageCache` had a shape prefix bumped by hand for
+     * exactly this question, and its docblock recorded that it "has been
+     * needed twice - both times found by opening the deployed app". Files
+     * removed the prefix *and* the seven-day expiry that used to clear
+     * anything nobody thought to drop.
+     */
+    public function releaseIsStale(): bool
+    {
+        $stamp = $this->directory() . '/.stamp';
+
+        return !File::exists($stamp) || File::get($stamp) !== $this->fingerprint();
+    }
+
+    /**
+     * Empty the site when the release it was rendered from has changed.
+     *
+     * **This is a net, not the mechanism**, and the difference was learned by
+     * checking rather than reasoning. It runs from `write()`, which only runs
+     * when PHP renders a page - and after a deployment every page is already
+     * on disk, so Apache answers and PHP never starts. Touching a template on
+     * the live site and asking for the page left all 62 files exactly as they
+     * were: the check was dead in precisely the case it was written for.
+     *
+     * What it does catch is everything rendered *through* PHP - a template
+     * edited in development, a page nobody has visited yet, an address that
+     * 404s - and, importantly, the first write of `pages:warm`. That is what
+     * makes **`pages:warm` the deploy step**: it renders, the fingerprint has
+     * moved, the whole directory goes, and the site is rebuilt from the
+     * release that is actually deployed. `pages:doctor` reports a stale stamp
+     * for the case where somebody deployed and warmed nothing.
+     */
+    private function retireStaleRelease(): void
+    {
+        if (!$this->releaseIsStale())
+        {
+            return;
+        }
+
+        $this->flush();
+
+        File::ensureDirectoryExists($this->directory());
+        File::put($this->directory() . '/.stamp', $this->fingerprint());
+    }
+
+    /**
+     * What the baked markup was rendered from: every template core and the
+     * theme own, plus the public site's one script.
+     *
+     * **Not memoised**, and that was learned the hard way: an instance memo
+     * looked free and silently disabled the whole mechanism, because the
+     * service outlives a single request and the fingerprint it had cached went
+     * with it - the first request after a deployment kept answering with the
+     * previous release's hash. The scan is a directory listing of roughly
+     * twenty files, on a path that has already run a full render and several
+     * queries. It is not worth outsmarting.
+     */
+    private function fingerprint(): string
+    {
+        $parts = [];
+
+        foreach ([config('site.theme'), resource_path('views'), public_path('forms.js')] as $source)
+        {
+            if (is_file($source))
+            {
+                $parts[] = basename($source) . ':' . filemtime($source);
+
+                continue;
+            }
+
+            if (!is_dir($source))
+            {
+                continue;
+            }
+
+            foreach (File::allFiles($source) as $file)
+            {
+                $parts[] = $file->getRelativePathname() . ':' . $file->getMTime();
+            }
+        }
+
+        // Sorted, because the order `allFiles` walks a directory in is the
+        // filesystem's business and a fingerprint that changed with it would
+        // flush the site at random.
+        sort($parts);
+
+        return md5(implode('|', $parts));
     }
 
     /**

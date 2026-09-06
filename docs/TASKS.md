@@ -924,8 +924,14 @@ answered *"Served from a file. PHP did not run."*, with `ETag` and
 `Last-Modified` present and no `Set-Cookie`. Touching one entry took 61 files to
 51 and left another module's pages alone.
 
-Two things to know before touching it:
+Three things to know before touching it:
 
+- **`pages:warm` is the deploy step.** A release that changes a template leaves
+  every page on disk serving the old markup, and there is no expiry underneath.
+  The `.stamp` beside the pages is only a net: the check runs from `write()`,
+  which runs only when PHP renders, and after a deployment Apache answers every
+  page and PHP never starts. Warming renders, so it notices. `pages:doctor`
+  refuses when the stamp is stale.
 - **The entry is saved before its slugs are replaced**, and that order is what
   lets the observer read the old addresses while the rows still hold them.
   Swapping the two lines leaves the old page on disk for ever.

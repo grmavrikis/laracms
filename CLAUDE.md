@@ -169,11 +169,11 @@ JS tests sit **beside** their source as `resources/js/lib/*.test.js`.
 ## Commands
 
 ```bash
-php artisan test                    # 393 tests
+php artisan test                    # 399 tests
 npm test                            # 184 tests
 npm run build
 php artisan schema:sync-field-types # after changing field type constants
-php artisan pages:warm              # bake the public site to files (#97)
+php artisan pages:warm              # bake the public site to files (#97) - THE DEPLOY STEP
 php artisan pages:flush             # empty it
 php artisan pages:doctor            # is the web server actually serving them?
 ```
@@ -240,7 +240,7 @@ Started from a repo that would not boot (eight files of merge conflicts).
 Worked through a prioritised list; every item is either done or recorded in
 `CHANGELOG.md` with its reasoning.
 
-- **393 PHP tests, 184 JS tests**, all passing. Build clean.
+- **399 PHP tests, 184 JS tests**, all passing. Build clean.
 - **The project has a commercial goal as of 2026-08-30**, and it now decides
   what gets worked on. A multilingual CMS that feeds client sites, owned
   outright, for a one-person web agency: **one installation per client site**,
@@ -300,9 +300,11 @@ Worked through a prioritised list; every item is either done or recorded in
   - **#97 static HTML pages — DONE** (CHANGELOG §27 and §28). The public site
     is written to `public/cache/{lang}/{module}/{slug}.html` and Apache serves
     it before PHP starts; `PageCache` is **deleted**. Commands: `pages:warm`,
-    `pages:flush`, `pages:doctor` — run the doctor after any deployment,
-    because a missing rewrite breaks nothing and silently sends every page back
-    through PHP. Forms are a JS island (`public/forms.js`, `data-cms-form`), so
+    `pages:flush`, `pages:doctor`. **`pages:warm` is the deploy step** — a
+    release that changes a template leaves every page on disk serving the old
+    markup, and there is no expiry underneath; warming notices and rebuilds.
+    Run the doctor after a deployment to a new server too, because a missing
+    rewrite breaks nothing and silently sends every page back through PHP. Forms are a JS island (`public/forms.js`, `data-cms-form`), so
     **§25's rule is reversed on purpose**: a page with a form *is* baked. Do
     not put `@csrf` back into `site/theme/enquiry.blade.php` — and the guard
     that refuses to bake a page carrying a token is still there and still
