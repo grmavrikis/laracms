@@ -3990,3 +3990,54 @@ printing 493 passed.
 497 PHP tests, 214 JS tests, build clean. `schema:doctor` green against MySQL,
 72 pages re-warmed.
 
+### And the review of the review found eight
+
+The doctor built above had the defect it exists to catch. **A column that was
+not there read as "the driver reports no width"** and passed — so renaming
+`enquiries.source_url` and forgetting the model produced *"Every column is wide
+enough for its rule"* followed by *"the mysql driver does not record a column's
+width"*, which is false twice: MySQL does, and the column was gone. It answers
+in four states now, and the missing one is a failure. Proved live by renaming
+that column behind its back: exit 1, and the line names the constant that says
+what may be written into it.
+
+**`constant()` was left to fatal.** A renamed constant killed the command with
+a PHP `Error` — on a server, in the command whose whole job is to answer a
+deployment's question clearly. It reports the stale name now, and `compare()`
+takes the list as an argument so that branch is reachable from a test at all.
+
+**And the same shape one level out: nothing checked PHP's own limits.** The
+docblock on `MAX_KILOBYTES` says `upload_max_filesize` has to be at least that,
+and a default install ships exactly 2M against a 2048 KB rule — so a file the
+application says it accepts is discarded before Laravel sees it, and the owner
+is told the image is missing. `post_max_size` has to be strictly larger, because
+the body carries the file plus its multipart wrapper. Both are checked, with the
+sizes parsed from `php.ini`'s own `2M`/`512K` spelling.
+
+**The coverage test reproduced the gap it exists to close**: it reflected over a
+hand-written list of six models, so the seventh model's width constant would be
+invisible to the thing that checks width constants. It reads `app/Models` off
+disk now.
+
+**The rollback could lose what the migration had just made room for.** `up()` is
+careful to explain that widening is safe and narrowing is not, and then `down()`
+narrowed two columns with no check — a half-applied 1406 on a strict server, a
+truncated redirect on one that is not. It refuses and says which rows to deal
+with first. Exercised live: rolled back, the doctor reported all three columns
+too narrow, migrated forward, green again.
+
+The rest was placement and manners. The pure arithmetic moved off the command
+into `SchemaLimits`, where the rest of this application's logic lives and where
+a test imports a service rather than a console class; `hasTable` was running
+once per expectation and returning at the first missing table, so a database
+several migrations behind was described one table per run; and the deployment
+paragraph in CLAUDE.md still named only `pages:doctor`, which is a command
+nobody is told to run.
+
+Seven mutations, all biting. A PHP warning also turned up on the way: a
+migration in the global namespace importing `RuntimeException` is a `use`
+statement with no effect, which PHPUnit reports as an error on every test in
+the file.
+
+502 PHP tests, 214 JS tests, build clean.
+

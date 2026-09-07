@@ -1269,21 +1269,30 @@ the one form open to strangers, and invisible to the SQLite the suite runs on.
 what the schema became on the day it ran; one that read a constant would mean
 something different on a fresh database than on one that had already run it, so
 `migrate:fresh` and an upgraded installation could end up with different columns
-from the same code {D} the original defect, made environment-dependent.
+from the same code — the original defect, made environment-dependent.
 
-That leaves one gap that no test can close, because editing a constant does not
-alter a column that already exists. **`php artisan schema:doctor`** is what
-closes it: it reads the live schema and refuses when a column is narrower than
-the constant that fills it. Run it on a deployment, beside `pages:doctor`. It
-says so honestly where it cannot answer {D} SQLite records no width at all
-(Laravel's grammar writes `varchar` with no length), so on that driver it
-reports nothing rather than passing.
+That leaves gaps no test can close, because editing a constant does not alter
+a column that already exists and nothing here edits a server's `php.ini`.
+**`php artisan schema:doctor`** is what closes them, beside `pages:doctor` on a
+deployment. It answers in **four** states rather than two:
+
+| | |
+|---|---|
+| the column is narrower than its constant | failure |
+| the column, or its table, is not there | **failure** — the completest way for a schema to fall behind, and reading it as "no width reported" is how the first version passed a database with a column gone |
+| the type declares no width | reported as unknown, named, and not counted as well |
+| PHP's `upload_max_filesize` or `post_max_size` is at or below what the panel accepts | failure — the upload never reaches the rule, and the owner is told the image is missing |
+
+The arithmetic is `SchemaLimits`, pure and separate from the command, so all of
+it is tested on the driver that reports nothing: SQLite records no width at all
+(Laravel's grammar writes `varchar` with no length), which is why the command
+names the columns it could not read instead of passing.
 
 `ColumnWidthTest` covers what remains: the rule outgrowing the constant
 (refusals over HTTP, one case per field), the form outgrowing it (the rendered
 `maxlength`, read from the partial rather than from a page, because where a
 theme puts its form is the theme's business), the doctor's reading of a column
-type, and {D} by reflection {D} that **every** width constant is on the doctor's
+type, and — by reflection — that **every** width constant is on the doctor's
 list. That last one is by *name*: several of these are 255, so a list of values
 called a constant covered when what covered it was somebody else's.
 
@@ -1292,7 +1301,7 @@ called a constant covered when what covered it was somebody else's.
 enquiry form stores that address with a scheme and a host in front of it. At
 512, `redirects.from_path` could not record where a renamed module's pages went
 (logged and skipped, so the old address stayed dead), and `enquiries.source_url`
-made a page with long slugs refuse **every** enquiry sent from it {D} naming a
+made a page with long slugs refuse **every** enquiry sent from it — naming a
 hidden field the visitor can neither see nor fix. They are 640 and 2048 now, and
 two tests assert the sums rather than the numbers.
 

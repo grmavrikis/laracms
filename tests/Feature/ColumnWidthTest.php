@@ -2,15 +2,17 @@
 
 namespace Tests\Feature;
 
-use App\Console\Commands\DoctorSchema;
+use App\Http\Controllers\UploadController;
 use App\Models\Enquiry;
 use App\Models\EntrySlug;
 use App\Models\Module;
 use App\Models\ModuleSlug;
 use App\Models\Redirect;
 use App\Models\User;
+use App\Services\SchemaLimits;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Routing\Middleware\ThrottleRequests;
+use Illuminate\Support\Facades\File;
 use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionClass;
 use Tests\TestCase;
@@ -162,21 +164,120 @@ class ColumnWidthTest extends TestCase
     // ------------------------------------------------- what the doctor reads
 
     /**
+     * **A column that is not there is a failure, not an unknown.**
+     *
+     * The first version read a missing column as "the driver reports no width"
+     * and passed - so a dropped or renamed column, which is the completest way
+     * for a schema to fall behind the code, made the doctor say everything was
+     * well *and* blame the driver for it.
+     */
+    public function test_the_doctor_separates_missing_from_unknown_from_narrow(): void
+    {
+        $declared = [];
+
+        foreach (SchemaLimits::expectations() as [$table, $column])
+        {
+            $declared["{$table}.{$column}"] = 'varchar(9000)';
+        }
+
+        $declared['enquiries.source_url'] = null;      // no such column
+        $declared['modules.slug'] = 'varchar';         // no declared width
+        $declared['entry_slugs.slug'] = 'varchar(10)'; // narrower than the rule
+
+        $report = SchemaLimits::compare($declared);
+
+        $this->assertCount(1, $report['missing']);
+        $this->assertStringContainsString('enquiries.source_url', $report['missing'][0]);
+
+        $this->assertCount(1, $report['unknown']);
+        $this->assertStringContainsString('modules.slug', $report['unknown'][0]);
+
+        $this->assertCount(1, $report['narrow']);
+        $this->assertStringContainsString('entry_slugs.slug', $report['narrow'][0]);
+    }
+
+    /** A column the caller never mentioned is missing too, not simply absent. */
+    public function test_a_column_nobody_reported_is_reported(): void
+    {
+        $report = SchemaLimits::compare([]);
+
+        $this->assertCount(count(SchemaLimits::expectations()), $report['missing']);
+        $this->assertSame([], $report['narrow']);
+    }
+
+    /**
+     * **PHP has to be able to receive what the panel accepts.** A default
+     * install ships `upload_max_filesize = 2M`, which is exactly the panel's
+     * own limit - and `post_max_size` has to be larger still, because the body
+     * carries the file plus its multipart wrapper. Under either, the upload
+     * never reaches the rule and the owner is told the image is missing.
+     */
+    public function test_php_limits_below_the_panel_s_are_reported(): void
+    {
+        $limit = UploadController::MAX_KILOBYTES;
+
+        $this->assertSame([], SchemaLimits::uploadProblems('10M', '10M'));
+
+        $this->assertCount(1, SchemaLimits::uploadProblems('1M', '10M'));
+        $this->assertStringContainsString('upload_max_filesize', SchemaLimits::uploadProblems('1M', '10M')[0]);
+
+        // Exactly the limit leaves no room for the rest of the body.
+        $this->assertCount(1, SchemaLimits::uploadProblems('10M', $limit . 'K'));
+
+        // Unlimited, and unreadable, are not problems to report.
+        $this->assertSame([], SchemaLimits::uploadProblems('0', '0'));
+        $this->assertSame([], SchemaLimits::uploadProblems(null, null));
+    }
+
+    public function test_a_php_ini_size_is_read_in_kilobytes(): void
+    {
+        $this->assertSame(2048, SchemaLimits::kilobytesOf('2M'));
+        $this->assertSame(512, SchemaLimits::kilobytesOf('512K'));
+        $this->assertSame(1024 * 1024, SchemaLimits::kilobytesOf('1G'));
+        $this->assertSame(8, SchemaLimits::kilobytesOf('8192'));
+
+        // Zero means no limit at all, which is not a number to compare.
+        $this->assertNull(SchemaLimits::kilobytesOf('0'));
+        $this->assertNull(SchemaLimits::kilobytesOf('nonsense'));
+        $this->assertNull(SchemaLimits::kilobytesOf(null));
+    }
+
+    /**
+     * A constant that has been renamed is reported, not thrown: this runs on a
+     * server, and `constant()` would raise an `Error` where the command's whole
+     * job is to answer a question clearly.
+     */
+    public function test_a_constant_that_no_longer_exists_is_reported(): void
+    {
+        $report = SchemaLimits::compare(
+            ['enquiries.name' => 'varchar(120)'],
+            [['enquiries', 'name', Enquiry::class, 'RENAMED_AWAY']]
+        );
+
+        $this->assertCount(1, $report['unnamed']);
+        $this->assertStringContainsString('RENAMED_AWAY', $report['unnamed'][0]);
+        $this->assertSame([], $report['narrow']);
+
+        // And the list the command actually uses names only constants that do.
+        $this->assertSame([], SchemaLimits::compare([])['unnamed']);
+    }
+
+    /**
      * The command's own reading of a column type, which is the half of it the
      * suite's driver can exercise: SQLite reports `varchar` with no length, so
      * the comparison itself never runs here.
      */
     public function test_a_declared_width_is_read_out_of_a_column_type(): void
     {
-        $this->assertSame(120, DoctorSchema::widthOf('varchar(120)'));
-        $this->assertSame(5, DoctorSchema::widthOf('CHAR(5)'));
-        $this->assertSame(2048, DoctorSchema::widthOf('varchar(2048) COLLATE utf8mb4_bin'));
+        $this->assertSame(120, SchemaLimits::widthOf('varchar(120)'));
+        $this->assertSame(5, SchemaLimits::widthOf('CHAR(5)'));
+        $this->assertSame(2048, SchemaLimits::widthOf('varchar(2048) COLLATE utf8mb4_bin'));
 
         // Nothing to compare against, which has to read as "unknown" rather
         // than as zero - a zero would report every column as too narrow.
-        $this->assertNull(DoctorSchema::widthOf('varchar'));
-        $this->assertNull(DoctorSchema::widthOf('text'));
-        $this->assertNull(DoctorSchema::widthOf(''));
+        $this->assertNull(SchemaLimits::widthOf('varchar'));
+        $this->assertNull(SchemaLimits::widthOf('text'));
+        $this->assertNull(SchemaLimits::widthOf(''));
     }
 
     /**
@@ -193,7 +294,7 @@ class ColumnWidthTest extends TestCase
         // somebody else's - dropping `entry_slugs.slug` from the doctor passed.
         $checked = array_map(
             fn (array $one) => $one[2] . '::' . $one[3],
-            DoctorSchema::expectations()
+            SchemaLimits::expectations()
         );
 
         // Limits on a **rule** rather than widths of a column, so there is
@@ -203,7 +304,14 @@ class ColumnWidthTest extends TestCase
             Enquiry::class . '::GUESTS_MAX',         // a small integer
         ];
 
-        $models = [Enquiry::class, Module::class, ModuleSlug::class, EntrySlug::class, Redirect::class, User::class];
+        // **Every model, read off disk.** A hand-written list would reproduce
+        // at this level the gap this test exists to close: the seventh model's
+        // constant would be invisible to the thing that checks constants.
+        $models = collect(File::files(app_path('Models')))
+            ->map(fn ($file) => 'App\\Models\\' . $file->getFilenameWithoutExtension())
+            ->all();
+
+        $this->assertGreaterThan(5, count($models), 'The models stopped being readable from disk.');
 
         foreach ($models as $model)
         {

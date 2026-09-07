@@ -2,6 +2,7 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 /**
@@ -39,8 +40,33 @@ return new class extends Migration
         });
     }
 
+    /**
+     * **Narrowing, which is the direction that can lose something.**
+     *
+     * `up()` is safe because widening never drops a character. Going back is
+     * not: by then a visitor may have written from a page whose address is
+     * longer than 512, and a rename may have recorded one. MySQL in strict mode
+     * would answer 1406 half way through and leave one table changed and the
+     * other not; a server that is not strict would truncate a redirect to an
+     * address that goes somewhere else.
+     *
+     * So it refuses rather than guesses, and says what to do about it.
+     */
     public function down(): void
     {
+        foreach ([['enquiries', 'source_url'], ['redirects', 'from_path'], ['redirects', 'to_path']] as [$table, $column])
+        {
+            $longest = (int) DB::table($table)->max(DB::raw("char_length({$column})"));
+
+            if ($longest > 512)
+            {
+                throw new RuntimeException(
+                    "Cannot roll back: {$table}.{$column} holds a value of {$longest} characters, "
+                    . 'and this would narrow the column to 512. Shorten or delete those rows first.'
+                );
+            }
+        }
+
         Schema::table('enquiries', function (Blueprint $table)
         {
             $table->string('source_url', 512)->nullable()->change();

@@ -173,14 +173,14 @@ JS tests sit **beside** their source as `resources/js/lib/*.test.js`.
 ## Commands
 
 ```bash
-php artisan test                    # 497 tests
+php artisan test                    # 502 tests
 npm test                            # 214 tests
 npm run build
 php artisan schema:sync-field-types # after changing field type constants
 php artisan pages:warm              # bake the public site to files (#97) - THE DEPLOY STEP
 php artisan pages:flush             # empty it
 php artisan pages:doctor            # is the web server actually serving them?
-php artisan schema:doctor           # is every column wide enough for its rule? (#98)
+php artisan schema:doctor           # can the database and PHP hold what the code allows? (#98)
 ```
 
 Checking the live app needs a session. This exact sequence works — the token
@@ -245,7 +245,7 @@ Started from a repo that would not boot (eight files of merge conflicts).
 Worked through a prioritised list; every item is either done or recorded in
 `CHANGELOG.md` with its reasoning.
 
-- **497 PHP tests, 214 JS tests**, all passing. Build clean.
+- **502 PHP tests, 214 JS tests**, all passing. Build clean.
 - **The project has a commercial goal as of 2026-08-30**, and it now decides
   what gets worked on. A multilingual CMS that feeds client sites, owned
   outright, for a one-person web agency: **one installation per client site**,
@@ -339,7 +339,12 @@ Worked through a prioritised list; every item is either done or recorded in
     release that changes a template leaves every page on disk serving the old
     markup, and there is no expiry underneath; warming notices and rebuilds.
     Run the doctor after a deployment to a new server too, because a missing
-    rewrite breaks nothing and silently sends every page back through PHP. Forms are a JS island (`public/forms.js`, `data-cms-form`), so
+    rewrite breaks nothing and silently sends every page back through PHP.
+    **`schema:doctor` belongs in the same step** (#98): it refuses when a column
+    is narrower than the rule that fills it, when a column an expectation names
+    is not there at all, or when PHP's own upload limits are below what the
+    panel accepts — none of which any test can see, because a constant does not
+    alter a table that exists and nothing here edits a server's `php.ini`. Forms are a JS island (`public/forms.js`, `data-cms-form`), so
     **§25's rule is reversed on purpose**: a page with a form *is* baked. Do
     not put `@csrf` back into `site/theme/enquiry.blade.php` — and the guard
     that refuses to bake a page carrying a token is still there and still

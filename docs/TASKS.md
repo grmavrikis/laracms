@@ -1392,7 +1392,7 @@ them, and the framework carries its own copies as a search path underneath
 `lang/`, so English is unchanged.
 
 **What shipped.** `lang/el/validation.php` for the rules both surfaces use, and
-`StoreEnquiryRequest::attributes()` for the names {D} the labels are declared
+`StoreEnquiryRequest::attributes()` for the names — the labels are declared
 once in the request rather than per locale, so a language a client's site has
 gets them too. The keys are core's own (*Full name*, *Arrival date*) rather
 than the theme's *Name* and *Arrival*, because `TranslationTest` refuses a key
@@ -1403,14 +1403,14 @@ place.
 **Found live, not by the tests**: `after_or_equal:today` interpolates `:date`
 with the rule's own parameter, so the Greek sentence ended *«…μεταγενέστερη της
 today»*. It has a written-out message now, like the rule beside it. The test
-that missed it asked only whether a message *contains* Greek {D} which is true
+that missed it asked only whether a message *contains* Greek — which is true
 of an English sentence around a Greek label, and is the whole shape of this
 finding. It now refuses any Latin word outside a named list of loanwords.
 
 **Still open, one screen over**: the panel's entry form reports against
 `data.title`, so a Greek reader gets *«Το πεδίο data.title είναι
 υποχρεωτικό»*. It reads under the field it belongs to, which is why #99 scoped
-the `attributes` half to the enquiry form {D} but it is the same mechanism and
+the `attributes` half to the enquiry form — but it is the same mechanism and
 about five lines in the Entry requests. Worth doing with #104's neighbours.
 
 ### 100. The owner's notification will be sent in the visitor's language — P2
