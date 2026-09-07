@@ -1161,11 +1161,21 @@ the migration could not see it — onto the model. A migration narrows
 `enquiries.name` and `email` to the rules that fill them, checked against the
 live data first and read back afterwards: 120, 180, 40, 512.
 
-**The test could not read a column's width, and the reason is worth keeping.**
+**The test could not read a column's width, and that shaped the design.**
 Laravel's SQLite grammar writes `varchar` with no length at all
-(`SQLiteGrammar::typeString`), so the suite's driver has nothing to report.
-Three of the four drift paths are closed by tests; the fourth — a column that
-already exists — is what `php artisan migrate` is for, and was verified live.
+(`SQLiteGrammar::typeString`), so the suite's driver has nothing to report. The
+first version answered this by having the migrations read the constants, which
+the review reversed: a migration is a record of what the schema became on the
+day it ran, and one that reads a constant means something different on a fresh
+database than on one that has already run it. **The literals are back, and
+`php artisan schema:doctor` is what compares the columns to the constants** —
+run it on a deployment, beside `pages:doctor`.
+
+**Two numbers were below a sum nobody had done**, found by the review: a public
+path reaches 518 characters, so `redirects.from_path` at 512 could not record
+where a renamed module's longest pages went, and `enquiries.source_url` at 512
+made a page with long slugs refuse every enquiry sent from it. 640 and 2048 now,
+with the sums asserted rather than the numbers.
 
 It was **fourteen** test files rather than eight by the time this ran, and they
 share `TestCase::languages('el', 'en')` now. The default is only claimed when

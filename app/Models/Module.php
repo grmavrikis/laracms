@@ -15,13 +15,18 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class Module extends Model
 {
     /**
-     * The width of `modules.name` and `modules.slug`, and of the per-language
-     * pair in `module_slugs` (TASKS.md #98).
+     * The width of `modules.name` and `modules.slug` - **the panel's** name and
+     * route key (TASKS.md #98).
      *
      * `SLUG_MAX_LENGTH` used to be private to `ModuleController`, where the
-     * migration that creates the column could not see it. It belongs to the
+     * command that checks the column could not see it. It belongs to the
      * column, so it lives with the model that owns it - the same place
      * `User::LOCALE_MAX_LENGTH` went when #76 came up in #96.
+     *
+     * **What a visitor reads is `ModuleSlug`'s**, and its widths are declared
+     * there. #114 spent a whole item separating those two ideas; sharing one
+     * number here would have quietly rejoined them, so that a client wanting a
+     * longer public title would widen the panel's key with it.
      */
     public const NAME_MAX_LENGTH = 255;
 

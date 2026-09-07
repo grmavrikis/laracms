@@ -39,8 +39,8 @@ return new class extends Migration
             $table->string('language_code', 5);
 
             // What the visitor reads. `modules.name` is what the panel reads.
-            $table->string('name', Module::NAME_MAX_LENGTH);
-            $table->string('slug', Module::SLUG_MAX_LENGTH);
+            $table->string('name', 255);
+            $table->string('slug', 255);
 
             // A module has one address per language, and no two modules share
             // one: this is the first segment of the path, so `/fr/prestations`

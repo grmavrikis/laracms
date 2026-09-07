@@ -57,7 +57,17 @@ class Enquiry extends Model
 
     public const PHONE_MAX_LENGTH = 40;
 
-    public const SOURCE_URL_MAX_LENGTH = 512;
+    /**
+     * **Wide enough for the addresses this application itself generates.**
+     *
+     * The form fills this with `url()->current()`, so the value is a scheme, a
+     * host and `/{language}/{module}/{slug}` - and the two slug columns are 255
+     * each. At 512 a site with long slugs refused *every* enquiry from such a
+     * page, with a message naming a hidden field the visitor cannot see or fix.
+     * 2048 is the conventional practical ceiling for a URL and leaves the sum
+     * far behind.
+     */
+    public const SOURCE_URL_MAX_LENGTH = 2048;
 
     /**
      * **A rule rather than a width.** The column is `text`, which holds far

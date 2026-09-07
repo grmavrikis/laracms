@@ -1,6 +1,5 @@
 <?php
 
-use App\Models\Enquiry;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
@@ -26,11 +25,16 @@ return new class extends Migration
         {
             $table->id();
 
-            // The widths are the model's, so the column and the rule that
-            // fills it cannot drift apart (TASKS.md #98).
-            $table->string('name', Enquiry::NAME_MAX_LENGTH);
-            $table->string('email', Enquiry::EMAIL_MAX_LENGTH);
-            $table->string('phone', Enquiry::PHONE_MAX_LENGTH)->nullable();
+            // **Literals, deliberately** (TASKS.md #98). A migration is a
+            // record of what the schema became on the day it ran, and reading
+            // a constant would make that record change underneath every
+            // installation that has already run it: a fresh database would get
+            // the new width and an existing one would keep the old, from the
+            // same code. The constants live on `Enquiry`, the rules read them,
+            // and `schema:doctor` is what compares the two.
+            $table->string('name', 120);
+            $table->string('email', 180);
+            $table->string('phone', 40)->nullable();
             $table->text('message');
 
             // An enquiry is not a booking: somebody asking "do you have
@@ -42,7 +46,7 @@ return new class extends Migration
 
             // What the server knows rather than what was typed.
             $table->string('language_code', 5);
-            $table->string('source_url', Enquiry::SOURCE_URL_MAX_LENGTH)->nullable();
+            $table->string('source_url', 512)->nullable();
 
             // The moment consent was given, not a boolean somebody could flip
             // afterwards. Without it there is no lawful basis for the row.

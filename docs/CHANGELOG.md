@@ -3924,3 +3924,69 @@ baked Greek home page carries `maxlength="120"`, `"180"`, `"40"`, `"4000"` and
 
 482 PHP tests, 214 JS tests, build clean.
 
+### The review of it found nine
+
+**The migrations were reading the constants, and that was the wrong direction.**
+A migration is a record of what the schema became on the day it ran; one that
+reads `Enquiry::NAME_MAX_LENGTH` means something different tomorrow. Widen the
+constant without an ALTER and `migrate:fresh` gives every new client the new
+column while the client running since August keeps the old one — from the same
+code, with validation accepting what one database refuses. That is the original
+defect made environment-dependent, and the developer's own machine is always the
+correct one.
+
+So the literals are back, and the gap they leave — a column that already
+exists — is now a command rather than a hope. **`php artisan schema:doctor`**
+reads the live schema and refuses when a column is narrower than the constant
+that fills it; it belongs beside `pages:doctor` on a deployment. Proved live by
+narrowing `enquiries.name` to 100 behind its back:
+
+```
+These columns are narrower than what may be written into them:
+  - enquiries.name holds 100, and the rule allows 120
+```
+
+It answers honestly where it cannot answer: SQLite records no width at all, so
+on that driver it says how many columns it could not check instead of passing.
+What the suite *can* test is its reading of a type, and — by reflection —
+that every width constant is on its list.
+
+**Two numbers were below a sum nobody had done.** A public path is
+`/{language}/{module}/{slug}`: five characters of language code and two
+slugs of 255, which is 518. At 512, `redirects.from_path` could not record where
+a renamed module's longest pages went — logged and skipped, so those addresses
+stayed dead — and `enquiries.source_url`, which the form fills with
+`url()->current()`, made a page with long slugs refuse **every** enquiry sent
+from it, naming a hidden field the visitor can neither see nor fix. 640 and 2048
+now, with a migration widening both, and the tests assert the sums rather than
+the numbers.
+
+**`email` was never tested, and a comment said it was.** The bounded fields were
+name, phone, message and source_url; the comment explaining email's absence
+claimed "the refusal test above" covered it, and that test iterated the same
+list. Removing `max:` from the email rule passed the whole suite. It is a data
+provider now — which also names the field that fails instead of stopping at the
+first one — and email is a case like the rest.
+
+**Core's test was asserting the client's layout.** It fetched `/el` and expected
+the form's inputs there, so the second theme to move its contact form off the
+home page would fail a test in core about column widths. It renders
+`theme::enquiry` directly now.
+
+The rest were smaller and in the same direction: the upload ceiling had been
+named and then left with no test at all, so the rule could lose `max:` entirely
+— it has four now, including a stranger being refused; `Module::NAME_MAX_LENGTH`
+was governing both the panel's name and the public one, which quietly rejoined
+the two ideas #114 spent an item separating, so `ModuleSlug` has its own; and
+the migration-source assertion went with the literals it was policing.
+
+Seven mutations, and one survived: dropping a column from the doctor's list
+changed nothing, because the coverage test compared **values** and 255 appears
+five times. It compares `Model::CONSTANT` names now, and bites. A warning also
+turned up on the way — the data provider supplied three arguments to a
+two-argument test, which PHPUnit reports and which had the suite exiting 1 while
+printing 493 passed.
+
+497 PHP tests, 214 JS tests, build clean. `schema:doctor` green against MySQL,
+72 pages re-warmed.
+

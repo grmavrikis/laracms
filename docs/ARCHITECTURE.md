@@ -1265,13 +1265,36 @@ the one form open to strangers, and invisible to the SQLite the suite runs on.
 | `Entry::PER_PAGE` (15), `Enquiry::PER_PAGE` (20) | the two listings |
 | `UploadController::MAX_KILOBYTES` | the upload rule |
 
-`ColumnWidthTest` pins three of the four ways these drift: the rule outgrowing
-the constant (refusals over HTTP), the migration outgrowing it (the migration
-source names the constant), and the form outgrowing it (the rendered
-`maxlength`). **The fourth is invisible to any test** — a column that already
-exists does not change when a constant does — which is what
-`2026_09_07_140000_narrow_enquiry_columns_to_their_rules` is for, and why the
-live widths were read by hand after it ran: 120, 180, 40, 512.
+**The migrations hold literals, deliberately.** A migration is a record of
+what the schema became on the day it ran; one that read a constant would mean
+something different on a fresh database than on one that had already run it, so
+`migrate:fresh` and an upgraded installation could end up with different columns
+from the same code {D} the original defect, made environment-dependent.
+
+That leaves one gap that no test can close, because editing a constant does not
+alter a column that already exists. **`php artisan schema:doctor`** is what
+closes it: it reads the live schema and refuses when a column is narrower than
+the constant that fills it. Run it on a deployment, beside `pages:doctor`. It
+says so honestly where it cannot answer {D} SQLite records no width at all
+(Laravel's grammar writes `varchar` with no length), so on that driver it
+reports nothing rather than passing.
+
+`ColumnWidthTest` covers what remains: the rule outgrowing the constant
+(refusals over HTTP, one case per field), the form outgrowing it (the rendered
+`maxlength`, read from the partial rather than from a page, because where a
+theme puts its form is the theme's business), the doctor's reading of a column
+type, and {D} by reflection {D} that **every** width constant is on the doctor's
+list. That last one is by *name*: several of these are 255, so a list of values
+called a constant covered when what covered it was somebody else's.
+
+**Two numbers were below a sum nobody had done.** A public path is
+`/{{language}}/{{module}}/{{slug}}`, which reaches 518 characters, and the
+enquiry form stores that address with a scheme and a host in front of it. At
+512, `redirects.from_path` could not record where a renamed module's pages went
+(logged and skipped, so the old address stayed dead), and `enquiries.source_url`
+made a page with long slugs refuse **every** enquiry sent from it {D} naming a
+hidden field the visitor can neither see nor fix. They are 640 and 2048 now, and
+two tests assert the sums rather than the numbers.
 
 The two page sizes were different for no stated reason. They still differ, and
 now say why: an inbox is read top-down, an entries table is **reordered by

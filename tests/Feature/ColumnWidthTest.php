@@ -2,12 +2,17 @@
 
 namespace Tests\Feature;
 
+use App\Console\Commands\DoctorSchema;
 use App\Models\Enquiry;
 use App\Models\EntrySlug;
 use App\Models\Module;
+use App\Models\ModuleSlug;
+use App\Models\Redirect;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Routing\Middleware\ThrottleRequests;
-use Illuminate\Support\Facades\File;
+use PHPUnit\Framework\Attributes\DataProvider;
+use ReflectionClass;
 use Tests\TestCase;
 
 /**
@@ -21,22 +26,25 @@ use Tests\TestCase;
  * **1406** on the insert, which is a 500 on the public form: TASKS.md #76,
  * again, in the one place the application accepts writes from strangers.
  *
- * ### What this can and cannot prove
+ * ### Where each half is kept honest
  *
- * The suite runs on SQLite, and Laravel's SQLite grammar writes `varchar` with
- * **no length at all** (`SQLiteGrammar::typeString`), so there is no declared
- * width here to read back. Three of the four drift paths are still closed:
+ * The limits are constants on the models. The columns are **literals in the
+ * migrations**, because a migration is a record of what the schema became on
+ * the day it ran - one that read a constant would mean something different on
+ * a fresh database than on one that had already run it, and the two would
+ * diverge in silence.
  *
  * | Drift | Closed by |
  * |---|---|
  * | the rule outgrows the constant | the refusals below, over HTTP |
- * | the migration outgrows the constant | the source assertions below |
  * | the form outgrows the constant | the rendered `maxlength` below |
- * | **a column already created stays narrow** | `php artisan migrate` |
+ * | a constant outgrows the column | **`schema:doctor`**, run on a deployment |
+ * | a new constant nobody checks | the reflection test below |
  *
- * The fourth is the one no test can see, because editing a constant does not
- * alter a table that already exists. That is what the migration beside this
- * change is for, and the live widths were read by hand after it ran.
+ * The third cannot be a test: SQLite records no width at all (Laravel's grammar
+ * writes `varchar` with no length), so the suite's own driver has nothing to
+ * compare. What *can* be tested here is the command's reading of a type, and
+ * that every width constant is on its list.
  */
 class ColumnWidthTest extends TestCase
 {
@@ -48,8 +56,8 @@ class ColumnWidthTest extends TestCase
 
         $this->languages('el');
 
-        // Every refusal below is a separate post, and the form allows five an
-        // hour per address. What the limiter does is `EnquiryTest`'s subject.
+        // Each case below is a separate post, and the form allows five an hour
+        // per address. What the limiter does is `EnquiryTest`'s subject.
         $this->withoutMiddleware(ThrottleRequests::class);
     }
 
@@ -65,16 +73,28 @@ class ColumnWidthTest extends TestCase
     }
 
     /**
-     * @return array<string, array{0: string, 1: int}> field => [what a long
-     *                                                 value looks like, limit]
+     * Every bounded field, and a value of exactly its limit.
+     *
+     * `email` has to be built rather than repeated, and the first version of
+     * this file left it out for that reason - with a comment saying another
+     * test covered it, which was true of no test in the file. A data provider
+     * rather than a loop, so a field that breaks is named by the failure
+     * instead of stopping the ones after it.
+     *
+     * @return array<string, array{0: string, 1: string, 2: int}>
      */
     public static function boundedFields(): array
     {
         return [
-            'name' => ['a', Enquiry::NAME_MAX_LENGTH],
-            'phone' => ['9', Enquiry::PHONE_MAX_LENGTH],
-            'message' => ['x', Enquiry::MESSAGE_MAX_LENGTH],
-            'source_url' => ['u', Enquiry::SOURCE_URL_MAX_LENGTH],
+            'name' => ['name', str_repeat('α', Enquiry::NAME_MAX_LENGTH), Enquiry::NAME_MAX_LENGTH],
+            'email' => ['email', str_repeat('a', Enquiry::EMAIL_MAX_LENGTH - 12) . '@example.com', Enquiry::EMAIL_MAX_LENGTH],
+            'phone' => ['phone', str_repeat('9', Enquiry::PHONE_MAX_LENGTH), Enquiry::PHONE_MAX_LENGTH],
+            'message' => ['message', str_repeat('x', Enquiry::MESSAGE_MAX_LENGTH), Enquiry::MESSAGE_MAX_LENGTH],
+            'source_url' => [
+                'source_url',
+                'https://example.com/' . str_repeat('u', Enquiry::SOURCE_URL_MAX_LENGTH - 20),
+                Enquiry::SOURCE_URL_MAX_LENGTH,
+            ],
         ];
     }
 
@@ -83,75 +103,42 @@ class ColumnWidthTest extends TestCase
      * the answer a form can show - rather than reaching a column that cannot
      * hold it.
      */
-    public function test_a_value_over_the_limit_is_refused_not_stored(): void
+    #[DataProvider('boundedFields')]
+    public function test_a_value_over_the_limit_is_refused_not_stored(string $field, string $atTheLimit, int $limit): void
     {
-        foreach (self::boundedFields() as $field => [$character, $limit])
-        {
-            $this->postJson('/el/enquiries', $this->enquiry([$field => str_repeat($character, $limit + 1)]))
-                ->assertStatus(422)
-                ->assertJsonValidationErrors($field);
-        }
+        $this->assertSame($limit + 1, mb_strlen($atTheLimit . 'x'));
+
+        $this->postJson('/el/enquiries', $this->enquiry([$field => $atTheLimit . 'x']))
+            ->assertStatus(422)
+            ->assertJsonValidationErrors($field);
 
         $this->assertSame(0, Enquiry::count());
     }
 
     /** And exactly the limit is accepted, so the constant is not one off. */
-    public function test_a_value_at_the_limit_is_accepted(): void
+    #[DataProvider('boundedFields')]
+    public function test_a_value_at_the_limit_is_accepted(string $field, string $atTheLimit, int $limit): void
     {
-        foreach (self::boundedFields() as $field => [$character, $limit])
-        {
-            $value = str_repeat($character, $limit);
+        $this->assertSame($limit, mb_strlen($atTheLimit), 'This case builds a value that is not the limit long.');
 
-            // `email` is bounded too but cannot be a run of one character; it
-            // is covered by the refusal test above.
-            $this->postJson('/el/enquiries', $this->enquiry([$field => $value]))
-                ->assertOk();
+        $this->postJson('/el/enquiries', $this->enquiry([$field => $atTheLimit]))->assertOk();
 
-            $this->assertSame($value, Enquiry::query()->latest('id')->first()->{$field});
-        }
+        $this->assertSame($atTheLimit, Enquiry::sole()->{$field});
     }
 
     /**
-     * **The migration reads the constant**, so a fresh installation cannot get
-     * a column narrower than the rule that fills it. A literal here is how the
-     * two drifted apart in the first place.
-     */
-    public function test_the_migrations_name_the_constants(): void
-    {
-        $expected = [
-            'enquiries' => [
-                'Enquiry::NAME_MAX_LENGTH',
-                'Enquiry::EMAIL_MAX_LENGTH',
-                'Enquiry::PHONE_MAX_LENGTH',
-                'Enquiry::SOURCE_URL_MAX_LENGTH',
-            ],
-            'entry_slugs' => ['EntrySlug::SLUG_MAX_LENGTH'],
-            'module_slugs' => ['Module::NAME_MAX_LENGTH', 'Module::SLUG_MAX_LENGTH'],
-        ];
-
-        foreach ($expected as $table => $constants)
-        {
-            $source = $this->migrationFor($table);
-
-            foreach ($constants as $constant)
-            {
-                $this->assertStringContainsString(
-                    $constant,
-                    $source,
-                    "The migration for `{$table}` writes a width by hand instead of reading {$constant}."
-                );
-            }
-        }
-    }
-
-    /**
-     * **The form stops at the same number.** A `maxlength` above the rule lets
+     * **The form stops where the rules do.** A `maxlength` above the rule lets
      * a visitor type a message that is refused when they press Send; below it,
      * the browser silently truncates what they wrote.
+     *
+     * The partial is rendered on its own rather than fetched from `/el`:
+     * **where a client puts their contact form is the theme's decision** (#61),
+     * and core's suite asserting it is on the home page would fail for the
+     * second theme that moves it.
      */
     public function test_the_form_stops_where_the_rules_do(): void
     {
-        $html = $this->get('/el')->assertOk()->getContent();
+        $html = view('theme::enquiry')->render();
 
         $widths = [
             'name' => Enquiry::NAME_MAX_LENGTH,
@@ -172,19 +159,106 @@ class ColumnWidthTest extends TestCase
         $this->assertStringContainsString('max="' . Enquiry::GUESTS_MAX . '"', $html);
     }
 
-    /** The migration that creates `$table`, whatever it is called. */
-    private function migrationFor(string $table): string
-    {
-        foreach (File::files(database_path('migrations')) as $file)
-        {
-            $source = File::get($file->getPathname());
+    // ------------------------------------------------- what the doctor reads
 
-            if (str_contains($source, "Schema::create('{$table}'"))
+    /**
+     * The command's own reading of a column type, which is the half of it the
+     * suite's driver can exercise: SQLite reports `varchar` with no length, so
+     * the comparison itself never runs here.
+     */
+    public function test_a_declared_width_is_read_out_of_a_column_type(): void
+    {
+        $this->assertSame(120, DoctorSchema::widthOf('varchar(120)'));
+        $this->assertSame(5, DoctorSchema::widthOf('CHAR(5)'));
+        $this->assertSame(2048, DoctorSchema::widthOf('varchar(2048) COLLATE utf8mb4_bin'));
+
+        // Nothing to compare against, which has to read as "unknown" rather
+        // than as zero - a zero would report every column as too narrow.
+        $this->assertNull(DoctorSchema::widthOf('varchar'));
+        $this->assertNull(DoctorSchema::widthOf('text'));
+        $this->assertNull(DoctorSchema::widthOf(''));
+    }
+
+    /**
+     * **Every width constant is on the doctor's list.**
+     *
+     * Adding one and forgetting to check it is the same gap one level up: the
+     * rule would grow, the column would not, and nothing would say so. Read by
+     * reflection, so a constant added tomorrow is covered today.
+     */
+    public function test_no_width_constant_is_left_unchecked(): void
+    {
+        // **By name, not by value.** Several of these are 255, so a list of
+        // numbers said a constant was covered when what was covering it was
+        // somebody else's - dropping `entry_slugs.slug` from the doctor passed.
+        $checked = array_map(
+            fn (array $one) => $one[2] . '::' . $one[3],
+            DoctorSchema::expectations()
+        );
+
+        // Limits on a **rule** rather than widths of a column, so there is
+        // nothing for the doctor to compare them against.
+        $notColumns = [
+            Enquiry::class . '::MESSAGE_MAX_LENGTH', // the column is `text`
+            Enquiry::class . '::GUESTS_MAX',         // a small integer
+        ];
+
+        $models = [Enquiry::class, Module::class, ModuleSlug::class, EntrySlug::class, Redirect::class, User::class];
+
+        foreach ($models as $model)
+        {
+            foreach ((new ReflectionClass($model))->getConstants() as $name => $value)
             {
-                return $source;
+                if (!str_ends_with($name, '_MAX_LENGTH') && !str_ends_with($name, '_MAX'))
+                {
+                    continue;
+                }
+
+                $this->assertTrue(
+                    in_array("{$model}::{$name}", $checked, true)
+                        || in_array("{$model}::{$name}", $notColumns, true),
+                    "{$model}::{$name} is a limit that `schema:doctor` never compares against a column."
+                );
             }
         }
+    }
 
-        $this->fail("No migration creates `{$table}`.");
+    // ------------------------------- numbers that have to clear a calculation
+
+    /**
+     * **A redirect can hold the longest address this site can make.**
+     *
+     * It was 512 while that address is 518 - a language code, two slugs of 255
+     * and their slashes - so a rename of a module with long slugs logged and
+     * skipped the redirects for its pages, and those addresses stayed dead. The
+     * sum is the assertion; the constant is only where the answer is kept.
+     */
+    public function test_a_redirect_can_hold_the_longest_address_the_site_can_make(): void
+    {
+        $longest = 1 + 5 + 1 + ModuleSlug::SLUG_MAX_LENGTH + 1 + EntrySlug::SLUG_MAX_LENGTH;
+
+        $this->assertGreaterThanOrEqual(
+            $longest,
+            Redirect::PATH_MAX_LENGTH,
+            'A rename of a module with the longest slugs it allows cannot record where its pages went.'
+        );
+    }
+
+    /**
+     * And the hidden field the enquiry form fills with `url()->current()`,
+     * which is that same path with a scheme and a host in front of it. At 512
+     * a page with long slugs refused **every** enquiry sent from it, naming a
+     * field the visitor can neither see nor fix.
+     */
+    public function test_an_enquiry_can_hold_the_address_of_the_page_it_came_from(): void
+    {
+        $host = 253; // the longest a hostname may be
+        $longest = strlen('https://') + $host + 1 + 5 + 1 + ModuleSlug::SLUG_MAX_LENGTH + 1 + EntrySlug::SLUG_MAX_LENGTH;
+
+        $this->assertGreaterThanOrEqual(
+            $longest,
+            Enquiry::SOURCE_URL_MAX_LENGTH,
+            'A visitor writing from a page with long slugs is refused over a field they cannot see.'
+        );
     }
 }

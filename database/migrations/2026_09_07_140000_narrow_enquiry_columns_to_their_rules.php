@@ -1,6 +1,5 @@
 <?php
 
-use App\Models\Enquiry;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
@@ -34,8 +33,8 @@ return new class extends Migration
         // in-memory database sees this at all.
         Schema::table('enquiries', function (Blueprint $table)
         {
-            $table->string('name', Enquiry::NAME_MAX_LENGTH)->change();
-            $table->string('email', Enquiry::EMAIL_MAX_LENGTH)->change();
+            $table->string('name', 120)->change();
+            $table->string('email', 180)->change();
         });
     }
 

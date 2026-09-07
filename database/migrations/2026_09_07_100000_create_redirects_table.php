@@ -1,6 +1,5 @@
 <?php
 
-use App\Models\Redirect;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
@@ -32,17 +31,16 @@ return new class extends Migration
              * 512 rather than the usual 255, and rather than more.
              *
              * A path is a language code, a module slug and an entry slug, and
-             * the two slug columns are 255 each - so the longest address this
-             * application can generate is about 518 characters. Anything above
-             * this is refused by `Redirects::remember` and logged, because
-             * `from_path` is a unique index and InnoDB caps a key at 3072
-             * bytes: utf8mb4 makes 512 characters 2048 of them, and 768 would
-             * be exactly at the edge. A redirect that cannot be recorded must
-             * never cost the author their rename.
+             * `from_path` is a unique index, which InnoDB caps at 3072 bytes -
+             * utf8mb4 makes 768 characters exactly that. A redirect that cannot
+             * be recorded must never cost the author their rename, so anything
+             * longer is logged and skipped by `Redirects::remember`.
              *
-             * The number is the model's, not this file's (#98): the service
-             * refuses above the same length, and two numbers that have to
-             * agree are one.
+             * **512 turned out to be under the sum**, and the migration beside
+             * this one widens it: see `Redirect::PATH_MAX_LENGTH`. A literal
+             * here, like every other width, because a migration records what
+             * the schema became on the day it ran; `schema:doctor` is what
+             * compares the columns to the constants.
              *
              * **Binary collation**, so both engines agree. MySQL's default is
              * case-insensitive and SQLite's is not, which would make `/Rooms`
@@ -52,8 +50,8 @@ return new class extends Migration
              * exact matching is also what a visitor's address means.
              * SQLite ignores the modifier.
              */
-            $from = $table->string('from_path', Redirect::PATH_MAX_LENGTH);
-            $to = $table->string('to_path', Redirect::PATH_MAX_LENGTH);
+            $from = $table->string('from_path', 512);
+            $to = $table->string('to_path', 512);
 
             // Named only where it is needed. SQLite compares text byte by byte
             // already and rejects the name outright - `no such collation
