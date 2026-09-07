@@ -10,6 +10,7 @@ use App\Services\SchemaRuleBuilder;
 use App\Services\StaticPages;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -124,24 +125,43 @@ class ModuleController extends Controller
 
         if (array_key_exists('schema', $validated))
         {
-            $this->refuseReshaping($module, $validated['schema']);
-
-            // A schema that cannot produce entry rules is not a usable schema,
-            // and the author should hear that here rather than the first time
-            // somebody tries to save an entry. The same check `store` makes,
-            // from the same builder.
+            // **The builder first.** It is what refuses a name used twice, and
+            // `refuseReshaping` keys the incoming schema by name - which keeps
+            // only the last of a repeated one, so it would compare against a
+            // collapsed view of what was actually sent. Nothing could get past
+            // both, but a guard whose correctness depends on a later check is
+            // a guard waiting for that check to move.
             SchemaRuleBuilder::build($validated['schema']);
 
-            // Through the model, so `StaticPageObserver` runs: every page under
-            // this module renders from the schema, and the baked ones were
-            // rendered from the previous one.
-            $module->update(['schema' => $validated['schema']]);
+            $this->refuseReshaping($module, $validated['schema']);
         }
 
-        if (array_key_exists('translations', $validated))
+        // **One write, or none.** `syncTranslations` deletes every slug row
+        // before re-inserting them, so a failure part way through left the
+        // module with fewer addresses than it had, or none - and since #114 a
+        // module with no addresses has no public page anywhere. That is
+        // TASKS.md #77 one level up, and `EntryController` wraps the identical
+        // delete-then-insert for the same reason.
+        DB::transaction(function () use ($module, $validated)
         {
-            $this->syncTranslations($module, $validated['translations']);
-        }
+            if (array_key_exists('schema', $validated))
+            {
+                $module->schema = $validated['schema'];
+            }
+
+            // Saved even when only the translations changed, and that is what
+            // drops the baked pages: `StaticPageObserver` runs on the save, and
+            // the row-level writes below fire no model events at all. One save
+            // covers both halves, where an explicit flush inside
+            // `syncTranslations` used to fire a second time on every schema
+            // change.
+            $module->save();
+
+            if (array_key_exists('translations', $validated))
+            {
+                $this->syncTranslations($module, $validated['translations']);
+            }
+        });
 
         return response()->json([
             'message' => __('Module updated.'),
@@ -259,7 +279,29 @@ class ModuleController extends Controller
     private function translationRules(?Module $module = null): array
     {
         return [
-            'translations' => 'sometimes|array',
+            // **The key is a language this site has.** `module_slugs.language_code`
+            // is `varchar(5)`, so an unchecked key longer than that is a 500 on
+            // MySQL rather than a 422 - and a short unknown one silently
+            // creates an address in a language nothing will ever serve.
+            // CHANGELOG §17 records exactly this for an entry's slugs; these
+            // were written without it.
+            //
+            // **Any** language rather than the active ones, unlike an entry's:
+            // the panel has to be able to translate into one that is not
+            // published yet, which is what #114's second step is for.
+            'translations' => ['sometimes', 'array', function (string $attribute, mixed $value, callable $fail): void
+            {
+                $known = Language::query()->pluck('code')->all();
+                $unknown = array_diff(array_keys((array) $value), $known);
+
+                if ($unknown !== [])
+                {
+                    $fail(__(":language is not one of this site's languages.", [
+                        'language' => implode(', ', $unknown),
+                    ]));
+                }
+            }],
+
             'translations.*.name' => 'required|string|max:255',
             'translations.*.slug' => [
                 'nullable',
@@ -304,17 +346,11 @@ class ModuleController extends Controller
             return;
         }
 
-        // **Before the delete, and it has to be here.** A rename moves every
-        // address under this module, and nothing else notices: the delete
-        // below is a mass delete, which fires no model events, and the module
-        // row itself is never saved, so `StaticPageObserver` never runs. The
-        // old pages would stay on disk and the web server would go on serving
-        // them - found live, after the old French address answered 200 from a
-        // file nothing had any reason to remove.
-        //
-        // The same trap `EntryController::syncSlugs` carries a comment for.
-        app(StaticPages::class)->flush();
-
+        // The baked pages are dropped by whoever calls this - `store` by
+        // creating the module, `update` by saving it - because the writes
+        // below are row-level and fire no model events. This used to flush
+        // here as well, which meant every schema-and-rename save emptied the
+        // whole directory twice.
         $module->slugs()->delete();
 
         foreach ($translations as $language => $translation)

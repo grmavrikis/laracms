@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Entry;
 use App\Models\Language;
 use App\Models\Module;
+use App\Models\ModuleSlug;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -169,7 +170,180 @@ class ModuleSchemaEditTest extends TestCase
             ])->assertOk();
     }
 
+    /**
+     * **The cost the decision rests on**, asserted rather than only written
+     * down: an entry that predates a newly required field can no longer be
+     * saved until it is filled.
+     *
+     * Nothing is lost and un-requiring the field undoes it, which is why this
+     * was accepted - but if it silently stopped happening, a client who set a
+     * field required would go on saving incomplete entries believing
+     * otherwise, and only the documentation would say so.
+     */
+    public function test_making_a_field_required_stops_older_entries_saving(): void
+    {
+        $module = $this->aModule();
+
+        $entry = $module->entries()->create([
+            'user_id' => $this->owner->id,
+            'data' => ['title' => ['el' => 'Σουίτα']],
+            'status' => Entry::STATUS_DRAFT,
+        ]);
+
+        // Saveable before, with `price` left out entirely.
+        $this->actingAs($this->owner)
+            ->putJson("/api/modules/rooms/entries/{$entry->id}", ['data' => ['title' => ['el' => 'Σουίτα']]])
+            ->assertOk();
+
+        $this->putSchema($module, [
+            ['name' => 'title', 'type' => 'string', 'translatable' => true],
+            ['name' => 'price', 'type' => 'string', 'translatable' => false, 'required' => true],
+        ])->assertOk();
+
+        $this->actingAs($this->owner)
+            ->putJson("/api/modules/rooms/entries/{$entry->id}", ['data' => ['title' => ['el' => 'Σουίτα']]])
+            ->assertStatus(422);
+    }
+
     // ------------------------------------------------------ what is refused
+
+    /**
+     * **An empty schema is refused, not ignored.** Laravel drops an empty
+     * array from `validated()`, so reading the key from there answered 200
+     * having done nothing - telling the caller their destructive request had
+     * succeeded. The same behaviour `SettingController` had to work around
+     * with `present`.
+     */
+    public function test_an_empty_schema_is_refused_rather_than_ignored(): void
+    {
+        $module = $this->aModule();
+
+        $this->putSchema($module, [])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('schema');
+
+        $this->assertSame(['title:string', 'price:string'], $this->schemaOf($module));
+    }
+
+    /**
+     * A payload naming one field twice is refused before the immutability
+     * check can be fooled by it: `keyBy('name')` keeps only the last of a
+     * repeated name, so the type comparison would otherwise run against a
+     * collapsed view of what was actually sent.
+     */
+    public function test_a_field_named_twice_is_refused(): void
+    {
+        $module = $this->aModule();
+
+        $this->putSchema($module, [
+            ['name' => 'title', 'type' => 'text', 'translatable' => true],
+            ['name' => 'title', 'type' => 'string', 'translatable' => true],
+            ['name' => 'price', 'type' => 'string', 'translatable' => false],
+        ])->assertStatus(422);
+
+        $this->assertSame(['title:string', 'price:string'], $this->schemaOf($module));
+    }
+
+    // ------------------------------------------------- one write, or none
+
+    /**
+     * **The schema and the addresses are one write.**
+     *
+     * `syncTranslations` deletes every slug row before re-inserting them, so a
+     * failure part way through left the module with fewer addresses than it
+     * had, or none - and since #114 a module with no addresses has no public
+     * page anywhere. TASKS.md #77 is the same defect one level down, and
+     * `EntryController` wraps the identical delete-then-insert for that reason.
+     *
+     * The insert is made to fail from a model event rather than by contriving
+     * a constraint violation, because the realistic trigger is a race the test
+     * cannot stage: another request taking `/fr/prestations` between this
+     * request's validation and its insert. What is being pinned is that *any*
+     * failure leaves the module as it was.
+     */
+    public function test_a_failed_save_leaves_the_module_as_it_was(): void
+    {
+        $module = $this->aModule();
+
+        $addresses = fn() => $module->fresh()->slugs()->orderBy('language_code')->pluck('slug', 'language_code')->all();
+
+        $before = $addresses();
+        $this->assertNotEmpty($before);
+
+        $written = 0;
+
+        ModuleSlug::creating(function () use (&$written)
+        {
+            if (++$written === 2)
+            {
+                throw new \RuntimeException('the second insert fails');
+            }
+        });
+
+        try
+        {
+            $this->actingAs($this->owner)->putJson("/api/modules/{$module->slug}", [
+                'translations' => [
+                    'el' => ['name' => 'Δωμάτια', 'slug' => 'domatia'],
+                    'en' => ['name' => 'Rooms', 'slug' => 'rooms-en'],
+                ],
+            ]);
+        }
+        catch (\Throwable $e)
+        {
+            // Failing is the point. What matters is what is left behind.
+        }
+
+        $this->assertSame(
+            $before,
+            $addresses(),
+            'A failed save left the module with a different set of addresses than it started with.'
+        );
+    }
+
+    /**
+     * **A translation key is a language this site has.**
+     *
+     * `module_slugs.language_code` is `varchar(5)` and nothing checked the
+     * keys, so a key longer than that was a **500 on MySQL** rather than a
+     * 422 - and a short unknown one silently created an address in a language
+     * nothing will ever serve. CHANGELOG §17 records exactly this for an
+     * entry's slugs; the module's translations were written without it.
+     *
+     * Membership rather than length, and **any** language rather than the
+     * active ones: the panel has to be able to translate into a language that
+     * is not published yet, which is the whole point of #114's second step.
+     */
+    public function test_a_translation_key_has_to_be_a_language_this_site_has(): void
+    {
+        $module = $this->aModule();
+
+        $this->actingAs($this->owner)->putJson("/api/modules/{$module->slug}", [
+            'translations' => ['not-a-language-code' => ['name' => 'Rooms']],
+        ])->assertStatus(422)->assertJsonValidationErrors('translations');
+
+        $this->actingAs($this->owner)->putJson("/api/modules/{$module->slug}", [
+            'translations' => ['de' => ['name' => 'Zimmer']],
+        ])->assertStatus(422);
+    }
+
+    public function test_a_language_that_is_not_published_yet_can_still_be_translated(): void
+    {
+        Language::create(['name' => 'German', 'code' => 'de', 'is_active' => false]);
+
+        $module = $this->aModule();
+
+        $this->actingAs($this->owner)->putJson("/api/modules/{$module->slug}", [
+            'translations' => [
+                'el' => ['name' => 'Δωμάτια'],
+                'de' => ['name' => 'Zimmer'],
+            ],
+        ])->assertOk();
+
+        $this->assertSame('zimmer', $module->fresh()->slugFor('de'));
+    }
+
+
 
     public function test_a_field_cannot_be_renamed(): void
     {

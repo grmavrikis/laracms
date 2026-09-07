@@ -1,10 +1,11 @@
 // resources/js/components/ModuleTranslator.jsx
-import { useState, useRef, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import api from '../lib/api';
 import { errorSummary } from '../lib/apiErrors';
 import { languagesFrom } from '../lib/languages';
 import { t } from '../lib/i18n';
 import { isGalleryField } from '../lib/gallery';
+import { emptyField, fieldsFromSchema, nextFieldId, applyFieldChange, schemaPayload } from '../lib/moduleFields';
 import ModuleTranslations, { translationsPayload, translationsFrom } from './ModuleTranslations';
 import ModuleFields from './ModuleFields';
 
@@ -28,23 +29,9 @@ export default function ModuleTranslator({ module, onSaved, onCancel }) {
     const [languages, setLanguages] = useState([]);
     const [translations, setTranslations] = useState(() => translationsFrom(module.slugs));
 
-    // The names that exist in the database right now. Captured once, so a
-    // field added in this session stays editable while the form is open and
-    // the ones that were already there stay locked.
-    const lockedNames = useRef(new Set((module.schema ?? []).map((f) => f.name))).current;
-    const nextId = useRef(1);
-
-    const [fields, setFields] = useState(() => (module.schema ?? []).map((f, i) => ({
-        _id: i,
-        name: f.name,
-        type: f.type,
-        translatable: !!f.translatable,
-        required: !!f.required,
-        validation: f.validation ?? '',
-        // The editor holds options as the comma-separated text somebody types;
-        // the API takes a list. Same shape the create screen uses.
-        options: Array.isArray(f.options) ? f.options.join(', ') : (f.options ?? ''),
-    })));
+    // Rows carry their own `locked`, set once from what was in the database
+    // when this opened. A field added now stays editable however it is named.
+    const [fields, setFields] = useState(() => fieldsFromSchema(module.schema));
     const [submitting, setSubmitting] = useState(false);
     const [errors, setErrors] = useState([]);
 
@@ -62,28 +49,12 @@ export default function ModuleTranslator({ module, onSaved, onCancel }) {
     const setTranslation = (code, key, value) =>
         setTranslations((prev) => ({ ...prev, [code]: { ...prev[code], [key]: value } }));
 
-    const addField = () =>
-        setFields((prev) => [...prev, {
-            _id: (nextId.current += 1) + prev.length + module.schema.length,
-            name: '', type: 'string', translatable: false, required: false, validation: '', options: '',
-        }]);
+    const addField = () => setFields((prev) => [...prev, emptyField(nextFieldId(prev))]);
 
     const removeField = (id) => setFields((prev) => prev.filter((f) => f._id !== id));
 
     const updateField = (id, key, value) =>
-        setFields((prev) => prev.map((f) => {
-            if (f._id !== id) return f;
-
-            const next = { ...f, [key]: value };
-
-            // A gallery cannot be translatable: the photographs are one set and
-            // only their alt text differs. `SchemaRuleBuilder` refuses the
-            // combination, so it is cleared here rather than assembling a
-            // schema the API will reject.
-            if (key === 'type' && isGalleryField(next)) next.translatable = false;
-
-            return next;
-        }));
+        setFields((prev) => applyFieldChange(prev, id, key, value, isGalleryField));
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -93,13 +64,7 @@ export default function ModuleTranslator({ module, onSaved, onCancel }) {
         try {
             const { data: body } = await api.put(`/modules/${module.slug}`, {
                 translations: translationsPayload(translations),
-                schema: fields.map(({ _id, ...rest }) => ({
-                    ...rest,
-                    validation: rest.validation.trim(),
-                    options: rest.type === 'select'
-                        ? (rest.options || '').split(',').map((o) => o.trim()).filter(Boolean)
-                        : undefined,
-                })),
+                schema: schemaPayload(fields),
             });
 
             onSaved?.(body.data);
@@ -146,7 +111,6 @@ export default function ModuleTranslator({ module, onSaved, onCancel }) {
                 onChange={updateField}
                 onAdd={addField}
                 onRemove={removeField}
-                lockedNames={lockedNames}
             />
 
             <div className="flex justify-end gap-3 border-t border-gray-200 pt-5">

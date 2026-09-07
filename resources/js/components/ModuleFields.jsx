@@ -21,14 +21,19 @@ const FIELD_TYPES = fieldTypes.supported.map((value) => ({
  * rejected. Everything else is editable after the fact: adding a field,
  * reordering, `required`, `validation` and a select's options.
  *
- * @param {Array<object>} fields       each with a client-side `_id`
- * @param {Function} onChange          `(id, key, value) => void`
+ * **A row's own `locked` flag decides**, not its name. Keying that on the
+ * name meant a *new* field locked itself the moment somebody typed a name that
+ * already existed - the input disabled itself mid-word, and it could then be
+ * neither corrected nor removed. Whether a row may change depends on whether
+ * it was in the database when this opened, which is a property of the row.
+ *
+ * @param {Array<object>} fields   rows from `lib/moduleFields`, each with `_id` and `locked`
+ * @param {Function} onChange      `(id, key, value) => void`
  * @param {Function} onAdd
- * @param {Function} onRemove          `(id) => void`
- * @param {Set<string>} lockedNames    fields that already exist in the database
+ * @param {Function} onRemove      `(id) => void`
  */
-export default function ModuleFields({ fields, onChange, onAdd, onRemove, lockedNames = new Set() }) {
-    const locked = (field) => lockedNames.has(field.name);
+export default function ModuleFields({ fields, onChange, onAdd, onRemove }) {
+    const locked = (field) => !!field.locked;
     const lockedReason = t('Entries have already been written against this field. Renaming, retyping or removing it needs a migration.');
 
     return (

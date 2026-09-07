@@ -718,7 +718,26 @@ discuss* now records as settled.
 
 One consequence is accepted knowingly: a field made required leaves every entry
 that lacks it unsaveable until it is filled. Nothing is lost, and it is what
-"required" means.
+"required" means — and `ModuleSchemaEditTest` asserts it rather than leaving it
+to the documentation.
+
+**The schema and the addresses are one write.** `update()` wraps them in a
+`DB::transaction`, because `syncTranslations` deletes every slug row before
+re-inserting: a failure part way through left the module with fewer addresses
+than it had, or none, and since #114 a module with no addresses has no public
+page anywhere. TASKS.md #77 is the same defect one level down. The module row
+is saved even when only the translations changed, and **that one save is what
+drops the baked pages** — the row-level writes underneath it fire no model
+events, and an explicit flush inside `syncTranslations` used to empty the
+directory a second time on every schema change.
+
+**A translation key is a language this site has.** `module_slugs.language_code`
+is `varchar(5)`, so an unchecked key longer than that was a 500 on MySQL rather
+than a 422, and a short unknown one silently created an address in a language
+nothing would serve — CHANGELOG §17 for an entry's slugs, missed when these
+were written. Membership of **any** language rather than the active ones,
+because the panel has to be able to translate into one that is not published
+yet.
 
 **The screen that reaches it** is `ModuleTranslator`, opened from *Rename* on
 each row of the module list. It shipped a commit late: the endpoint went in

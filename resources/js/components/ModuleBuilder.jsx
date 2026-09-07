@@ -1,11 +1,12 @@
 // resources/js/components/ModuleBuilder.jsx
-import { useState, useRef, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import api from '../lib/api';
 import { errorSummary } from '../lib/apiErrors';
 import { languagesFrom, defaultLangCode } from '../lib/languages';
 import ModuleTranslations, { translationsPayload } from './ModuleTranslations';
 import ModuleFields from './ModuleFields';
 import { isGalleryField } from '../lib/gallery';
+import { emptyField, nextFieldId, applyFieldChange, schemaPayload } from '../lib/moduleFields';
 import { t } from '../lib/i18n';
 
 // There is deliberately no slugify here. This component used to transliterate
@@ -14,8 +15,6 @@ import { t } from '../lib/i18n';
 // 'Ψυχαγωγία' became psychagogia instead of psikhaghoghia, and 'Café Münchén'
 // collapsed to caf-m-nch-n. The backend is the authority - leave the slug field
 // empty and it derives one from the name.
-const emptyField = () => ({ name: '', type: 'string', translatable: false, required: false, validation: '', options: '' });
-
 export default function ModuleBuilder({ onCreated, onCancel }) {
     // A name and an address per language (#114). `Str::slug` transliterates
     // rather than translates, so one name cannot produce three addresses -
@@ -24,10 +23,9 @@ export default function ModuleBuilder({ onCreated, onCancel }) {
     const [languagesError, setLanguagesError] = useState(null);
     const [translations, setTranslations] = useState({});
     const [isSingleton, setIsSingleton] = useState(false);
-    const [fields, setFields] = useState([{ _id: 0, ...emptyField() }]);
+    const [fields, setFields] = useState([emptyField(0)]);
     const [submitting, setSubmitting] = useState(false);
     const [errors, setErrors] = useState([]);
-    const nextId = useRef(1);
 
     useEffect(() => {
         // Every language, including ones not published yet: the agency adds
@@ -43,27 +41,16 @@ export default function ModuleBuilder({ onCreated, onCancel }) {
     const setTranslation = (code, key, value) =>
         setTranslations((prev) => ({ ...prev, [code]: { ...prev[code], [key]: value } }));
 
-    const addField = () =>
-        setFields((prev) => [...prev, { _id: nextId.current++, ...emptyField() }]);
+    // The three of these, and the payload below, live in `lib/moduleFields`
+     // so this screen and the edit screen cannot come to disagree about what a
+     // field is - which they already had, in the commit that created the
+     // second one.
+    const addField = () => setFields((prev) => [...prev, emptyField(nextFieldId(prev))]);
 
-    const removeField = (id) =>
-        setFields((prev) => prev.filter((f) => f._id !== id));
+    const removeField = (id) => setFields((prev) => prev.filter((f) => f._id !== id));
 
     const updateField = (id, key, value) =>
-        setFields((prev) => prev.map((f) => {
-            if (f._id !== id) return f;
-
-            const next = { ...f, [key]: value };
-
-            // A gallery cannot be translatable: that would store a different
-            // set of photographs for each language, when the photographs are
-            // one set and only their alt text differs. SchemaRuleBuilder
-            // refuses the combination, so the flag is cleared here rather than
-            // letting the form assemble a schema the API will reject.
-            if (key === 'type' && isGalleryField(next)) next.translatable = false;
-
-            return next;
-        }));
+        setFields((prev) => applyFieldChange(prev, id, key, value, isGalleryField));
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -79,13 +66,7 @@ export default function ModuleBuilder({ onCreated, onCancel }) {
             name: (translations[defaultLangCode(languages)]?.name ?? Object.values(filled)[0]?.name ?? '').trim(),
             is_singleton: isSingleton,
             translations: filled,
-            schema: fields.map(({ _id, ...rest }) => ({
-                ...rest,
-                validation: rest.validation.trim(),
-                options: rest.type === 'select'
-                    ? (rest.options || '').split(',').map(s => s.trim()).filter(Boolean)
-                    : undefined
-            })),
+            schema: schemaPayload(fields),
         };
 
         try {
@@ -93,7 +74,7 @@ export default function ModuleBuilder({ onCreated, onCancel }) {
             onCreated?.(body.data);
             setTranslations({});
             setIsSingleton(false);
-            setFields([{ _id: nextId.current++, ...emptyField() }]);
+            setFields([emptyField(0)]);
         } catch (err) {
             console.error(err);
             setErrors(errorSummary(err, t('Could not save the module.')));

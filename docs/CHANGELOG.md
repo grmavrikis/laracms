@@ -3297,3 +3297,62 @@ deleted and the deletion verified.
 Vite dev server, so the locking is verified by reading and by the API refusing
 the same four underneath it.
 
+### The review of it found ten, and one it did not
+
+**The module update was not a transaction.** `syncTranslations` deletes every
+slug row and re-inserts them one per language, so a failure part way through
+left the module with fewer addresses than it had — measured before the fix, a
+staged failure on the second insert took a module from two addresses to one.
+Since #114 that means a section that simply stops having a public page. It is
+TASKS.md #77 one level up, and `EntryController` has wrapped the identical
+delete-then-insert since then. Now `DB::transaction`.
+
+**And an eleventh the review missed**, found while working out how the insert
+could fail at all: **nothing validated the keys of `translations`**.
+`module_slugs.language_code` is `varchar(5)`, so a longer key was a 500 on
+MySQL rather than a 422, and a short unknown one silently created an address in
+a language nothing will ever serve. That is CHANGELOG §17 exactly, one level
+up, written without it. Membership of **any** language rather than the active
+ones, because the panel has to translate into one that is not published yet.
+
+Three were in the screen shipped an hour earlier, and all three came from the
+same root: **the field logic lived inside a component, where nothing could
+test it.**
+
+- The lock keyed on `lockedNames.has(field.name)` — the text being typed rather
+  than the row. Adding a field and typing a name that already existed disabled
+  its own input mid-word, and it could then be neither corrected nor removed.
+- `_id: (nextId += 1) + fields.length + schema.length` repeats: add three,
+  remove two, add again and the new row takes an id a surviving row holds. Two
+  rows with one React key means text typed into one appears in the other.
+- Options round-tripped through `join(', ')` and `split(',')`, so a stored
+  option reading *Ημιδιατροφή, με πρωινό* was torn into two — on **any** save,
+  including one that only changed a translation, because the screen posts the
+  schema every time.
+
+All three are gone into `resources/js/lib/moduleFields.js` as pure functions
+with twelve tests: a row carries its own `locked`, `nextFieldId` derives from
+the rows themselves, and a `select` option is only re-split when somebody
+actually edited the text. That also removed the copy-pasted `addField` /
+`removeField` / `updateField` trio, which the extraction of `ModuleFields` had
+been supposed to prevent and had not.
+
+The rest: the double flush is gone — one `$module->save()` covers both halves
+now, and `syncTranslations` no longer flushes on its own; `SchemaRuleBuilder`
+runs before `refuseReshaping`, so the guard no longer depends on a later check
+to catch a payload naming one field twice; and the accepted cost of `required`
+is asserted rather than only written down.
+
+**Two of the ten were wrong, and saying so is the point of checking.** The
+claim that `schema: []` was silently ignored was false — the test written to
+prove it passed immediately, because Laravel keeps the empty array here. And
+the `keyBy` collapse was never reachable: `SchemaRuleBuilder::build` refuses a
+duplicate name unconditionally, so nothing could have landed. The reorder makes
+the guard self-sufficient rather than fixing a live defect.
+
+Verified live against MySQL afterwards: an option containing a comma survived a
+rename intact, and `this-is-not-a-language` answered **422** with the key
+named. The probe module was deleted and the deletion checked.
+
+444 PHP tests, 196 JS tests, build clean.
+
