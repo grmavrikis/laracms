@@ -167,6 +167,13 @@ JS tests sit **beside** their source as `resources/js/lib/*.test.js`.
 - **`AuthController::login` calls `session()->regenerate()`**, which rotates
   the CSRF token. Re-read the cookie after login when testing by hand.
 - **PHPUnit 12: `@dataProvider` annotations are inert.** Use `#[DataProvider]`.
+- **Database backups live in `C:\Users\Lenovo\Backups\mini-cms\`.** Outside the
+  repository, so they never reach a commit, and outside OneDrive, because a
+  dump carries the `users` table. `mini-cms-2026-09-07-before-phase2-reset.sql`
+  is the development database as it stood before Phase 2 emptied it — the
+  fifteen test modules and their 54 entries are in there and nowhere else.
+  Restore with `mysql -u root mini_cms < <file>`. `mysqldump.exe` is not on the
+  PATH; it is at `C:\laragon\bin\mysql\mysql-8.4.3-winx64\bin\`.
 
 ---
 
@@ -314,13 +321,18 @@ Worked through a prioritised list; every item is either done or recorded in
   *What does editing a Module mean for its Entries?* in `TASKS.md` → To
   discuss: **additive edits only**. `ModuleFields` disables the four on a field
   that already exists.
-- **Phase 1 is closed, and the next work is Phase 2** — #62 and #65, the demo
-  site. Everything Phase 1 was waiting on is done: #96, #97, #98, #99, #114,
-  #115, #116 and #69. **Read `TASKS.md` → Phase 2 before starting it**: the
-  demo is built exactly as a paying client would be, so client #1 is a copy of
-  `site/` rather than a fresh start, and the rooms, facilities and home-page
-  slider need no engineering at all — they are modules built in the existing
-  builder.
+- **Phase 1 is closed and Phase 2 has started** — #62 and #65, the demo site.
+  Everything Phase 1 was waiting on is done: #96, #97, #98, #99, #114, #115,
+  #116 and #69. **Read `TASKS.md` → Phase 2 and #62 before touching it**, which
+  now carries the demo's state: the development database was emptied of its
+  fifteen test modules on 2026-09-07, German was added and French switched off,
+  and six modules exist with their schemas and no content.
+  **One claim in this item was wrong and is corrected there.** Rooms and
+  facilities need no engineering — they are modules with their own listing
+  pages. The home-page slider does: `theme::home` is handed `$modules` and the
+  chrome and nothing else, so the front page cannot show a slide, a featured
+  room, or a sentence of its own. That is the one piece of core work Phase 2
+  needs, and it is scoped in #62.
   **#67 is done** (CHANGELOG §26): site settings are one core table, not the
   singleton Module the item first described — core cannot read the notification
   address out of a row the client owns and could delete.

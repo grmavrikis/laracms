@@ -175,11 +175,18 @@ than written `Ελληνικά / English` in one string, and its forms use the s
 submitter so the page stays a static file. Building the theme before either one
 means building it twice.
 
-Note that **rooms, facilities and the home-page slider need no engineering at
-all**: they are modules built in the existing builder, and the slider gets its
-ordering free from #57 (one entry per slide). That is the schema-driven design
-working as intended — and the reason #68 came first is that without it the
-most important of those modules could not hold its content.
+Note that **rooms and facilities need no engineering at all**: they are modules
+built in the existing builder, with listing pages core already renders. That is
+the schema-driven design working as intended — and the reason #68 came first is
+that without it the most important of those modules could not hold its content.
+
+**The home page was the exception, and it was missed here.** A slider is a
+module like any other, but nothing can *render* it: `theme::home` receives the
+chrome and a list of module names and addresses, so the front page cannot show
+a slide, a featured room, or a sentence of its own. One small read-only service
+in core closes it; #62 scopes it, along with the two decisions that come with
+it — where the theme's CSS is built to, and how a module that is a front-page
+component stays out of the public menu.
 
 ### Phase 3 — the accommodation back office
 
@@ -709,21 +716,146 @@ instead of finding out when an unopened page 500s in front of a visitor.
 The public controllers moved to `app/Http/Controllers/Web` — they are core
 machinery, and a core namespace called `Site` contradicts what `site/` means.
 
-### 62. The demo site — client #0
+### 62. The demo site — client #0 — IN PROGRESS
 
-A complete accommodation site: an invented but believable business with a name,
-a location and a character. **Never lorem ipsum** — a prospect has to see
-themselves in it.
+A complete accommodation site with a name, a location and a character.
+**Never lorem ipsum** — a prospect has to see themselves in it.
 
-- Modules: Σχετικά (singleton), Δωμάτια/Καταλύματα, Gallery, Blog, Επικοινωνία
-  (singleton)
-- **Both languages filled completely.** Half-finished English demonstrates the
+- **Every language filled completely.** Half-finished English demonstrates the
   exact opposite of what is being sold.
-- Bought theme (€20–60), converted to Blade partials; menu hand-written
+- Menu hand-written
 - Live on a domain, with staging on a subdomain of the same VPS
-- Photography from Unsplash/Pexels, free for commercial use
 
 Built as a paying client would be, so it doubles as the first template.
+
+#### It is a real hotel, and that was decided on purpose
+
+The demo is **City Marina Hotel**, Donzelot 15, Corfu old town — 54 rooms, a
+real business whose site (`citymarina.gr`) dates from 2011 and says so in its
+own footer. The owner intends to approach them with it.
+
+A real prospect beats an invented business: the content is true, the
+photographs exist, and the meeting has a reason to happen. **The constraint is
+that it stays local or on staging.** Publishing it on a domain under their
+name and photographs needs their permission, and the whole point of the CMS is
+that swapping the name, the palette and the photographs for a neutral public
+sample is ten minutes in the panel.
+
+What the research turned up, and what the pitch rests on:
+
+- **They have no German**, on Corfu. Their site is English, Greek and French
+  (`index.php`, `index-el.php`, `index-fr.php`).
+- **They have no `hreflang` at all** — three language versions and nothing
+  telling a search engine they are the same page. Ours does this from #59.
+- **Their booking engine sells rooms their website does not mention.** The site
+  advertises *Executive Rooms* and *Suites*; WebHotelier sells Economy,
+  Economy Triple, Superior, Superior Triple and Family.
+- **Their speed is not a weakness** — 1.4 s, 53 requests. Measured, so nobody
+  builds an argument on it.
+
+#### The theme is hand-written in Tailwind, not bought
+
+The original item budgeted €20–60 for a template. Reversed, for reasons that
+are not about money: `tailwindcss.com` sells thirteen templates at €89, every
+one of them React or Next.js and not one of them hospitality — and our public
+side is Blade baked to files. A bought Bootstrap template would put a second
+CSS framework beside the panel's Tailwind for the sake of components this site
+does not use; the only interactive thing on the front page is a `<details>`.
+
+What replaced it is a set of constraints rather than a design: light ground,
+**one accent — terracotta `#B4552D`, taken from the roof tiles in the client's
+own photograph** — a serif for headings and a sans for text, nothing laid over
+a photograph, no carousel, a visible horizontal menu. The whole scheme is eight
+variables in one `@theme` block, which is what makes client #2 a change of
+tokens rather than a rebuild.
+
+#### Where it stands (2026-09-07)
+
+**The database was emptied** of fifteen test modules and their 54 entries, and
+the baked pages flushed. The dump taken first is the only copy of that data —
+see CLAUDE.md → Environment for where it is.
+
+**Languages are `el` (default), `en`, `de`.** French was a test language and is
+now inactive: an active language nobody fills puts a link in the switcher to an
+empty site, which is the impression this item exists to avoid.
+
+**Six modules exist with their schemas and no content.** The panel's slug is
+English because it is an identifier, not an address; the public slug is per
+language, and the Greek ones were written by hand because `Str::slug` produced
+`skhetika`, `parokhes` and `fotoghrafies`.
+
+| key | el | en | de | | fields |
+|---|---|---|---|---|---|
+| `slider` | slider | slider | slider | list | heading, subheading, image |
+| `rooms` | domatia | rooms | zimmer | list | title, description, photos, sleeps, size_m2, price_from |
+| `facilities` | paroches | facilities | ausstattung | list | title, description, photo |
+| `gallery` | fotografies | photos | fotos | singleton | title, photos |
+| `about` | sxetika | about | uber-uns | singleton | title, body, photos |
+| `contact` | epikoinonia | contact | kontakt | singleton | title, body |
+
+**The front page exists as a throwaway mock-up** in `public/mockup/`, served at
+`http://mini-cms.test/mockup/`. Plain HTML with the Tailwind browser build,
+outside git, deleted once it becomes Blade. Its five sections are: hero, the
+booking hand-off, three rooms, four facts, location, and a closing *book
+direct*. The enquiry form (#66) is **not** on it — it belongs on the contact
+page. The front page has one job, which is to start a booking.
+
+#### The core work this item still needs
+
+**1. The front page cannot show content, and that is the only real gap.**
+`PageController::home` hands `theme::home` the chrome and `$modules` — a name
+and an address per module — and nothing else. There is no way for the front
+page to carry a hero, a sentence of its own, or three featured rooms. So the
+claim that the home-page slider needs no engineering is wrong.
+
+The fix is one small read-only service in core, so the theme names *which*
+modules it wants while core keeps deciding *how* they are read:
+
+```
+App\Services\PublicContent
+    ->entries(string $moduleKey, string $language, ?int $limit): Collection
+    ->singleton(string $moduleKey, string $language): ?array
+```
+
+Published only, in `sort_order`, filtered to entries with a slug in that
+language, fields already through `EntryPresenter` — which is exactly what
+`PageController::index` does today, lifted so both can call it. `$moduleKey` is
+`modules.slug`: since #114 that column is the panel's alone and never appears
+in a public address, which makes it the one stable identifier available.
+
+Doing this in Blade instead would put `published()`, ordering, rich-text
+rendering and per-language address composition into a template. That is what
+`EntryPresenter` and #114 exist to prevent.
+
+**2. The theme's CSS has no home.** `site/README.md` → *Assets* defers this
+decision explicitly to this item. Vite's inputs are the panel's; nothing builds
+`site/`, and `resources/css/app.css` scans `site/theme` only so the panel's
+stylesheet keeps those utilities alive.
+
+Recommended: `site/theme/theme.css` built to **`public/theme.css` with no
+hash**, on the same reasoning as `public/forms.js` in #97 — a baked page is a
+file that lives for ever, and a hashed `app-4f3a.css` baked into one dies at
+the next `npm run build` while the page pointing at it survives. Cache-busting
+by a content hash in the query string changes the HTML, so `pages:warm` notices.
+The alternative, `@vite` and a hashed name, is correct only for as long as
+nobody ever forgets `pages:warm` after a build; when they do, the site serves
+naked. An unhashed path fails to stale CSS instead.
+
+**3. `slider` has public addresses and should not.** It is a component of the
+front page, not a section: `/el/slider` renders an empty listing and sits in
+the menu and the sitemap. Removing its `module_slugs` rows removes it from
+public view while leaving it editable in the panel — #114's rule that a module
+untranslated into a language has no page there, used deliberately.
+
+Open with it: since there is no carousel, a **singleton `home`** holding one
+photograph, one heading and one sentence is probably better than a list of
+slides.
+
+#### Still to check with the owner
+
+Prices in the mock-up are real — read off their booking engine for mid-October
+— but a real site needs low-season *from* prices, not one date's. *Breakfast
+with a view of the old port* and the telephone hours are invented.
 
 ### 63. Bookings module *(Phase 3)*
 
@@ -771,6 +903,27 @@ the channel manager's from the first click — this side owns nothing.
 One form and a URL template per client. It is in the MVP because it is what
 makes the demo credible to an accommodation owner, and because it costs almost
 nothing.
+
+**It costs less than "almost nothing": it costs no code at all.** WebHotelier's
+engine answers a plain `GET`, so the form is ordinary HTML and the browser
+composes the query string itself. Verified live against the demo's hotel — this
+lands straight on the availability results with the engine's own fields filled
+in:
+
+```
+https://<hotel>.reserve-online.net/?lang=EL&checkin=2026-11-20&checkout=2026-11-23&rooms=1&adults=2&children=0
+```
+
+Two consequences worth keeping. **No JavaScript**, so the page carrying the
+form stays a file on disk — unlike the enquiry form, which needed an island
+(#97). And the parameter names belong to **WebHotelier rather than to one
+hotel**, so a single setting is enough for every client on it, which in the
+Greek market is most of them. That setting already exists: `booking_url` in
+`SiteSettings` (#67).
+
+`checkin`/`checkout` in `YYYY-MM-DD` is what `<input type="date">` submits
+natively, so the two ends agree without a line of glue. `nights` is accepted in
+place of `checkout`.
 
 ### 66. Enquiries — and the first inbound path in the application — DONE
 
