@@ -3784,3 +3784,71 @@ the enquiry form; it is recorded there rather than fixed here.
 
 476 PHP tests, 214 JS tests, build clean.
 
+### The review of it found ten
+
+**A mistyped date was told it is in the past.** Laravel runs every rule on a
+field, so `15/07/2027` — which is how Greek writes a date — failed `date`
+*and* `after_or_equal`, and the visitor got both complaints: the first true, the
+second not, sending them to look for a problem that was not there. The change's
+own test payload had been exercising exactly that and asserting only that the
+messages were Greek, not that they were true. Both date fields carry `bail`
+now. Live, `15/07/2027` answers once: *«Το πεδίο Άφιξη δεν είναι έγκυρη
+ημερομηνία.»*
+
+**The labels had borrowed two other screens' keys.** `Email address` is the
+login form's field label and `Telephone` is the settings screen's word for the
+number printed on the site — so clarifying either label would silently reword
+a refusal on the public contact form, with nothing linking them and no test to
+notice. The irony is that the docblock beside them explains at length why core
+must not borrow the *theme's* keys (#61); the same argument applies one level
+in. `Contact email` and `Contact telephone` belong to that form and to nothing
+else.
+
+**The kept English file was a duplicate held on a false reason.** #109 deleted
+three published files and kept `validation.php` as "the fallback base #99
+relies on". `diff` says it was byte-identical to the framework's own copy,
+which `TranslationServiceProvider` searches first — so it was 200 lines of
+duplication, and the reason had been written into TASKS.md and this changelog
+for the next reader to inherit. `lang/en/` is deleted; `lang:publish` writes it
+back when a translator wants a reference.
+
+**The rule set the test proved was closed; the real one is not.** It read the
+rules from the enquiry request and the *settings* schema, while the panel's
+entry screens validate against a **module** schema — so a type whose rules
+neither of the others emits was covered by nothing. It now also builds a schema
+carrying one field of every supported type, read from `SUPPORTED_TYPES` so a
+type added later is covered the day it is added. What still cannot be covered
+is a field's own `validation` string, which its author writes: that falls back
+to English by design, and `lang/el/validation.php` now says so rather than
+implying the set is knowable.
+
+**The panel's half was checked far more loosely than the public one** — a
+Greek character and the absence of the literal `must be`, which lets *"The
+Σελίδα Facebook field is required."* through, on the surface the owner reads
+daily. Both now call the same scan, which refuses any Latin word outside a
+named list of loanwords. `slug` left that list: nothing produces it, and an
+entry there is a hole in the only strict assertion in the file.
+
+The rest were small and all in the same direction — saying less that is not
+true. The `consent` label could never be printed, because its one rule has a
+written-out message that never interpolates `:attribute`; it cost a key in two
+catalogues and every future locale. The two empty arrays at the foot of
+`validation.php` held nothing, and the decision one of them documented now sits
+in the file's docblock. And the test helper posts twice against a route limited
+to five an hour, which is one added payload away from answering 429 and failing
+as though the route were broken; it drops the throttle, since what the limiter
+does is `EnquiryTest`'s subject.
+
+Five mutations, and one survived at first: dropping the entry schema from the
+rule set changed nothing, because every rule it contributes is already
+contributed by one of the other two. True today and not tomorrow, which is the
+point of adding it — so the test now asserts that a rule reaching a reader
+through *each* of the three sources is present (`accepted`, `url`, `distinct`).
+Then it bites.
+
+Live again over Apache against MySQL: six Greek refusals with the new labels,
+the same six in English, the panel in both languages, and the date answering
+once. The panel's language was borrowed and put back.
+
+477 PHP tests, 214 JS tests, build clean.
+

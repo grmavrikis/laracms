@@ -892,14 +892,32 @@ a missing key falls back **per key** to `APP_FALLBACK_LOCALE`. That fallback is
 what made this half-work invisible: the two messages written by hand were
 Greek, every framework one was English, and the page looked translated.
 
-`lang/el/validation.php` is **partial on purpose** — the rules the two
-public-facing surfaces use, which are the enquiry form's and everything
-`SchemaRuleBuilder` emits for the settings and entry screens. Everything else
-resolves through the fallback exactly as before, so a rule nobody uses is not a
-gap. `ValidationLanguageTest` is what says which rules count as "used": it
-reads them out of `StoreEnquiryRequest::rules()` and the settings schema, so a
-rule added later without a Greek message fails there rather than in front of a
-visitor.
+**`lang/el/` is the only published locale directory.** `lang/en/` is deleted:
+its `validation.php` was byte-identical to the framework's, which the loader
+searches first, so English needs no file of ours. `lang:publish` writes one
+back when a translator wants a reference.
+
+`lang/el/validation.php` is **partial on purpose** — the rules the three
+surfaces use: the enquiry form's, and everything `SchemaRuleBuilder` emits for
+the settings screen and for an entry screen. Everything else resolves through
+the fallback exactly as before, so a rule nobody uses is not a gap.
+`ValidationLanguageTest` is what says which rules count as "used": it reads
+them out of `StoreEnquiryRequest::rules()`, the settings schema and a module
+schema carrying **one field of every supported type**, so a rule added later
+without a Greek message fails there rather than in front of a visitor.
+
+**One set stays open and cannot be closed.** A module field carries a
+`validation` string its author writes, so `digits:10` or `date_format:d/m/Y`
+reaches Laravel with no message of ours behind it and falls back to English by
+design. Two of those also print a parameter into the sentence, which is the
+same leak `after_or_equal:today` had — where the rule is ours to declare, the
+message is written out beside it instead.
+
+**A date answers one complaint at a time.** `arrives_on` and `departs_on` carry
+`bail`: Laravel runs every rule on a field, and `after_or_equal` fails for a
+value that is not a date at all, so `15/07/2027` — how Greek writes a date —
+was told both that it is not a date and that it is in the past. The second was
+false.
 
 **The sentence is half of it; the field's name is the other half.** Every
 framework line interpolates `:attribute`, which is the request key unless

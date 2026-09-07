@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Services\SchemaRuleBuilder;
 use App\Services\SiteSettings;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Routing\Middleware\ThrottleRequests;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Lang;
 use Illuminate\Support\Str;
@@ -44,6 +45,44 @@ class ValidationLanguageTest extends TestCase
 
         Language::create(['name' => 'Greek', 'code' => 'el', 'is_default' => true]);
         Language::create(['name' => 'English', 'code' => 'en']);
+
+        // The enquiry route allows five an hour per address, and every request
+        // in the suite shares one. Two posts per refusal leaves room for one
+        // more payload before the answers become 429s and every assertion here
+        // starts failing as though the route were broken. What the limiter does
+        // is `EnquiryTest`'s subject; this class is about wording.
+        $this->withoutMiddleware(ThrottleRequests::class);
+    }
+
+    /**
+     * The words a Greek sentence may contain in Latin script: loanwords the
+     * language actually uses, and nothing else.
+     *
+     * Asking that a message merely *contains* Greek is not enough - a Greek
+     * label sits inside an English sentence, which is how *"The Σελίδα Facebook
+     * field must be a valid URL"* reads as translated, and it is the shape of
+     * this whole finding. Found live once more after that: the arrival date
+     * answered *"…μεταγενέστερη της today"*, because `:date` interpolates the
+     * rule's own parameter.
+     */
+    private function assertReadsAsGreek(string $message): void
+    {
+        $this->assertMatchesRegularExpression(
+            '/\p{Greek}/u',
+            $message,
+            'A Greek reader gets this in English: ' . $message
+        );
+
+        preg_match_all('/[A-Za-z]{3,}/u', $message, $latin);
+
+        foreach ($latin[0] as $word)
+        {
+            $this->assertContains(
+                mb_strtolower($word),
+                self::LOANWORDS,
+                "'{$word}' is English, in: " . $message
+            );
+        }
     }
 
     /**
@@ -101,16 +140,11 @@ class ValidationLanguageTest extends TestCase
     // --------------------------------------------------------- the public form
 
     /**
-     * The words a Greek sentence may contain in Latin script.
-     *
-     * Loanwords the language actually uses, and nothing else. Asking that a
-     * message merely *contains* Greek is not enough - `:attribute` puts a Greek
-     * label inside an English sentence, which is exactly how *"The Σελίδα
-     * Facebook field must be a valid URL"* reads as translated. Found live: the
-     * arrival date answered *"…μεταγενέστερη της today"*, because `:date`
-     * interpolates the rule's own parameter.
+     * Each one is a word Greek writes in Latin script, in a message these two
+     * surfaces actually produce. Nothing goes in defensively: an entry here is
+     * a hole in the check above it, so it waits for a failure that needs it.
      */
-    private const LOANWORDS = ['email', 'json', 'kilobytes', 'url', 'facebook', 'instagram', 'slug'];
+    private const LOANWORDS = ['email', 'json', 'kilobytes', 'url', 'facebook', 'instagram'];
 
     public function test_every_refusal_a_greek_visitor_reads_is_in_greek(): void
     {
@@ -120,23 +154,32 @@ class ValidationLanguageTest extends TestCase
 
         foreach ($messages as $message)
         {
-            $this->assertMatchesRegularExpression(
-                '/\p{Greek}/u',
-                $message,
-                'A Greek visitor reads this in English: ' . $message
-            );
-
-            preg_match_all('/[A-Za-z]{3,}/u', $message, $latin);
-
-            foreach ($latin[0] as $word)
-            {
-                $this->assertContains(
-                    mb_strtolower($word),
-                    self::LOANWORDS,
-                    "'{$word}' is English, in: " . $message
-                );
-            }
+            $this->assertReadsAsGreek($message);
         }
+    }
+
+    /**
+     * **One complaint at a time about a date.** Laravel runs every rule on a
+     * field, so `15/07/2027` - which is how Greek writes a date - failed `date`
+     * *and* `after_or_equal`, and the visitor was told both that it is not a
+     * date and that it is in the past. The second is false, and sends them
+     * looking for a problem that is not there.
+     */
+    public function test_a_date_that_cannot_be_read_is_not_also_called_past(): void
+    {
+        $errors = $this->postJson('/el/enquiries', [
+            'name' => 'Μαρία',
+            'email' => 'maria@example.com',
+            'message' => 'Καλησπέρα σας.',
+            'arrives_on' => '15/07/2027',
+            'departs_on' => 'κάποια στιγμή',
+            'consent' => '1',
+        ])->assertStatus(422)->json('errors');
+
+        $this->assertCount(1, $errors['arrives_on'], 'The arrival date was refused twice: ' . implode(' / ', $errors['arrives_on']));
+        $this->assertCount(1, $errors['departs_on'], 'The departure date was refused twice: ' . implode(' / ', $errors['departs_on']));
+
+        $this->assertStringContainsString('ημερομηνία', $errors['arrives_on'][0]);
     }
 
     /**
@@ -190,16 +233,35 @@ class ValidationLanguageTest extends TestCase
 
         $panel = collect(SchemaRuleBuilder::build(app(SiteSettings::class)->schema(), 'data'))->flatten();
 
-        $rules = $public->merge($panel)
+        // **And the entry screens**, which validate against a *module's*
+        // schema rather than a fixed one - so the rules depend on which field
+        // types a module uses. One field of every supported type is what makes
+        // this the whole set rather than the settings screen's corner of it.
+        //
+        // What it still cannot cover is a field's own `validation` string,
+        // which its author writes: `digits:10` is a rule nobody here can
+        // predict, and it falls back to English by design (see
+        // `lang/el/validation.php`).
+        $entries = collect(SchemaRuleBuilder::build($this->aFieldOfEveryType()))->flatten();
+
+        $rules = $public->merge($panel)->merge($entries)
             ->filter(fn (mixed $rule) => is_string($rule))
             ->map(fn (string $rule) => Str::before($rule, ':'))
-            // Neither of these ever produces a message: `nullable` and
-            // `sometimes` decide whether the other rules run at all.
-            ->reject(fn (string $rule) => in_array($rule, ['nullable', 'sometimes'], true))
+            // None of these ever produces a message: they decide whether the
+            // other rules run, and how far.
+            ->reject(fn (string $rule) => in_array($rule, ['nullable', 'sometimes', 'bail'], true))
             ->unique()
             ->values();
 
         $this->assertGreaterThan(5, $rules->count(), 'The rules stopped being readable from the requests.');
+
+        // Each of these reaches a reader through exactly one of the three, so
+        // together they say the set is all three rather than whichever one
+        // somebody left in. Without this, dropping a source could never fail:
+        // the loop below only asks about the rules it is given.
+        $this->assertContains('accepted', $rules->all(), 'The enquiry form is not in this set.');
+        $this->assertContains('url', $rules->all(), 'The settings screen is not in this set.');
+        $this->assertContains('distinct', $rules->all(), 'The entry screens are not in this set.');
 
         foreach ($rules as $rule)
         {
@@ -232,6 +294,41 @@ class ValidationLanguageTest extends TestCase
                 );
             }
         }
+    }
+
+    /**
+     * A module schema using every type the builder supports, half of them
+     * translatable and required, so the rules it emits are the whole set an
+     * entry screen can produce rather than one module's corner of it.
+     *
+     * Read from `SUPPORTED_TYPES`, so a type added later is covered here the
+     * day it is added.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function aFieldOfEveryType(): array
+    {
+        $schema = [];
+
+        foreach (SchemaRuleBuilder::SUPPORTED_TYPES as $index => $type)
+        {
+            $field = [
+                'name' => 'field_' . $index,
+                'type' => $type,
+                // A gallery cannot be translatable, and the builder refuses it.
+                'translatable' => $index % 2 === 0 && !in_array($type, SchemaRuleBuilder::GALLERY_FIELD_TYPES, true),
+                'required' => $index % 2 === 1,
+            ];
+
+            if ($type === 'select')
+            {
+                $field['options'] = ['one', 'two'];
+            }
+
+            $schema[] = $field;
+        }
+
+        return $schema;
     }
 
     /**
@@ -269,8 +366,10 @@ class ValidationLanguageTest extends TestCase
             'data' => ['facebook_url' => 'not a url'],
         ])->assertStatus(422)->json('errors')['data.facebook_url'][0];
 
-        $this->assertMatchesRegularExpression('/\p{Greek}/u', $message);
-        $this->assertStringNotContainsString('must be', $message, 'The sentence around the field is still English: ' . $message);
+        // The same scan the public form gets. Checking for a phrase this
+        // reviewer happened to think of - `must be` - let *"The Σελίδα Facebook
+        // field is required."* through, on the surface the owner reads daily.
+        $this->assertReadsAsGreek($message);
     }
 
     /** And an English panel is unchanged. */

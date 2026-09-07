@@ -1528,11 +1528,15 @@ does any work.
 and no paginated Blade views, so 61 lines of framework defaults entered the
 repository as things a future translator will work through for nothing.
 
-Only `validation.php` is needed, as the fallback base #99 relies on. Deleted
-with #99: nothing in `app/`, `resources/` or `site/` reads an `auth.`,
-`passwords.` or `pagination.` key, and Laravel's `FileLoader` searches the
-framework's own `lang/` before the application's, so the English a missing file
-would have carried is still there.
+**All four are gone**, `validation.php` included, and the first version of
+this said otherwise. Nothing in `app/`, `resources/` or `site/` reads an
+`auth.`, `passwords.` or `pagination.` key — and `lang/en/validation.php`
+turned out to be **byte-identical** to the framework's own copy, which
+`TranslationServiceProvider` already searches first (`new FileLoader($files,
+[__DIR__.'/lang', $app['path.lang']])`). Keeping it as "the fallback base #99
+relies on" was 200 lines held on a reason that was not true. English is
+unchanged with `lang/en/` deleted; `php artisan lang:publish` writes it back
+whenever a translator wants a reference to copy from.
 
 ### 110. The honeypot's label is now translated — P3
 

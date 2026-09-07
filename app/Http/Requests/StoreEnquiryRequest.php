@@ -35,8 +35,15 @@ class StoreEnquiryRequest extends FormRequest
 
             // A date in the past is somebody typing the wrong year, not an
             // enquiry - but today is allowed, because "tonight" is a real ask.
-            'arrives_on' => ['nullable', 'date', 'after_or_equal:today'],
-            'departs_on' => ['nullable', 'date', 'after:arrives_on'],
+            //
+            // **`bail`, so a date answers one complaint at a time.** Laravel
+            // runs every rule on a field, and `after_or_equal` fails for a
+            // value that is not a date at all - so `15/07/2027`, which is how
+            // Greek writes a date, was told both that it is not a date and
+            // that it is in the past. The second is false and sends somebody
+            // looking for a problem that is not there.
+            'arrives_on' => ['nullable', 'bail', 'date', 'after_or_equal:today'],
+            'departs_on' => ['nullable', 'bail', 'date', 'after:arrives_on'],
             'guests' => ['nullable', 'integer', 'min:1', 'max:99'],
 
             // Without it there is no lawful basis to keep the row, so there is
@@ -97,18 +104,28 @@ class StoreEnquiryRequest extends FormRequest
      * words are core's, and a client whose form says *Όνομα* gets a refusal
      * that says *Ονοματεπώνυμο*: two words for one field, which is the price of
      * the line being in the right place.
+     *
+     * **And they are this form's alone**, which is the same argument one level
+     * in. `Email address` is the login screen's label and `Telephone` is the
+     * settings screen's word for the number printed on the site; borrowing
+     * either meant that clarifying a label on one screen silently reworded a
+     * refusal on another, with nothing linking them and no test to notice.
+     * Nothing else may use the keys below.
      */
     public function attributes(): array
     {
         return [
             'name' => __('Full name'),
-            'email' => __('Email address'),
-            'phone' => __('Telephone'),
+            'email' => __('Contact email'),
+            'phone' => __('Contact telephone'),
             'message' => __('Enquiry message'),
             'arrives_on' => __('Arrival date'),
             'departs_on' => __('Departure date'),
             'guests' => __('Number of guests'),
-            'consent' => __('Consent'),
+
+            // No `consent`: its only rule is `accepted`, and the message above
+            // is written out rather than interpolating `:attribute`, so a label
+            // for it could never be printed.
 
             // Hidden, and only ever refused for length - but a message naming
             // `source_url` would be the one thing on the page a visitor could

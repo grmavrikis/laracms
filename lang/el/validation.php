@@ -13,16 +13,33 @@
  *
  * **Partial on purpose, and that is correct rather than half-finished.** Only
  * the rules the two public-facing surfaces actually use are here - the enquiry
- * form (`StoreEnquiryRequest`) and everything `SchemaRuleBuilder` can emit for
- * the panel's settings and entry screens. Every other key resolves through the
+ * form (`StoreEnquiryRequest`) and everything `SchemaRuleBuilder` emits for the
+ * panel's settings and entry screens, which `ValidationLanguageTest` reads out
+ * of both rather than trusting this list. Every other key resolves through the
  * fallback exactly as before, so a rule nobody uses is not a gap; copying all
  * 120 of Laravel's would only be 120 lines for a future translator to work
  * through for nothing (#109).
+ *
+ * **One set of rules is open, and cannot be closed here.** A module field
+ * carries a `validation` string its author writes, so a schema saying
+ * `digits:10` or `date_format:d/m/Y` reaches Laravel with no message of ours
+ * behind it. Such a rule falls back to English, by design: the alternative is
+ * translating the whole framework against the chance somebody uses it. Two of
+ * those also print a **parameter** into the sentence - `date_format` its
+ * format, `mimes` its list - so a Greek line would end in a Latin fragment
+ * anyway. Where a rule like that is ours to declare, the message is written
+ * out beside the rule instead: see `arrives_on.after_or_equal` in
+ * `StoreEnquiryRequest`, which used to end *«…μεταγενέστερη της today»*.
  *
  * `:attribute` is the field's own name, and it comes from the request:
  * `StoreEnquiryRequest::attributes()` for the public form and
  * `SettingController` for the settings screen (#67). Without those, a Greek
  * sentence closes around an English column name.
+ *
+ * There is deliberately no `attributes` or `custom` array below. A label
+ * belongs beside the rules it describes, in the request, so that one
+ * declaration serves every language rather than each locale file repeating the
+ * same list of columns.
  */
 return [
     'accepted' => 'Το πεδίο :attribute πρέπει να γίνει αποδεκτό.',
@@ -58,13 +75,4 @@ return [
     'string' => 'Το πεδίο :attribute πρέπει να είναι κείμενο.',
     'unique' => 'Η τιμή του :attribute χρησιμοποιείται ήδη.',
     'url' => 'Το πεδίο :attribute πρέπει να είναι έγκυρη διεύθυνση ιστοσελίδας.',
-
-    /*
-     * Left empty deliberately. A label belongs beside the rules it describes -
-     * `StoreEnquiryRequest::attributes()` and `SettingController` both pass
-     * theirs - so that one declaration serves every language rather than each
-     * locale file repeating the same list of columns.
-     */
-    'attributes' => [],
-    'custom' => [],
 ];
