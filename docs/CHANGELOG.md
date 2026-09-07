@@ -4008,11 +4008,13 @@ takes the list as an argument so that branch is reachable from a test at all.
 
 **And the same shape one level out: nothing checked PHP's own limits.** The
 docblock on `MAX_KILOBYTES` says `upload_max_filesize` has to be at least that,
-and a default install ships exactly 2M against a 2048 KB rule — so a file the
-application says it accepts is discarded before Laravel sees it, and the owner
-is told the image is missing. `post_max_size` has to be strictly larger, because
-the body carries the file plus its multipart wrapper. Both are checked, with the
-sizes parsed from `php.ini`'s own `2M`/`512K` spelling.
+and nothing verified it. `upload_max_filesize` may **equal** the panel's limit
+— PHP refuses a file *larger* than it, so 2M against a 2048 KB rule is exactly
+enough — but `post_max_size` may not, because the body carries the file plus its
+multipart wrapper and the fields around it. Under either, the upload never
+reaches the rule: it arrives empty and the owner is told the image is missing,
+for a file the application says it accepts. Both are checked, with the sizes
+parsed from `php.ini`'s own `2M`/`512K` spelling.
 
 **The coverage test reproduced the gap it exists to close**: it reflected over a
 hand-written list of six models, so the seventh model's width constant would be
@@ -4040,4 +4042,50 @@ statement with no effect, which PHPUnit reports as an error on every test in
 the file.
 
 502 PHP tests, 214 JS tests, build clean.
+
+### The third pass, and the guard that broke what it guarded
+
+**The rollback guard could not run on the driver the suite uses.** `down()`
+refuses to narrow a column back over a value that would not fit, and it asked
+the database for `char_length()` — which is MySQL's alone. Verified rather than
+reasoned: rolling back one step on SQLite answered *"no such function:
+char_length"*. So the guard written to make a rollback safe was the reason a
+rollback could not happen at all, and nothing said so because nothing in the
+suite ever rolled back. `length()` now, which both engines have — MySQL counts
+bytes there, so it errs toward refusing a rollback that would have fitted, which
+is the direction a guard should err in — and a test rolls this migration back
+and forward.
+
+**An unreadable `php.ini` value counted as healthy**, which is the "unknown
+means well" defect this class had just been rewritten to remove from the column
+check, left standing one function over. `upload_max_filesize = 2MB` is the
+ordinary typo — PHP wants `2M` and reads that spelling as **two bytes**, so
+every upload fails while the doctor called the machine healthy. `kilobytesOf`
+now separates "not a size at all" (null) from zero, which is unlimited, and the
+doctor reports the first.
+
+**A missing table was reported as twelve missing columns.** The version this
+replaced said *"No `enquiries` table — has this database been migrated?"*, which
+is the sentence that gets somebody unstuck; it had been dropped for one line per
+column, each naming a constant and none naming the cause. Tables are their own
+section again.
+
+**And the prose said the opposite of the code.** The entry above claimed that
+`upload_max_filesize = 2M` against a 2048 KB rule discards the upload; the check
+deliberately allows equality, because PHP refuses a file *larger* than the
+setting. The code was right. Left as it was, the next reader would have "fixed"
+the comparison and failed every default installation — so it is corrected here
+and in ARCHITECTURE.
+
+The rest: `SchemaLimits` no longer imports `UploadController` — the only
+service-to-controller dependency in the application — and takes the limit as an
+argument, which the command passes; `defined()` reads a non-public constant as
+absent, so the message says "no longer exists or is not public"; and the command
+itself has tests now, because the **exit code** is the whole interface for a
+deployment and nothing pinned it: a script runs `schema:doctor && pages:warm`.
+
+Seven mutations, all biting, including one aimed at the exit code and one that
+puts `char_length()` back.
+
+506 PHP tests, 214 JS tests, build clean.
 

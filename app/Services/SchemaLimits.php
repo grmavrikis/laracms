@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Http\Controllers\UploadController;
 use App\Models\Enquiry;
 use App\Models\EntrySlug;
 use App\Models\Module;
@@ -72,26 +71,44 @@ class SchemaLimits
      * database with a column missing. A type with no declared width is
      * genuinely unknown. Everything else compares.
      *
+     * **A table that is not there is said once.** Reporting each of its columns
+     * separately buries the cause: a database nobody has migrated answered with
+     * twelve lines about individual columns and never the sentence that gets
+     * somebody unstuck.
+     *
      * @param array<string, string|null> $declared `table.column` => its type,
      *                                             or null when there is no such column
+     * @param array<int, string> $absentTables tables that do not exist at all
      * @param array<int, array{0: string, 1: string, 2: string, 3: string}>|null $expectations
      *        the list to check, which only a test ever passes - it is how the
      *        renamed-constant branch below is reachable at all
-     * @return array{narrow: array<int, string>, missing: array<int, string>, unnamed: array<int, string>, unknown: array<int, string>}
+     * @return array{tables: array<int, string>, narrow: array<int, string>, missing: array<int, string>, unnamed: array<int, string>, unknown: array<int, string>}
      */
-    public static function compare(array $declared, ?array $expectations = null): array
+    public static function compare(array $declared, array $absentTables = [], ?array $expectations = null): array
     {
-        $report = ['narrow' => [], 'missing' => [], 'unnamed' => [], 'unknown' => []];
+        $report = ['tables' => [], 'narrow' => [], 'missing' => [], 'unnamed' => [], 'unknown' => []];
 
         foreach ($expectations ?? self::expectations() as [$table, $column, $model, $constant])
         {
             $at = "{$table}.{$column}";
 
-            // A constant that has been renamed. `constant()` would raise an
+            if (in_array($table, $absentTables, true))
+            {
+                if (!in_array($table, $report['tables'], true))
+                {
+                    $report['tables'][] = $table;
+                }
+
+                continue;
+            }
+
+            // A constant that has been renamed - or made anything but public,
+            // which `defined()` reads the same way. `constant()` would raise an
             // Error, and a command whose job is to answer a question about a
             // deployment should not die on a server with a stack trace.
-            if (!defined($model . '::' . $constant)) {
-                $report['unnamed'][] = "{$at} is checked against {$model}::{$constant}, which no longer exists";
+            if (!defined($model . '::' . $constant))
+            {
+                $report['unnamed'][] = "{$at} is checked against {$model}::{$constant}, which no longer exists or is not public";
 
                 continue;
             }
@@ -142,45 +159,74 @@ class SchemaLimits
     /**
      * **PHP has to be able to receive what the panel says it accepts.**
      *
-     * `UploadController::MAX_KILOBYTES` is a rule Laravel applies *after* the
-     * upload has arrived. A default install ships `upload_max_filesize = 2M`,
-     * which is exactly that limit - and `post_max_size` has to be larger still,
-     * because the body carries the file plus its multipart wrapper. Under
-     * either of those the file never reaches the rule: `$_FILES` arrives empty
-     * and the owner is told the image field is required, for a file the
-     * application says it accepts.
+     * The panel's limit is a rule Laravel applies *after* the upload has
+     * arrived, so PHP's own settings decide whether it ever gets that far.
      *
+     * - `upload_max_filesize` may **equal** the limit: PHP refuses a file
+     *   *larger* than it, so 2M against a 2048K rule is exactly enough.
+     * - `post_max_size` may not, because the body carries the file plus its
+     *   multipart wrapper and the other fields around it.
+     *
+     * Under either, the upload never reaches the rule: it arrives empty and the
+     * owner is told the image field is required, for a file the application
+     * says it accepts.
+     *
+     * **A setting that cannot be read is reported, not skipped.** `2MB` is an
+     * ordinary typo - PHP wants `2M` - and PHP itself reads that as *two
+     * bytes*, so every upload fails while a doctor treating unreadable as fine
+     * would call the machine healthy. That is the "unknown counts as well"
+     * defect this class was rewritten to remove from the column check, and it
+     * had been left standing here.
+     *
+     * @param int $limit what the panel accepts, in kilobytes - passed in rather
+     *        than read off `UploadController`, because a service reaching into
+     *        `app/Http` is the one dependency direction this application does
+     *        not have anywhere else
      * @return array<int, string>
      */
-    public static function uploadProblems(?string $uploadMax, ?string $postMax): array
+    public static function uploadProblems(?string $uploadMax, ?string $postMax, int $limit): array
     {
-        $limit = UploadController::MAX_KILOBYTES;
-
         $problems = [];
 
-        $upload = self::kilobytesOf($uploadMax);
-        $post = self::kilobytesOf($postMax);
-
-        if ($upload !== null && $upload < $limit)
+        foreach (['upload_max_filesize' => $uploadMax, 'post_max_size' => $postMax] as $name => $raw)
         {
-            $problems[] = "upload_max_filesize is {$uploadMax} and the panel accepts {$limit}K";
-        }
+            if ($raw === null)
+            {
+                continue;
+            }
 
-        // Not `<`: a body of exactly the file's size has no room for the
-        // multipart boundaries and the other fields around it.
-        if ($post !== null && $post <= $limit)
-        {
-            $problems[] = "post_max_size is {$postMax}, which leaves no room around a {$limit}K upload";
+            $size = self::kilobytesOf($raw);
+
+            if ($size === null)
+            {
+                $problems[] = "{$name} is `{$raw}`, which is not a size PHP can read";
+
+                continue;
+            }
+
+            // Zero is unlimited, which is a configuration rather than a fault.
+            if ($size === 0)
+            {
+                continue;
+            }
+
+            $tooSmall = $name === 'post_max_size' ? $size <= $limit : $size < $limit;
+
+            if ($tooSmall)
+            {
+                $problems[] = "{$name} is {$raw}, and the panel accepts {$limit}K";
+            }
         }
 
         return $problems;
     }
 
     /**
-     * A php.ini size in kilobytes, or null when it is unlimited or unreadable.
+     * A php.ini size in kilobytes, or **null when it is not a size at all**.
      *
-     * `2M` is 2048, `512K` is 512, a bare `8388608` is bytes, and `0` means no
-     * limit at all - which is not a problem to report.
+     * `2M` is 2048, `512K` is 512, and a bare `8388608` is bytes. `0` is zero,
+     * which the caller reads as unlimited - keeping that apart from null is the
+     * point: unreadable and unlimited are different answers.
      */
     public static function kilobytesOf(?string $setting): ?int
     {
@@ -192,11 +238,6 @@ class SchemaLimits
         }
 
         $size = (int) $found[1];
-
-        if ($size === 0)
-        {
-            return null;
-        }
 
         return match (strtoupper($found[2]))
         {

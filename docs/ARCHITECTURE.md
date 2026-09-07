@@ -1281,7 +1281,8 @@ deployment. It answers in **four** states rather than two:
 | the column is narrower than its constant | failure |
 | the column, or its table, is not there | **failure** — the completest way for a schema to fall behind, and reading it as "no width reported" is how the first version passed a database with a column gone |
 | the type declares no width | reported as unknown, named, and not counted as well |
-| PHP's `upload_max_filesize` or `post_max_size` is at or below what the panel accepts | failure — the upload never reaches the rule, and the owner is told the image is missing |
+| `upload_max_filesize` is **below** what the panel accepts, or `post_max_size` is at or below it | failure — the upload never reaches the rule, and the owner is told the image is missing. Equal is enough for the file itself, because PHP refuses one that is *larger*; the body around it needs more |
+| either setting is not a size PHP can read (`2MB` for `2M`, which PHP reads as two bytes) | failure — unreadable is not the same answer as unlimited |
 
 The arithmetic is `SchemaLimits`, pure and separate from the command, so all of
 it is tested on the driver that reports nothing: SQLite records no width at all

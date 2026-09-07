@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Http\Controllers\UploadController;
 use App\Services\SchemaLimits;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -41,16 +42,24 @@ class DoctorSchema extends Command
 
     public function handle(): int
     {
-        $report = SchemaLimits::compare($this->declaredTypes());
+        [$declared, $absentTables] = $this->declaredTypes();
 
+        $report = SchemaLimits::compare($declared, $absentTables);
+
+        // The limit is the controller's, and it is read here rather than inside
+        // the service: a console command naming an HTTP constant is ordinary,
+        // a service depending on `app/Http` is a direction this application
+        // does not otherwise have.
         $uploads = SchemaLimits::uploadProblems(
             ini_get('upload_max_filesize') ?: null,
-            ini_get('post_max_size') ?: null
+            ini_get('post_max_size') ?: null,
+            UploadController::MAX_KILOBYTES
         );
 
         $failed = false;
 
         $headings = [
+            'tables' => 'These tables are not in the database - has it been migrated?',
             'missing' => 'These are checked against a limit and are not in the database:',
             'unnamed' => 'These name a constant that no longer exists:',
             'narrow' => 'These columns are narrower than what may be written into them:',
@@ -128,7 +137,11 @@ class DoctorSchema extends Command
      * collected rather than the first: a database several migrations behind
      * should be described in one run, not one table per invocation.
      *
-     * @return array<string, string|null>
+     * A table that is absent comes back as such rather than as a handful of
+     * absent columns: the cause is the table, and saying it once per column
+     * buries it under twelve lines about constants.
+     *
+     * @return array{0: array<string, string|null>, 1: array<int, string>}
      */
     private function declaredTypes(): array
     {
@@ -140,12 +153,18 @@ class DoctorSchema extends Command
         }
 
         $declared = [];
+        $absent = [];
 
         foreach ($wanted as $table => $columns)
         {
-            $types = Schema::hasTable($table)
-                ? collect(Schema::getColumns($table))->pluck('type', 'name')
-                : collect();
+            if (!Schema::hasTable($table))
+            {
+                $absent[] = $table;
+
+                continue;
+            }
+
+            $types = collect(Schema::getColumns($table))->pluck('type', 'name');
 
             foreach ($columns as $column)
             {
@@ -153,6 +172,6 @@ class DoctorSchema extends Command
             }
         }
 
-        return $declared;
+        return [$declared, $absent];
     }
 }

@@ -196,6 +196,25 @@ class ColumnWidthTest extends TestCase
         $this->assertStringContainsString('entry_slugs.slug', $report['narrow'][0]);
     }
 
+    /**
+     * **A table that is not there is said once**, not once per column.
+     *
+     * The first version reported each of a missing table's columns separately,
+     * so a database nobody had migrated answered with twelve lines about
+     * constants and never the sentence that gets somebody unstuck.
+     */
+    public function test_an_absent_table_is_reported_as_a_table(): void
+    {
+        $report = SchemaLimits::compare([], ['enquiries']);
+
+        $this->assertSame(['enquiries'], $report['tables']);
+
+        foreach ($report['missing'] as $line)
+        {
+            $this->assertStringNotContainsString('enquiries.', $line, 'A missing table is being reported column by column.');
+        }
+    }
+
     /** A column the caller never mentioned is missing too, not simply absent. */
     public function test_a_column_nobody_reported_is_reported(): void
     {
@@ -216,17 +235,27 @@ class ColumnWidthTest extends TestCase
     {
         $limit = UploadController::MAX_KILOBYTES;
 
-        $this->assertSame([], SchemaLimits::uploadProblems('10M', '10M'));
+        $this->assertSame([], SchemaLimits::uploadProblems('10M', '10M', $limit));
 
-        $this->assertCount(1, SchemaLimits::uploadProblems('1M', '10M'));
-        $this->assertStringContainsString('upload_max_filesize', SchemaLimits::uploadProblems('1M', '10M')[0]);
+        $this->assertCount(1, SchemaLimits::uploadProblems('1M', '10M', $limit));
+        $this->assertStringContainsString('upload_max_filesize', SchemaLimits::uploadProblems('1M', '10M', $limit)[0]);
 
-        // Exactly the limit leaves no room for the rest of the body.
-        $this->assertCount(1, SchemaLimits::uploadProblems('10M', $limit . 'K'));
+        // **Equal is enough for the file itself**: PHP refuses one that is
+        // larger. It is the body around it that needs room.
+        $this->assertSame([], SchemaLimits::uploadProblems($limit . 'K', '10M', $limit));
+        $this->assertCount(1, SchemaLimits::uploadProblems('10M', $limit . 'K', $limit));
 
-        // Unlimited, and unreadable, are not problems to report.
-        $this->assertSame([], SchemaLimits::uploadProblems('0', '0'));
-        $this->assertSame([], SchemaLimits::uploadProblems(null, null));
+        // Unlimited is a configuration, not a fault; a setting nobody reported
+        // is nothing to check.
+        $this->assertSame([], SchemaLimits::uploadProblems('0', '0', $limit));
+        $this->assertSame([], SchemaLimits::uploadProblems(null, null, $limit));
+
+        // **But a setting PHP cannot read is a fault.** `2MB` is the ordinary
+        // typo, and PHP reads it as two bytes.
+        $unreadable = SchemaLimits::uploadProblems('2MB', '10M', $limit);
+
+        $this->assertCount(1, $unreadable);
+        $this->assertStringContainsString('not a size PHP can read', $unreadable[0]);
     }
 
     public function test_a_php_ini_size_is_read_in_kilobytes(): void
@@ -236,8 +265,11 @@ class ColumnWidthTest extends TestCase
         $this->assertSame(1024 * 1024, SchemaLimits::kilobytesOf('1G'));
         $this->assertSame(8, SchemaLimits::kilobytesOf('8192'));
 
-        // Zero means no limit at all, which is not a number to compare.
-        $this->assertNull(SchemaLimits::kilobytesOf('0'));
+        // Zero is zero - the caller reads it as unlimited. Only something that
+        // is not a size at all is null, which is what keeps "unreadable" and
+        // "unlimited" from being one answer.
+        $this->assertSame(0, SchemaLimits::kilobytesOf('0'));
+        $this->assertNull(SchemaLimits::kilobytesOf('2MB'));
         $this->assertNull(SchemaLimits::kilobytesOf('nonsense'));
         $this->assertNull(SchemaLimits::kilobytesOf(null));
     }
@@ -251,6 +283,7 @@ class ColumnWidthTest extends TestCase
     {
         $report = SchemaLimits::compare(
             ['enquiries.name' => 'varchar(120)'],
+            [],
             [['enquiries', 'name', Enquiry::class, 'RENAMED_AWAY']]
         );
 
@@ -350,6 +383,22 @@ class ColumnWidthTest extends TestCase
             Redirect::PATH_MAX_LENGTH,
             'A rename of a module with the longest slugs it allows cannot record where its pages went.'
         );
+    }
+
+    /**
+     * **The guard on the rollback runs on this driver too.**
+     *
+     * `down()` refuses to narrow a column back over a value that would not fit,
+     * and the first version asked for that with `char_length()` - which is
+     * MySQL's alone, so the guard written to make a rollback safe was the
+     * reason a rollback could not run at all here. Nothing in the suite rolls
+     * back, so nothing said so.
+     */
+    public function test_the_widening_can_be_rolled_back_on_this_driver(): void
+    {
+        $this->artisan('migrate:rollback', ['--step' => 1])->assertExitCode(0);
+
+        $this->artisan('migrate')->assertExitCode(0);
     }
 
     /**

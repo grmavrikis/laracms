@@ -56,7 +56,13 @@ return new class extends Migration
     {
         foreach ([['enquiries', 'source_url'], ['redirects', 'from_path'], ['redirects', 'to_path']] as [$table, $column])
         {
-            $longest = (int) DB::table($table)->max(DB::raw("char_length({$column})"));
+            // `length()` rather than `char_length()`, which is MySQL's alone:
+            // the guard written to make this rollback safe was the reason the
+            // rollback could not run at all on SQLite. MySQL counts bytes here
+            // and SQLite characters, so on MySQL this errs toward refusing a
+            // rollback that would have fitted - which is the direction a guard
+            // should err in.
+            $longest = (int) DB::table($table)->max(DB::raw("length({$column})"));
 
             if ($longest > 512)
             {
