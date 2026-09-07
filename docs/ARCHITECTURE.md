@@ -885,10 +885,41 @@ Two consequences of that shape, both tested in `TranslationTest`:
   of a visitor. A second test keeps every locale file carrying the same keys as
   `en.json`, which is what catches a half-translated release.
 
+### Being refused in your own language (#99)
+
 Laravel's own messages come from `lang/{locale}/*.php` (`lang:publish`), where
-a missing key falls back per-key to `APP_FALLBACK_LOCALE`. A partial Greek
-`validation.php` is therefore legitimate and does not need finishing to be
-correct. **There is not one yet** — see TASKS.md #99.
+a missing key falls back **per key** to `APP_FALLBACK_LOCALE`. That fallback is
+what made this half-work invisible: the two messages written by hand were
+Greek, every framework one was English, and the page looked translated.
+
+`lang/el/validation.php` is **partial on purpose** — the rules the two
+public-facing surfaces use, which are the enquiry form's and everything
+`SchemaRuleBuilder` emits for the settings and entry screens. Everything else
+resolves through the fallback exactly as before, so a rule nobody uses is not a
+gap. `ValidationLanguageTest` is what says which rules count as "used": it
+reads them out of `StoreEnquiryRequest::rules()` and the settings schema, so a
+rule added later without a Greek message fails there rather than in front of a
+visitor.
+
+**The sentence is half of it; the field's name is the other half.** Every
+framework line interpolates `:attribute`, which is the request key unless
+something says otherwise — so a translated file alone produces *«Το πεδίο
+arrives_on είναι υποχρεωτικό»*. `StoreEnquiryRequest::attributes()` names them,
+and `SettingController` does the same with the settings screen's declared
+labels (#67). **In the request rather than in each locale's `attributes`
+array**, so one declaration serves every language, including one a client's
+site has and core has no file for.
+
+Those labels are **core's own words** (*Full name*, *Arrival date*), not the
+theme's (*Name*, *Arrival*): `TranslationTest` refuses a key both sides
+translate, and core reading a string the client owns is the line #61 draws. A
+client whose form says *Όνομα* therefore gets a refusal that says
+*Ονοματεπώνυμο*.
+
+**A message that interpolates a rule parameter needs writing out.**
+`after_or_equal:today` puts `today` into `:date`, so the Greek sentence ended
+*«…μεταγενέστερη της today»*. Rules like that get a written message beside the
+rule instead — which is what `departs_on.after` already did.
 
 ### The panel is the other axis
 

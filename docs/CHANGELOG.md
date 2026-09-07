@@ -3692,3 +3692,95 @@ written, five removed, none left.
 
 470 PHP tests, 214 JS tests, build clean.
 
+## 34. A Greek visitor is refused in Greek (#99, and #109 with it)
+
+`php artisan lang:publish` had created `lang/en/` only. Laravel falls back
+**per key** to `APP_FALLBACK_LOCALE`, so the two messages this project had
+written by hand were Greek and every framework one — `required`, `email`,
+`max`, `date`, `integer`, which is the majority of what anyone ever reads —
+stayed English:
+
+```
+The email field must be a valid email address.
+Παρακαλούμε συμφωνήστε να κρατήσουμε τα στοιχεία σας για να σας απαντήσουμε.
+```
+
+This is the product's one differentiator failing at the moment a prospect
+tests the demo's contact form. The panel had the same gap from the other side,
+because #67 had already fixed the half that names the field:
+*"The Σελίδα Facebook field must be a valid URL."*
+
+### What shipped
+
+`lang/el/validation.php`, **partial on purpose**: the rules the enquiry form
+declares plus everything `SchemaRuleBuilder` emits for the settings and entry
+screens. The per-key fallback covers the rest, so a rule nobody uses is not a
+gap — and copying all 120 of Laravel's would have been 120 lines for a future
+translator to work through for nothing, which is the same argument that
+deleted `auth.php`, `pagination.php` and `passwords.php` (#109). Nothing reads
+those three, and Laravel's `FileLoader` searches the framework's own `lang/`
+underneath the application's, so English is unchanged.
+
+**The names are the other half.** Every framework line interpolates
+`:attribute`, which is the request key — a translated file alone produces
+*«Το πεδίο arrives_on είναι υποχρεωτικό»*, a Greek sentence closing around an
+English column. `StoreEnquiryRequest::attributes()` names them, in the request
+rather than in each locale's `attributes` array, so one declaration serves
+every language including one a client's site has and core has no file for.
+
+The labels are **core's own words**, and that is a boundary decision rather
+than a preference: `TranslationTest` fails when core and the theme translate
+the same key, so `__('Name')` would have had core reading a string
+`site/lang/` owns (#61). A client whose form says *Όνομα* gets a refusal that
+says *Ονοματεπώνυμο* — two words for one field, which is the price of the line
+being in the right place.
+
+### The test that would have caught it, and did not
+
+#99 was found by reading, not by the suite: `TranslationTest` asserted on the
+**consent** message, which is the one that had been translated. *A test
+written from the same understanding as the code cannot find what that
+understanding missed.* So this one asserts over **every** message a response
+carries rather than a chosen one, and separately over the rules the two
+surfaces **declare** rather than the ones a payload happens to trigger.
+
+And then it missed something anyway. Live, `/el/enquiries` answered:
+
+```
+Το πεδίο Άφιξη πρέπει να είναι ημερομηνία ίδια ή μεταγενέστερη της today.
+```
+
+`after_or_equal:today` interpolates `:date` with the rule's own parameter. The
+test asked whether a message *contains* Greek — which is true of an English
+sentence wrapped around a Greek label, and is the exact shape of the whole
+finding. It now refuses any Latin word outside a named list of loanwords
+(`email`, `JSON`, `Facebook`…), and the rule has a written-out message like
+`departs_on.after` beside it.
+
+A mutation had already made the same point: replacing the Greek `required`
+line with Laravel's English one **survived**, because the rendered message
+still contained the Greek attribute label. The structural test now reads the
+catalogue rather than a response — where `:attribute` is still `:attribute`
+and no label can stand in for a translation.
+
+### Checked
+
+Six tests, written first and failing for the documented reasons. Five
+mutations, all biting after that repair. Live over Apache against MySQL:
+
+| | |
+|---|---|
+| `/el/enquiries` | six refusals, every one Greek, fields named *Ονοματεπώνυμο*, *Διεύθυνση email*, *Μήνυμα*, *Άφιξη*, *Άτομα* |
+| `/en/enquiries` | the same six in English |
+| the panel in `el` | *Το πεδίο Σελίδα Facebook πρέπει να είναι έγκυρη διεύθυνση ιστοσελίδας.* |
+| the panel in `en` | *The Facebook page field must be a valid URL.* |
+
+The panel's language was borrowed for that check and put back to what it was.
+
+**Still open, one screen over**: the entry form reports against `data.title`,
+so a Greek reader gets *«Το πεδίο data.title είναι υποχρεωτικό»*. It reads
+under the field it belongs to, which is why #99 scoped the `attributes` half to
+the enquiry form; it is recorded there rather than fixed here.
+
+476 PHP tests, 214 JS tests, build clean.
+

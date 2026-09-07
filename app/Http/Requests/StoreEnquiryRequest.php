@@ -66,6 +66,54 @@ class StoreEnquiryRequest extends FormRequest
         return [
             'consent.accepted' => __('Please agree to us keeping your details so we can reply.'),
             'departs_on.after' => __('The departure date has to come after the arrival date.'),
+
+            // The framework's line for this interpolates `:date` with the
+            // rule's own parameter, so a Greek reader got *«…μεταγενέστερη της
+            // today»* - the sentence translated and the last word not (#99).
+            // A written-out message is what the rule beside it already does,
+            // and it is better English too.
+            'arrives_on.after_or_equal' => __('The arrival date cannot be in the past.'),
+        ];
+    }
+
+    /**
+     * What each field is called inside a refusal (TASKS.md #99).
+     *
+     * Every framework message interpolates `:attribute`, which is the request
+     * key unless something says otherwise - so a translated `validation.php`
+     * alone produces *«Το πεδίο arrives_on είναι υποχρεωτικό»*, a Greek
+     * sentence closing around an English column name.
+     *
+     * **Here rather than in each locale's `attributes` array**, which is the
+     * other place Laravel would take them from: one declaration then serves
+     * every language, including one a client's site has and core has no file
+     * for. It is also what `SettingController` already does with the settings
+     * screen's own labels (#67).
+     *
+     * **The keys are core's own, not the theme's.** `Name`, `Email`, `Arrival`
+     * and the rest belong to `site/lang/`, and `TranslationTest` fails if both
+     * sides translate one key - core reading a string the client owns is the
+     * boundary #61 draws, and a second theme need not define it at all. So the
+     * words are core's, and a client whose form says *Όνομα* gets a refusal
+     * that says *Ονοματεπώνυμο*: two words for one field, which is the price of
+     * the line being in the right place.
+     */
+    public function attributes(): array
+    {
+        return [
+            'name' => __('Full name'),
+            'email' => __('Email address'),
+            'phone' => __('Telephone'),
+            'message' => __('Enquiry message'),
+            'arrives_on' => __('Arrival date'),
+            'departs_on' => __('Departure date'),
+            'guests' => __('Number of guests'),
+            'consent' => __('Consent'),
+
+            // Hidden, and only ever refused for length - but a message naming
+            // `source_url` would be the one thing on the page a visitor could
+            // not place.
+            'source_url' => __('Page address'),
         ];
     }
 }

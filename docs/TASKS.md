@@ -879,13 +879,13 @@ header, `SetPanelLocale` on the API group, and 135 strings — every message in
 `<html lang="el">` with the Greek catalogue inline, and `POST /api/modules`
 was refused in Greek for a Greek reader and in English for an English one.
 
-**What is left is the review: #99–#110.** Ten of those twelve are
-defects in what has just been built rather than debt beside it — a visitor
-refused half in English (#99), a mount test that passes without the mount
-(#101), a parity test that skips the locales a client adds (#102), and a
-catalogue nothing compares with the code (#103). **The item is not closable
-with those open**, and the CHANGELOG entry waits for the whole of it: half a
-decision is not a decision.
+**What is left is the review: #100–#110.** #99 is done (CHANGELOG §34) —
+the one a visitor could see. The rest are defects in what has just been built
+rather than debt beside it: a mount test that passes without the mount (#101),
+a parity test that skips the locales a client adds (#102), and a catalogue
+nothing compares with the code (#103). **The item is not closable with those
+open**, and the CHANGELOG entry waits for the whole of it: half a decision is
+not a decision.
 
 ### 97. Static HTML pages, served before PHP starts — DONE (CHANGELOG §27, §28)
 
@@ -1291,16 +1291,17 @@ hold, so **#96 is not closable until all twelve are done** — #100 included,
 which is deferred only in the sense that it lands with #96's panel half rather
 than before it.
 
-One is visible to a visitor today (#99). Five are the test mechanism failing to
-hold what its docblocks claim (#101–#103, #105, #108). One belongs with the
-panel half (#100). The remaining five are small (#104, #106, #107, #109, #110).
+One was visible to a visitor and is now fixed (#99, with #109). Five are the
+test mechanism failing to hold what its docblocks claim (#101—#103, #105,
+#108). One belongs with the panel half (#100). The remaining four are small
+(#104, #106, #107, #110).
 
 That the review found this much in a green, live-verified, mutation-tested
 commit is worth naming: **every mutation proved a test bites, and none proved a
 test is sufficient.** The mutations were written from the same understanding as
 the code, so they exercised the paths the code already handled.
 
-### 99. A Greek visitor is refused half in English — P1
+### 99. A Greek visitor is refused half in English — DONE (CHANGELOG §34)
 
 `php artisan lang:publish` created `lang/en/` only. Laravel falls back per key
 to `APP_FALLBACK_LOCALE`, so every *framework* validation message stays English
@@ -1350,7 +1351,32 @@ use settles both, and the `attributes` array is only needed for the enquiry
 form, which is the one place the request key is what a reader would otherwise
 see.
 
-Decide with #109, which is the other half of the same `lang:publish`.
+Decided with #109, which was the other half of the same `lang:publish`:
+`auth.php`, `pagination.php` and `passwords.php` are **deleted**. Nothing reads
+them, and the framework carries its own copies as a search path underneath
+`lang/`, so English is unchanged.
+
+**What shipped.** `lang/el/validation.php` for the rules both surfaces use, and
+`StoreEnquiryRequest::attributes()` for the names {D} the labels are declared
+once in the request rather than per locale, so a language a client's site has
+gets them too. The keys are core's own (*Full name*, *Arrival date*) rather
+than the theme's *Name* and *Arrival*, because `TranslationTest` refuses a key
+both sides translate (#61): a client whose form says *Όνομα* gets a refusal
+that says *Ονοματεπώνυμο*, which is the price of that line being in the right
+place.
+
+**Found live, not by the tests**: `after_or_equal:today` interpolates `:date`
+with the rule's own parameter, so the Greek sentence ended *«…μεταγενέστερη της
+today»*. It has a written-out message now, like the rule beside it. The test
+that missed it asked only whether a message *contains* Greek {D} which is true
+of an English sentence around a Greek label, and is the whole shape of this
+finding. It now refuses any Latin word outside a named list of loanwords.
+
+**Still open, one screen over**: the panel's entry form reports against
+`data.title`, so a Greek reader gets *«Το πεδίο data.title είναι
+υποχρεωτικό»*. It reads under the field it belongs to, which is why #99 scoped
+the `attributes` half to the enquiry form {D} but it is the same mechanism and
+about five lines in the Entry requests. Worth doing with #104's neighbours.
 
 ### 100. The owner's notification will be sent in the visitor's language — P2
 
@@ -1495,15 +1521,18 @@ a namespaced-key format this design deliberately does not use.
 Both read as safety nets and neither is one. Only the `assertSee('Όνομα')` half
 does any work.
 
-### 109. Three published language files nothing reads — P3
+### 109. Three published language files nothing reads — DONE (CHANGELOG §34)
 
 `lang:publish` wrote `auth.php`, `pagination.php` and `passwords.php` beside
 `validation.php`. The application has no Blade auth screens, no password reset
 and no paginated Blade views, so 61 lines of framework defaults entered the
 repository as things a future translator will work through for nothing.
 
-Only `validation.php` is needed, as the fallback base #99 relies on. Decide the
-two together.
+Only `validation.php` is needed, as the fallback base #99 relies on. Deleted
+with #99: nothing in `app/`, `resources/` or `site/` reads an `auth.`,
+`passwords.` or `pagination.` key, and Laravel's `FileLoader` searches the
+framework's own `lang/` before the application's, so the English a missing file
+would have carried is still there.
 
 ### 110. The honeypot's label is now translated — P3
 

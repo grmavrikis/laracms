@@ -173,7 +173,7 @@ JS tests sit **beside** their source as `resources/js/lib/*.test.js`.
 ## Commands
 
 ```bash
-php artisan test                    # 470 tests
+php artisan test                    # 476 tests
 npm test                            # 214 tests
 npm run build
 php artisan schema:sync-field-types # after changing field type constants
@@ -244,7 +244,7 @@ Started from a repo that would not boot (eight files of merge conflicts).
 Worked through a prioritised list; every item is either done or recorded in
 `CHANGELOG.md` with its reasoning.
 
-- **470 PHP tests, 214 JS tests**, all passing. Build clean.
+- **476 PHP tests, 214 JS tests**, all passing. Build clean.
 - **The project has a commercial goal as of 2026-08-30**, and it now decides
   what gets worked on. A multilingual CMS that feeds client sites, owned
   outright, for a one-person web agency: **one installation per client site**,
@@ -325,11 +325,12 @@ Worked through a prioritised list; every item is either done or recorded in
     a new locale needs no `npm run build`. Content languages are **rows**;
     interface locales are **files** — different axes, and they must not share
     the `languages` table.
-    **What is left is #99–#110**, twelve review findings against the public
-    half. Read that section before touching translations: a Greek visitor is
-    still refused half in English (#99, no `lang/el/validation.php`), and
-    three of the tests that look like they hold this mechanism do not (#101,
-    #102, #103).
+    **What is left is #100–#110**. #99 and #109 are done (CHANGELOG §34):
+    `lang/el/validation.php` carries the rules both surfaces use, and the
+    enquiry form's field names come from `StoreEnquiryRequest::attributes()`
+    so one declaration serves every locale. Read that section before touching
+    translations — three of the tests that look like they hold this mechanism
+    do not (#101, #102, #103).
   - **#97 static HTML pages — DONE** (CHANGELOG §27 and §28). The public site
     is written to `public/cache/{lang}/{module}/{slug}.html` and Apache serves
     it before PHP starts; `PageCache` is **deleted**. Commands: `pages:warm`,
