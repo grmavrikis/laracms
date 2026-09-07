@@ -23,8 +23,9 @@ use Tests\TestCase;
  *
  *   - core must not name the site side, except at the mount points that make
  *     it reachable at all;
- *   - both mounts must actually work, and the theme must provide every
- *     template core renders.
+ *   - **all three mounts** must actually work - the theme, the routes file and
+ *     the translations - and the theme must provide every template core
+ *     renders.
  *
  * Deliberately mechanical. A boundary held by discipline is one nobody
  * notices breaking.
@@ -207,6 +208,62 @@ class CoreSiteBoundaryTest extends TestCase
     }
 
     /**
+     * **The third mount, proven by loading something through it**
+     * (TASKS.md #101, #106).
+     *
+     * `config/site.php` names three paths and `AppServiceProvider` mounts two
+     * of them; this docblock promised "both mounts" while a third had arrived.
+     * Worse, the test that stood for it - in `TranslationTest` - ended with
+     * `assertSame('Name', __('Name', [], 'en'))`, and `__()` answers with the
+     * key when there is no translation at all. It passed whether or not
+     * `loadJsonTranslationsFrom` had ever been called, which a mutation run
+     * confirmed: deleting the mount bit only a page-rendering test elsewhere.
+     *
+     * So it is proven the way the routes mount is: point the mount at a
+     * directory of this test's own making, and ask for a word only that
+     * directory could supply. That also exercises the `env()` override, which
+     * is what lets a test move a mount at all.
+     *
+     * **It lives here rather than with the other translation tests**, and that
+     * is a precondition rather than tidying: `refreshApplication()` builds a
+     * new PDO, which on the `:memory:` SQLite the suite runs is an empty
+     * database - so a class using `RefreshDatabase` cannot rebuild the
+     * application without destroying the schema its other tests depend on.
+     * This class does not use it.
+     */
+    public function test_the_translations_mount_loads_the_clients_catalogue(): void
+    {
+        $directory = storage_path('framework/testing/zz-site-lang-' . getmypid());
+
+        File::ensureDirectoryExists($directory);
+        File::put($directory . '/en.json', json_encode(['zz-probe-mount' => 'Loaded from the client']));
+
+        putenv('SITE_LANG=' . $directory);
+        $_ENV['SITE_LANG'] = $directory;
+        $_SERVER['SITE_LANG'] = $directory;
+
+        try
+        {
+            $this->refreshApplication();
+
+            $this->assertSame(
+                'Loaded from the client',
+                __('zz-probe-mount', [], 'en'),
+                'The client-side translations are not mounted: a key only their catalogue carries came back as itself.'
+            );
+        }
+        finally
+        {
+            putenv('SITE_LANG');
+            unset($_ENV['SITE_LANG'], $_SERVER['SITE_LANG']);
+
+            File::deleteDirectory($directory);
+
+            $this->refreshApplication();
+        }
+    }
+
+    /**
      * A client's routes get the same parameter constraints core's do.
      *
      * Laravel merges the global patterns into a route **as it is created**
@@ -228,6 +285,56 @@ class CoreSiteBoundaryTest extends TestCase
 
             // Not two letters, so the pattern must refuse it.
             $this->get('/zzz-not-a-language/zz-probe-pattern')->assertNotFound();
+        });
+    }
+
+    /**
+     * **A page a client writes is rendered in the language of its address**
+     * (TASKS.md #104).
+     *
+     * `site/routes.php` is required before the core pages so a client can take
+     * an address over (#61), which put their routes outside the group carrying
+     * the `locale` middleware. A contact page at `/el/epikoinonia` including
+     * `theme::enquiry` rendered Greek prose around an English form, and nothing
+     * could see it: the note saying clients "can opt in" lived in
+     * `bootstrap/app.php`, which is not where somebody writing a route looks.
+     *
+     * **And the obvious fix would not have reached the obvious route.** The
+     * middleware read `$request->route('language')`, and a hand-written
+     * `/el/epikoinonia` has no parameters at all - so attaching it to the group
+     * fixed nothing until it also learned to read the first segment.
+     */
+    public function test_a_site_route_is_rendered_in_the_language_of_its_address(): void
+    {
+        $this->withSiteRoutes(<<<'PHP'
+            <?php
+
+            use Illuminate\Support\Facades\Route;
+
+            Route::get('/el/zz-probe-locale', fn() => __('Name'));
+            Route::get('/zz-probe-locale', fn() => app()->getLocale());
+            PHP, function ()
+        {
+            // **Read the default before asking, not after.**
+            // `App::setLocale()` writes `config('app.locale')`, so comparing
+            // the answer with that config value afterwards compares the
+            // request's own effect with itself - it passed even when the
+            // middleware accepted `zz-probe-locale` as a language. The same
+            // shape as the assertion #101 was raised about.
+            //
+            // First, too: a locale set by one request stays set for the rest of
+            // the process, and the test client reuses one application across
+            // both calls.
+            $default = config('app.locale');
+
+            // A first segment that is not a language code leaves the locale
+            // alone, which is every panel and sitemap address.
+            $this->get('/zz-probe-locale')->assertOk()->assertSee($default);
+
+            $this->assertSame($default, config('app.locale'), 'A segment that is not a language changed the locale.');
+
+            // And the theme's own catalogue, reached from a route core never saw.
+            $this->get('/el/zz-probe-locale')->assertOk()->assertSee('Όνομα', false);
         });
     }
 

@@ -4129,3 +4129,105 @@ is the whole risk.
 
 507 PHP tests, 214 JS tests, build clean.
 
+## 36. The rest of #96's review, and what it says about tests (#100-#108, #110)
+
+#99 was the half a visitor could see, and section 34 closed it. These ten are
+the other half: defects in what #96 had just built, and **five of them were the
+test mechanism failing to hold what its own docblocks claimed**. That is the
+theme of the section, and the reason the item was not closable without them.
+
+### Text that reaches the wrong person, or in the wrong language
+
+**A rate-limited visitor was refused in English** (#107), and the fix the item
+proposed does not work. Declaring `locale` ahead of the limiter changes nothing:
+`ThrottleRequests` is in Laravel's own `$middlewarePriority`, so it is sorted
+ahead of every middleware that is not, whatever a route asks for. A mutation
+that swapped the order back **passed**, which is how that was found. The refusal
+reads the language itself now - `SetLocale::languageFor($request)`, the same
+question the middleware asks - and says something a visitor can act on rather
+than the framework's untranslatable *"Too Many Attempts."*.
+
+**A page a client wrote got no locale at all** (#104). `site/routes.php` loads
+before the core pages so a client can take an address over (#61), which put
+their routes outside the group carrying the middleware - a contact page at
+`/el/epikoinonia` rendered Greek prose around an English form. Both halves were
+needed and either alone does nothing: the middleware is on the whole `web` group
+now, **and** it reads the first URL segment when a route has no `{language}`
+parameter, because a hand-written route has none. The shape comes from
+`Route::getPatterns()` rather than a second copy of the expression.
+
+**And the owner's notification was in the visitor's language** (#100). It is
+built inside the visitor's request, where the locale is the language of the page
+*they* were reading, so the moment that template is translated a French enquiry
+would reach a Greek owner in French - and it would read as a mail defect rather
+than a locale one. It renders under the installation's own locale now.
+
+### Tests that were not testing
+
+**The mount test passed without the mount** (#101). It ended with
+`assertSame('Name', __('Name', [], 'en'))`, and `__()` answers with the key when
+there is no translation at all - so it passed whether or not
+`loadJsonTranslationsFrom` had ever been called, which a mutation had already
+confirmed. It is proven the way the routes mount is now: point `SITE_LANG` at a
+directory of the test's own making and ask for a word only that directory could
+supply. It lives in `CoreSiteBoundaryTest`, and that move was a precondition
+rather than tidying (#106): `refreshApplication()` builds a new PDO, which on
+the `:memory:` SQLite the suite runs is an empty database, so a class using
+`RefreshDatabase` cannot rebuild the application without destroying its own
+schema. The docblock there promised "both mounts" while a third had arrived;
+it names all three.
+
+**The parity test skipped exactly the locales a client adds** (#102). It listed
+core's `lang/` alone, so a locale in `site/lang/` and not in `lang/` was never
+compared with anything - somebody activates Italian, writes four of the fourteen
+keys, and the suite stays green while the Italian page ships half in English.
+It is the union of both directories now, and a test arranges a client-only
+locale so the fix can be told from no fix at all.
+
+**Nothing compared the catalogue with the code** (#103), which is the largest of
+the ten. `CatalogueCoversTheCodeTest` reads every `__('…')` literal out of PHP as
+**tokens** - a comment quoting `__('Name')` is not a translation, and the first
+version of the scan reported exactly that out of `AppServiceProvider` - plus
+Blade and the panel's `t('…')`. It found two real gaps immediately: the settings
+screen's *Serve pages from files* label was in no catalogue, so a Greek owner
+read it in English; and `Give it a name, a slug and the fields its entries
+hold.` had been **reworded in its value** when #114 made the slug per language,
+so the code was asking for a sentence about something that had moved. A third
+assertion keeps the English files identity maps, which is what makes an
+untranslated string read as English.
+
+**The key-parity assertion compared order rather than membership** (#105):
+alphabetising a translation file failed the suite with a whole-array diff that
+read as a missing translation. And **two assertions could never fire** (#108) -
+`assertDontSee('>Name<')` against a label that renders as `Name *`, and a guard
+against a namespaced-key format this design does not use. Both read as safety
+nets; neither was one.
+
+### The honeypot, decided by the test (#110)
+
+The hidden trap's label was translated with the visible ones, so its wording
+varied by language - and its wording is a defence rather than a design choice.
+#103's test decided which of the two obvious fixes survives: dropping the key
+from the catalogue would fail, because the template still asked for it. So the
+template stops translating it, with a comment saying why, and the key leaves
+both site catalogues.
+
+### Checked
+
+Fourteen tests written or repaired. Fifteen mutations, and three of them earned
+their place: the middleware-order swap **passed**, which is what exposed
+Laravel's priority list; and two of this session's own tests turned out to be
+self-fulfilling - `App::setLocale()` writes `config('app.locale')`, so asserting
+against that config value afterwards compares a request with itself, and a
+locale set by one request stays set for the next inside a single test process,
+which made a 429 look Greek for the wrong reason. Both now read the default
+before asking, which is the same defect #101 was raised about, found in the
+tests written to fix it.
+
+Live over Apache against MySQL: the Greek page carries the untranslated
+`<label>Website`, `/el/enquiries` answers its sixth submission with *«Έχουν
+σταλεί πολλά μηνύματα από εδώ…»* and `/en/enquiries` with the English, and the
+ten probe rows and the limiter were cleared afterwards.
+
+**#96 is closed.** 515 PHP tests, 214 JS tests, build clean.
+

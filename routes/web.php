@@ -104,7 +104,12 @@ $protected();
  * free. Its own limiter, far below the `api` one - see AppServiceProvider.
  */
 Route::post('/{language}/enquiries', [EnquiryController::class, 'store'])
-    ->middleware(['throttle:enquiries', 'locale'])
+    // `locale` is not declared here any more: it is on the whole web group
+    // since #104. And **declaring it first would not have helped** (#107) -
+    // `ThrottleRequests` sits in Laravel's own middleware priority list, so it
+    // runs before anything not in that list whatever order a route asks for.
+    // The limiter reads the language itself instead; see `AppServiceProvider`.
+    ->middleware('throttle:enquiries')
     ->name('web.enquiries.store');
 
 Route::get('/', [PageController::class, 'root'])->name('web.root');

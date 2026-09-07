@@ -1,17 +1,16 @@
 {
-    "Ask us": "Ask us",
-    "Name": "Name",
-    "Email": "Email",
-    "Phone": "Phone",
     "Arrival": "Arrival",
+    "Ask us": "Ask us",
     "Departure": "Departure",
+    "Email": "Email",
     "Guests": "Guests",
+    "Home": "Home",
+    "I agree to you keeping my details in order to reply. They are deleted after :months months.": "I agree to you keeping my details in order to reply. They are deleted after :months months.",
     "Message": "Message",
+    "Name": "Name",
+    "Nothing published here yet.": "Nothing published here yet.",
+    "Phone": "Phone",
     "Send": "Send",
     "Sending…": "Sending…",
-    "Your message could not be sent. Please try again in a moment.": "Your message could not be sent. Please try again in a moment.",
-    "Website": "Website",
-    "I agree to you keeping my details in order to reply. They are deleted after :months months.": "I agree to you keeping my details in order to reply. They are deleted after :months months.",
-    "Home": "Home",
-    "Nothing published here yet.": "Nothing published here yet."
+    "Your message could not be sent. Please try again in a moment.": "Your message could not be sent. Please try again in a moment."
 }

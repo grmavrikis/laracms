@@ -95,7 +95,7 @@ export default function ModuleBuilder({ onCreated, onCancel }) {
                     </div>
                     <div>
                         <h2 className="text-xl font-bold tracking-tight text-gray-900">{t('New module')}</h2>
-                        <p className="text-sm text-gray-500">{t('Give it a name, a slug and the fields its entries hold.')}</p>
+                        <p className="text-sm text-gray-500">{t('Give it a name in each language, and the fields its entries hold.')}</p>
                     </div>
                 </div>
             </div>

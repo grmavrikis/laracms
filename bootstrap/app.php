@@ -46,10 +46,17 @@ return Application::configure(basePath: dirname(__DIR__))
             );
         }
 
-        // Named so the public routes can declare it and a client's own
-        // routes can opt in (#61): a page under `/{language}` that a client
-        // writes wants the same locale the core pages get.
+        // Named so a route can still declare it, and **on the whole web group**
+        // (TASKS.md #104): a page under `/{language}` that a client writes in
+        // `site/routes.php` wants the same locale the core pages get, and
+        // "they can opt in" put that requirement in a comment nobody writing a
+        // route would read. It resolves nothing and queries nothing, so the
+        // cache-before-database rule the public side rests on still holds -
+        // and a first segment that is not a language code leaves the locale
+        // exactly as it was, which is every panel and sitemap address.
         $middleware->alias(['locale' => \App\Http\Middleware\SetLocale::class]);
+
+        $middleware->web(append: [\App\Http\Middleware\SetLocale::class]);
 
         // The panel's half of the same question (#96). Appended to the group
         // rather than declared per route, because every error the panel shows

@@ -852,7 +852,7 @@ redirects is a support call about a redirect loop.
 Module, the observer flushes the whole directory, and the old address has no
 file to serve, so the request reaches PHP and gets its 301.
 
-## 5a. Translations (TASKS.md #96 — public side done, panel not yet)
+## 5a. Translations (TASKS.md #96)
 
 **The address decides the language, not a header.** `SetLocale`, aliased as
 `locale` and declared on the public routes, calls `App::setLocale()` with the
@@ -863,6 +863,45 @@ It **resolves nothing** — no query, not even to check the language exists. Tha
 is the controller's question, asked after the cache. `PageCacheTest`'s
 zero-query test runs over a route this middleware is on, so a lookup added here
 fails it.
+
+**It is on the whole `web` group, and it reads the first segment when a route
+has no `{language}` parameter** (#104). `site/routes.php` loads before the core
+pages so a client can take an address over (#61), which had put their routes
+outside the group carrying this - and a hand-written `/el/epikoinonia` has no
+parameters, so attaching the middleware alone would have fixed nothing. The
+shape a segment must have comes from `Route::getPatterns()`, not a second copy
+of the expression: `admin`, `storage` and `sitemap.xml` cannot match
+`[a-z]{2}(-[a-z]{2})?`, which is what makes running it everywhere safe.
+
+**Two things cannot wait for it, and say so.** The enquiry limiter answers 429
+by itself, and `ThrottleRequests` sits in Laravel's own `$middlewarePriority` -
+so it is sorted ahead of any middleware that is not, whatever order a route
+declares. The refusal therefore asks `SetLocale::languageFor($request)` itself
+(#107). And the owner's notification is built inside the visitor's request, so
+it is rendered under `InterfaceLocales::resolve(null)` - the installation's own
+locale - rather than the language of the page somebody else was reading (#100).
+
+### The catalogue is compared with the code (#103)
+
+`lang/en.json` and `site/lang/en.json` are identity maps: every key is its own
+value, which is what makes an untranslated string read as English rather than
+as `theme.form.name`. Until #103 nothing compared them with the code, so the
+catalogue was only ever compared with itself - a new `__('Cancel')` nobody added
+was invisible to parity and collision alike, and a Greek reader saw *Cancel*.
+
+`CatalogueCoversTheCodeTest` reads every `__('…')` literal out of PHP **as
+tokens** - a comment quoting `__('Name')` is not a translation, and the first
+version of the scan reported exactly that - plus Blade and the panel's `t('…')`,
+which shares core's catalogue. It found two real gaps the day it was written:
+the settings screen's *Serve pages from files* label was in no catalogue at all,
+and one key had been reworded in its *value* rather than rekeyed, leaving the
+code asking for a sentence about a slug that #114 had moved.
+
+**The honeypot's label is deliberately not translated** (#110). Its wording is a
+defence rather than a design choice, and a translator handed *Website* in the
+catalogue has no way to know it should be left alone. A literal keeps it out of
+their hands, and the test above is what makes that the only workable answer:
+dropping the key while the template still asked for it would fail.
 
 Strings are **JSON translations keyed by their English text**, in two
 directories with two owners:
@@ -1298,7 +1337,7 @@ list. That last one is by *name*: several of these are 255, so a list of values
 called a constant covered when what covered it was somebody else's.
 
 **Two numbers were below a sum nobody had done.** A public path is
-`/{{language}}/{{module}}/{{slug}}`, which reaches 518 characters, and the
+`/{language}/{module}/{slug}`, which reaches 518 characters, and the
 enquiry form stores that address with a scheme and a host in front of it. At
 512, `redirects.from_path` could not record where a renamed module's pages went
 (logged and skipped, so the old address stayed dead), and `enquiries.source_url`

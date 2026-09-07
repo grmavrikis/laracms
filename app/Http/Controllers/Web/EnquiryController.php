@@ -7,6 +7,7 @@ use App\Http\Requests\StoreEnquiryRequest;
 use App\Mail\EnquiryReceived;
 use App\Models\Enquiry;
 use App\Models\Language;
+use App\Services\InterfaceLocales;
 use App\Services\SiteSettings;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -109,7 +110,19 @@ class EnquiryController extends Controller
 
         try
         {
-            Mail::to($to)->send(new EnquiryReceived($enquiry));
+            // **The owner's language, not the visitor's** (TASKS.md #100).
+            // This is built inside the visitor's request, where `SetLocale`
+            // has already set the application to the language of the page they
+            // were reading - so the moment this template is translated, a
+            // French enquiry would arrive at a Greek owner in French, and it
+            // would read as a mail defect rather than a locale one.
+            //
+            // `resolve(null)` is the installation's own locale: the settings
+            // screen's `panel_locale`, falling back the way the panel does.
+            // There is no user in a public request to ask.
+            Mail::to($to)
+                ->locale(app(InterfaceLocales::class)->resolve(null))
+                ->send(new EnquiryReceived($enquiry));
         }
         catch (\Throwable $e)
         {

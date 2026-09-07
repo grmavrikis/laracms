@@ -840,7 +840,7 @@ and go through `SchemaRuleBuilder`, translatable rules and all. ARCHITECTURE
 
 **#97's cache switch has a home now**: it is a `core` field like the other two.
 
-### 96. Translated interfaces, panel and public — *built, review open*
+### 96. Translated interfaces, panel and public — DONE (CHANGELOG §36)
 
 Every user-facing string in the application is hardcoded English and
 `App::setLocale()` is called nowhere. Three audiences, and they are not the
@@ -879,13 +879,15 @@ header, `SetPanelLocale` on the API group, and 135 strings — every message in
 `<html lang="el">` with the Greek catalogue inline, and `POST /api/modules`
 was refused in Greek for a Greek reader and in English for an English one.
 
-**What is left is the review: #100–#110.** #99 is done (CHANGELOG §34) —
-the one a visitor could see. The rest are defects in what has just been built
-rather than debt beside it: a mount test that passes without the mount (#101),
-a parity test that skips the locales a client adds (#102), and a catalogue
-nothing compares with the code (#103). **The item is not closable with those
-open**, and the CHANGELOG entry waits for the whole of it: half a decision is
-not a decision.
+**The review is done** (CHANGELOG §34 and §36). #99 was the one a visitor
+could see; #100–#108 and #110 were defects in what had just been built rather
+than debt beside it, and five of them were the test mechanism failing to hold
+what its own docblocks claimed - a mount test that passed without the mount
+(#101), a parity test that skipped exactly the locales a client adds (#102), a
+catalogue nothing compared with the code (#103), an assertion that compared
+order rather than membership (#105), and two that could never fire (#108).
+
+**#96 is closed.**
 
 ### 97. Static HTML pages, served before PHP starts — DONE (CHANGELOG §27, §28)
 
@@ -1413,7 +1415,7 @@ finding. It now refuses any Latin word outside a named list of loanwords.
 the `attributes` half to the enquiry form — but it is the same mechanism and
 about five lines in the Entry requests. Worth doing with #104's neighbours.
 
-### 100. The owner's notification will be sent in the visitor's language — P2
+### 100. The owner's notification will be sent in the visitor's language — DONE (CHANGELOG §36)
 
 `EnquiryController::notify()` builds `EnquiryReceived` **inside the visitor's
 request**, where `SetLocale` has already set the application locale to the
@@ -1430,7 +1432,7 @@ Belongs with #96's panel half, which is where `users.locale` arrives and where
 the owner's locale becomes a thing that exists. The fix is to render the mail
 under the owner's locale explicitly, not to move the send.
 
-### 101. The mount test asserts something that is true without the mount — P1
+### 101. The mount test asserts something that is true without the mount — DONE (CHANGELOG §36)
 
 `TranslationTest::test_the_client_side_of_the_translations_is_mounted` ends
 with `assertSame('Name', __('Name', [], 'en'))`. `__()` returns the key when
@@ -1456,7 +1458,7 @@ application there destroys the schema the rest of the class depends on.
 routes mount can be proven there and not here. Move the test first, then write
 it.
 
-### 102. The parity test skips exactly the locales a client adds — P1
+### 102. The parity test skips exactly the locales a client adds — DONE (CHANGELOG §36)
 
 `TranslationTest::locales()` lists the JSON files in **core's** `lang/`, and
 `test_every_locale_carries_the_same_keys_as_english` iterates that list. A
@@ -1474,7 +1476,7 @@ that involves a client rather than the agency.
 
 The fix is to take the union of the locale files found in both directories.
 
-### 103. Nothing checks the catalogue against the code — P1
+### 103. Nothing checks the catalogue against the code — DONE (CHANGELOG §36)
 
 `lang/en.json` and `site/lang/en.json` are identity maps. They exist only to be
 the reference the parity test compares against, and **no test compares them
@@ -1489,12 +1491,22 @@ literals and asserts each one is in the catalogue. That is what makes the
 identity files earn their place; without it they are duplication with a
 ceremony attached.
 
-**Settle #110 first, because that test decides it.** Once every `__('…')` must
-be in the catalogue, "drop the honeypot label from the catalogue" stops being
-an option — the template would still ask for it and the new test would fail.
-Whichever of the two lands first constrains the other.
+**Settled with #110**, which the new test decided as predicted: the template
+stops translating the label, so there is nothing in the catalogue to drop.
 
-### 104. A client's own routes get no locale — P2
+`CatalogueCoversTheCodeTest` reads `__('…')` out of PHP **as tokens** rather
+than by pattern - the first version of the scan reported a comment in
+`AppServiceProvider` that explains the mechanism by quoting `__('Name')` - and
+covers the theme, core's PHP and Blade, and the panel's `t('…')`, which shares
+core's catalogue. It found two real gaps on the day it was written: the
+settings screen's *Serve pages from files* label was in no catalogue at all, so
+a Greek owner read it in English, and `Give it a name, a slug and the fields its
+entries hold.` had been *reworded in its value* when #114 made the slug per
+language, leaving the code asking for a sentence about a slug that is no longer
+there. A third assertion pins that the English files stay identity maps, which
+is what makes an untranslated string read as English rather than as a key.
+
+### 104. A client's own routes get no locale — DONE (CHANGELOG §36)
 
 `site/routes.php` is required **before** the `locale` group, so a page a client
 writes at `/{language}/…` renders in the default locale unless its author
@@ -1512,13 +1524,15 @@ routes that *declare a parameter of that name* — and the example above,
 `Route::get('/el/epikoinonia', …)`, has no parameters at all. It would stay
 broken.
 
-So either the middleware learns to read the first URL segment when there is no
-parameter (safe: `admin` and `sitemap.xml` cannot match `[a-z]{2}(-[a-z]{2})?`,
-which is the pattern the routes already use), or the requirement is written
-where a client's route author reads it — `site/README.md` — rather than in a
-comment in `bootstrap/app.php`. The first is the one that cannot be forgotten.
+**Both halves shipped**, because either alone does nothing: `SetLocale` is on
+the whole `web` group now, and it reads the first segment when the route has no
+`{language}` parameter. The pattern comes from `Route::getPatterns()` rather
+than a second copy of the expression, so `admin`, `storage` and `sitemap.xml`
+cannot match it. `CoreSiteBoundaryTest` proves it through a routes file of its
+own making, and a mutation that accepts any first segment as a language is
+caught there.
 
-### 105. The key-parity assertion compares order, not membership — P3
+### 105. The key-parity assertion compares order, not membership — DONE (CHANGELOG §36)
 
 `assertSame(array_keys($reference), array_keys(…))`. Alphabetising a
 translation file, or inserting a new pair at the top rather than the bottom,
@@ -1526,7 +1540,7 @@ fails the suite with a whole-array diff that reads as a missing translation.
 
 `assertEqualsCanonicalizing` states the actual rule.
 
-### 106. The boundary test still promises two mounts — P3
+### 106. The boundary test still promises two mounts — DONE (CHANGELOG §36)
 
 `CoreSiteBoundaryTest`'s docblock says "both mounts must actually work", and
 the file checks the theme and the routes file. `config/site.php` now carries a
@@ -1539,14 +1553,21 @@ what is left is the docblock and the check it describes, which means taking
 #101's test in rather than leaving it in `TranslationTest` — see #101 for why
 that move is a precondition rather than tidying.
 
-### 107. A rate-limited visitor is refused in English — P3
+### 107. A rate-limited visitor is refused in English — DONE (CHANGELOG §36)
 
 `->middleware(['throttle:enquiries', 'locale'])` runs the limiter first, so a
-429 is rendered before the locale is set. Swapping the order costs nothing:
-`SetLocale` does no work the limiter would repeat and no work a rejected
-request wastes.
+429 is rendered before the locale is set.
 
-### 108. Two assertions that cannot fire — P3
+**And swapping the order does nothing**, which is what the fix turned out to
+be about: `ThrottleRequests` is in Laravel's own `$middlewarePriority`, so it is
+sorted ahead of any middleware that is not, whatever a route asks for. A
+mutation swapping it back passed. So the refusal reads the language itself -
+`SetLocale::languageFor($request)`, the same question the middleware asks - and
+says something a visitor can act on instead of the framework's untranslatable
+*"Too Many Attempts."*. Verified live: `/el/enquiries` answers in Greek and
+`/en/enquiries` in English.
+
+### 108. Two assertions that cannot fire — DONE (CHANGELOG §36)
 
 `assertDontSee('>Name<')` never matches, because the label renders as `Name *`;
 if the translation of `Name` were dropped, `/el` would render `>Name *<` and
@@ -1573,7 +1594,7 @@ relies on" was 200 lines held on a reason that was not true. English is
 unchanged with `lang/en/` deleted; `php artisan lang:publish` writes it back
 whenever a translator wants a reference to copy from.
 
-### 110. The honeypot's label is now translated — P3
+### 110. The honeypot's label is now translated — DONE (CHANGELOG §36)
 
 The hidden trap's `<label>` was translated along with the visible ones, so its
 text varies with the language.

@@ -52,8 +52,12 @@ class TranslationTest extends TestCase
      */
     public function test_a_page_is_rendered_in_the_language_of_its_address(): void
     {
-        $this->get('/el')->assertOk()->assertSee('Όνομα', false)->assertDontSee('>Name<', false);
-        $this->get('/en')->assertOk()->assertSee('Name', false)->assertDontSee('Όνομα', false);
+        // `assertDontSee('>Name<')` used to stand here and could never match:
+        // the label renders as `Name *`, so dropping the Greek translation
+        // would have shown `>Name *<` and the assertion would still have
+        // passed (TASKS.md #108). The label itself is what to look for.
+        $this->get('/el')->assertOk()->assertSee('Όνομα', false)->assertDontSee('>Name *<', false);
+        $this->get('/en')->assertOk()->assertSee('>Name *<', false)->assertDontSee('Όνομα', false);
     }
 
     /**
@@ -70,7 +74,12 @@ class TranslationTest extends TestCase
         // claiming it would make a listing open on whichever came back first.
         $this->assertSame(1, Language::query()->where('is_default', true)->count());
 
-        $this->get('/fr')->assertOk()->assertSee('Name', false)->assertDontSee('theme.', false);
+        // Not `assertDontSee('theme.')`, which guarded against a
+        // namespaced-key format this design does not use and so could never
+        // fire (#108). What matters is that the *key* is what shows, which is
+        // English - and that the Greek translation is not what a French
+        // visitor gets.
+        $this->get('/fr')->assertOk()->assertSee('>Name *<', false)->assertDontSee('Όνομα', false);
     }
 
     /**
@@ -135,7 +144,11 @@ class TranslationTest extends TestCase
                     continue;
                 }
 
-                $this->assertSame(
+                // **Membership, not order** (TASKS.md #105). `assertSame`
+                // on the keys failed the suite for alphabetising a file or
+                // adding a pair at the top, with a whole-array diff that reads
+                // as a missing translation.
+                $this->assertEqualsCanonicalizing(
                     array_keys($reference),
                     array_keys($this->keysIn($file)),
                     "{$file} does not carry what en.json does."
@@ -145,14 +158,36 @@ class TranslationTest extends TestCase
     }
 
     /**
-     * The mount, like the theme's and the routes file's: core names where the
-     * client's translations are and nothing about what is in them (#61).
+     * **A locale only the client has is compared too** (TASKS.md #102).
+     *
+     * The list came from core's `lang/` alone, so the one case in this
+     * mechanism that involves a client rather than the agency - somebody
+     * activating Italian and writing `site/lang/it.json` - was never compared
+     * with anything. Half the keys, a green suite, and an Italian page shipping
+     * half in English.
+     *
+     * Arranged rather than waited for: this installation has no such locale
+     * today, so a fix here could not otherwise be told from no fix at all.
      */
-    public function test_the_client_side_of_the_translations_is_mounted(): void
+    public function test_a_locale_only_the_client_has_is_still_on_the_list(): void
     {
-        $this->assertDirectoryExists(config('site.lang'));
+        $directory = storage_path('framework/testing/zz-site-lang-' . getmypid());
 
-        $this->assertSame('Name', __('Name', [], 'en'));
+        File::ensureDirectoryExists($directory);
+        File::put($directory . '/en.json', json_encode(['A' => 'A']));
+        File::put($directory . '/it.json', json_encode(['A' => 'A']));
+
+        config(['site.lang' => $directory]);
+
+        try
+        {
+            $this->assertContains('it', $this->locales(), 'A locale only the client has is never compared with anything.');
+            $this->assertContains('en', $this->locales());
+        }
+        finally
+        {
+            File::deleteDirectory($directory);
+        }
     }
 
     // ------------------------------------------------------------- helpers
@@ -167,12 +202,30 @@ class TranslationTest extends TestCase
         ], $overrides);
     }
 
-    /** @return array<int, string> */
+    /**
+     * Every locale **either side** has a file for (TASKS.md #102).
+     *
+     * It listed core's `lang/` alone, so a locale a *client* added - the only
+     * case in this mechanism that involves a client rather than the agency -
+     * was never compared with anything. Somebody activates Italian, writes
+     * `site/lang/it.json` with four of the fourteen keys, and the suite stays
+     * green while the Italian page ships half in English, which is precisely
+     * what the parity test's docblock claims to catch.
+     *
+     * The collision test reads the same list and is unaffected either way: a
+     * collision needs the key on both sides, so a locale core has no file for
+     * cannot have one.
+     *
+     * @return array<int, string>
+     */
     private function locales(): array
     {
-        return collect(File::files(base_path('lang')))
+        return collect([base_path('lang'), config('site.lang')])
+            ->flatMap(fn(string $directory) => File::exists($directory) ? File::files($directory) : [])
             ->filter(fn($file) => $file->getExtension() === 'json')
             ->map(fn($file) => $file->getFilenameWithoutExtension())
+            ->unique()
+            ->sort()
             ->values()
             ->all();
     }

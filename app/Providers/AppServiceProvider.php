@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use Illuminate\Cache\RateLimiting\Limit;
+use App\Http\Middleware\SetLocale;
 use App\Models\Enquiry;
 use Illuminate\Http\Request;
 use App\Services\InterfaceLocales;
@@ -123,7 +124,27 @@ class AppServiceProvider extends ServiceProvider
         // the client sent - that trap cost a 500 on the login limiter once
         // already, and there is nothing in this payload worth keying on.
         RateLimiter::for('enquiries', fn (Request $request) => Limit::perHour(Enquiry::PER_HOUR)
-            ->by($request->ip()));
+            ->by($request->ip())
+            // **In the visitor's own language** (#107). Laravel's own answer
+            // is the untranslatable string "Too Many Attempts.", and this is
+            // the last thing somebody reads before giving up on the form - so
+            // it says what happened and what to do instead.
+            //
+            // **The language is read here rather than inherited.** #107
+            // proposed declaring `locale` ahead of the limiter on the route,
+            // and that does nothing: `ThrottleRequests` is in Laravel's own
+            // `$middlewarePriority`, so it is sorted ahead of any middleware
+            // that is not. A mutation swapping the order back proved it by
+            // passing. `SetLocale::languageFor` is the same question the
+            // middleware asks, asked by the one caller that cannot wait for
+            // the answer.
+            ->response(fn (Request $request) => response()->json([
+                'message' => __(
+                    'Too many messages have been sent from here. Please try again later, or telephone us.',
+                    [],
+                    SetLocale::languageFor($request) ?? config('app.locale')
+                ),
+            ], 429)));
 
         // Signing in gets its own, far tighter limit, declared on the route.
         RateLimiter::for('login', function (Request $request)

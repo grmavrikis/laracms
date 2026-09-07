@@ -49,7 +49,13 @@
              `display:none` rather than an off-screen trick, because some bots
              now check for that. --}}
         <div style="display:none" aria-hidden="true">
-            <label>{{ __('Website') }}<input type="text" name="website" tabindex="-1" autocomplete="off"></label>
+            {{-- **Not translated, deliberately** (TASKS.md #110). This label
+                 belongs to the trap rather than to the form: its wording is a
+                 defence, and a translator handed "Website" in the catalogue
+                 has no way to know it should be left alone. A literal keeps it
+                 out of their hands - and out of the catalogue, which since
+                 #103 is the list of everything the code does translate. --}}
+            <label>Website<input type="text" name="website" tabindex="-1" autocomplete="off"></label>
         </div>
 
         <p>
