@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getLangCode, defaultLanguage, defaultLangCode, languagesFrom } from './languages';
+import { getLangCode, defaultLanguage, defaultLangCode, languagesFrom, contentLangCode } from './languages';
 
 // The shape /api/languages returns, taken from the live endpoint.
 const gr = { id: 1, code: 'gr', name: 'Greek', is_default: false, is_active: true };
@@ -80,5 +80,51 @@ describe('defaultLangCode', () => {
 
     it('returns null when there are no languages', () => {
         expect(defaultLangCode([])).toBeNull();
+    });
+});
+
+describe('contentLangCode', () => {
+    /**
+     * **The panel's language and the content's are different axes** (#96) -
+     * files on disk against rows in a table - but a person reading the panel in
+     * English wants the listings in English too, when the site has English.
+     *
+     * Reported by the owner: the panel had el/en, the site had el/en/fr, and
+     * switching the panel to English still listed everything in Greek. The
+     * interface changed and the content did not, which is the half of the
+     * translation nobody asked for.
+     */
+    it('follows the panel when the site has that language', () => {
+        expect(contentLangCode([gr, en, fr], 'en')).toBe('en');
+        expect(contentLangCode([gr, en, fr], 'fr')).toBe('fr');
+    });
+
+    /**
+     * The two lists are not the same list and need not overlap. A panel in
+     * German on a site with no German has nothing to follow, so it falls back
+     * to the language the site itself opens on.
+     */
+    it('falls back to the site default when it does not', () => {
+        expect(contentLangCode([gr, en, fr], 'de')).toBe('en');
+    });
+
+    it('falls back when the panel locale is missing entirely', () => {
+        expect(contentLangCode([gr, en, fr], null)).toBe('en');
+        expect(contentLangCode([gr, en, fr])).toBe('en');
+    });
+
+    /**
+     * Only a language the site actually serves. An inactive one is in the
+     * panel so it can be translated ahead of publication (#114), but it is not
+     * what a listing should open on.
+     */
+    it('ignores a language that is not published yet', () => {
+        const de = { id: 4, code: 'de', name: 'German', is_default: false, is_active: false };
+
+        expect(contentLangCode([gr, en, de], 'de')).toBe('en');
+    });
+
+    it('answers null when there are no languages at all', () => {
+        expect(contentLangCode([], 'en')).toBeNull();
     });
 });

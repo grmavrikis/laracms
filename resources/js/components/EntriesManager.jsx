@@ -3,8 +3,8 @@ import api from '../lib/api';
 import EntryForm from './EntryForm';
 import EntriesTable from './EntriesTable';
 import { paginationFrom, rowsFrom, isPastLastPage } from '../lib/pagination';
-import { t } from '../lib/i18n';
-import { defaultLangCode, languagesFrom } from '../lib/languages';
+import { t, locale } from '../lib/i18n';
+import { contentLangCode, languagesFrom } from '../lib/languages';
 import { createLatestWriteQueue } from '../lib/latestWriteQueue';
 
 export default function EntriesManager({ module, onBack }) {
@@ -20,6 +20,13 @@ export default function EntriesManager({ module, onBack }) {
     const savedOrder = useRef([]);
     const slugRef = useRef(module.slug);
     slugRef.current = module.slug;
+
+    // The section's name in the language this screen is reading, falling back
+    // to the panel's own name - which is what a module untranslated into it
+    // has. Without this the interface read English and the heading above it
+    // stayed Greek, which is the inconsistency this follows from.
+    const moduleName =
+        (module.slugs ?? []).find((s) => s.language_code === viewLangCode)?.name ?? module.name;
 
     const orderQueue = useRef(null);
 
@@ -62,9 +69,12 @@ export default function EntriesManager({ module, onBack }) {
                 // `loading` belongs to the entries request alone. These used to
                 // clear it because entries were gated behind a language.
                 if (list.length > 0) {
-                    // The language flagged is_default, not merely the first one
-                    // the endpoint happened to return.
-                    setViewLangCode(defaultLangCode(list));
+                    // The panel's own language when the site has it, and the
+                    // language flagged is_default otherwise. Somebody who
+                    // switched the panel to English is reading in English and
+                    // wants this listing in English too; a panel in a language
+                    // the site does not have has nothing to follow.
+                    setViewLangCode(contentLangCode(list, locale));
                 } else {
                     setLanguagesError(t('No active languages. Add one before writing content.'));
                 }
@@ -269,7 +279,7 @@ export default function EntriesManager({ module, onBack }) {
                             </h2>
                             <span className="text-gray-300 font-light">/</span>
                             <span className="text-lg font-medium text-gray-600">
-                                {module.name}
+                                {moduleName}
                             </span>
                             {view === 'edit' && editingEntry?.id && (
                                 <>
@@ -306,7 +316,7 @@ export default function EntriesManager({ module, onBack }) {
                         </svg>
                     </div>
                     <div>
-                        <h2 className="text-xl font-bold tracking-tight text-gray-900">{module.name}</h2>
+                        <h2 className="text-xl font-bold tracking-tight text-gray-900">{moduleName}</h2>
                     </div>
                 </div>
                 <div className="flex items-center gap-3">

@@ -889,6 +889,24 @@ the language being rendered — inside the cached closure, so a hit costs
 nothing. Saving invalidates the cache through `PageCacheObserver`, like an
 Entry: the footer is on every page.
 
+### The panel's language decides which content language it opens on (#116)
+
+The two axes stay separate — the panel's language is a file, the content's is a
+row — but where they overlap, the panel follows. `contentLangCode(languages,
+locale)` answers the content language matching the panel's own when the site
+has it, and the site's default when it does not: a panel in German over a site
+of el/en/fr opens on Greek, a panel in English on English.
+
+It decides the **initial** language only; the selector still switches it, and
+changing the panel's own language reloads the page, so the two never drift
+apart on screen. An inactive language is excluded — it is in the panel so it
+can be translated before going live (#114), not so a listing opens on it.
+
+Read by the module list (names and addresses), the entries table, that screen's
+heading, and the entry form's opening tab. Leaving any one of them behind is
+the complaint that produced this: the interface in English above a section
+still titled in Greek.
+
 ## 5b. Enquiries — the one thing an anonymous visitor may write
 
 `POST /{lang}/enquiries` (`Web\EnquiryController`) is the only route in the

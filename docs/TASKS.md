@@ -939,6 +939,34 @@ Three things to know before touching it:
   explicit invalidation. A file has none, so anything that changes a page has
   to say so — which is why `Language` is observed now and never was.
 
+### 116. The panel's language decides which content language it opens on — DONE (CHANGELOG §32)
+
+Raised by the owner on 2026-09-07: the panel had el/en, the site had el/en/fr,
+and switching the panel to English still listed every module and entry in
+Greek. *"If I am an English speaker and I switch the panel to English to find
+my way around, I want the listings in English too."*
+
+Right, and it does not contradict #96's split. Those remain different axes —
+files on disk against rows in a table, and a German owner may well run a Greek
+and English site — but *where they overlap*, following is obviously what
+somebody meant. Leaving the interface translated and the content on the default
+is the half of the job nobody asked for.
+
+The rule, as the owner put it: **follow the panel when the site has that
+language, and fall back to the site's default when it does not.** A panel in
+German over a site of el/en/fr opens on Greek; a panel in English over the same
+site opens on English.
+
+`contentLangCode(languages, panelLocale)` in `lib/languages.js` decides it, and
+it decides the **initial** language only — the selector still switches it by
+hand. Switching the panel's own language reloads the page, so the two cannot
+drift apart while somebody is looking at them. An **inactive** language is
+excluded: it is offered in the panel so it can be translated ahead of going
+live (#114), which is not a reason for a listing to open on it.
+
+Four screens read it: the module list (names and addresses), the entries table,
+that screen's own heading, and the entry form's opening tab.
+
 ### 115. A Module's schema is editable, additively — DONE (CHANGELOG §31)
 
 Raised by the owner on 2026-09-07, immediately after #114's rename screen

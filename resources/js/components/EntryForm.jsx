@@ -6,9 +6,9 @@ import GalleryEditor from './GalleryEditor';
 import { isRichTextField, emptyDoc } from '../lib/richText';
 import { isGalleryField, emptyGallery, fromStored } from '../lib/gallery';
 import { validationErrors, errorSummary, messagesForField, messagesNotForFields, languagesWithErrors } from '../lib/apiErrors';
-import { getLangCode, defaultLanguage } from '../lib/languages';
+import { getLangCode, contentLangCode } from '../lib/languages';
 import { STATUS_DRAFT, STATUS_PUBLISHED, slugsToMap, entryPayload } from '../lib/entries';
-import { t } from '../lib/i18n';
+import { t, locale } from '../lib/i18n';
 
 const coerce = (type, raw) => {
     if (type === 'integer') return raw === '' || raw === null ? null : Number(raw);
@@ -71,8 +71,15 @@ export default function EntryForm({ moduleSlug, schema, languages, onSaved, onCa
         return state;
     });
 
-    // Opens on the language flagged is_default, matching the entries table.
-    const [activeLangId, setActiveLangId] = useState(defaultLanguage(languages)?.id ?? null);
+    // Opens on the same language the table does: the panel's own when the
+    // site has it, the default otherwise. The form opening on Greek while the
+    // listing behind it reads English would be the same complaint one screen
+    // along.
+    const [activeLangId, setActiveLangId] = useState(() => {
+        const code = contentLangCode(languages, locale);
+
+        return languages.find((language) => getLangCode(language) === code)?.id ?? null;
+    });
     const [submitting, setSubmitting] = useState(false);
 
     // Structural, not part of the Module's schema: they mean the same thing

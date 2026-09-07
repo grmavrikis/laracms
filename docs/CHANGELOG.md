@@ -3356,3 +3356,61 @@ named. The probe module was deleted and the deletion checked.
 
 444 PHP tests, 196 JS tests, build clean.
 
+---
+
+## 32. The panel's language now decides which content language it opens on
+
+#116, and the owner's report: the panel had el/en, the site had el/en/fr, and
+switching the panel to English still listed every module and entry in Greek.
+*"If I am an English speaker and I switch the panel to English to find my way
+around, I want the listings in English too."*
+
+#96 separated the two axes for a good reason — the panel's language is a file
+in `lang/`, the content's is a row in `languages`, and a German owner may well
+run a Greek and English site. Nothing about that argues they should be
+*ignored* where they overlap. Translating the interface and leaving the content
+on the default is the half of the job nobody asked for.
+
+The rule is the owner's own: **follow the panel when the site has that
+language, fall back to the site's default when it does not.** A panel in German
+over a site of el/en/fr opens on Greek; the same panel in English opens on
+English.
+
+`contentLangCode(languages, panelLocale)` decides it, with two limits worth
+naming. It decides the **initial** language only - the selector still switches
+it by hand, and changing the panel's own language reloads the page, so the two
+cannot drift apart while somebody is looking at them. And it ignores an
+**inactive** language: one is offered in the panel so it can be translated
+ahead of going live (#114), which is not a reason for a listing to open on it.
+
+### Four places, and the fourth was found by looking
+
+The module list, the entries table and the entry form's opening tab were the
+obvious three. The fourth was the **heading of the entries screen**, which went
+on reading `module.name` - so the first live check showed an interface entirely
+in English above a section still titled *Υπηρεσίες*. That is precisely the
+inconsistency being fixed, one line further down the page, and only opening the
+screen showed it.
+
+### Checked
+
+Five tests written first, all five failing because the function did not exist.
+
+Live, both directions, on a site with three content languages and a panel with
+two:
+
+| Panel | The module list reads |
+|---|---|
+| **EN** | The team / `the-team`, Services / `services` |
+| **EL** | Η ομάδα / `h-omada`, Υπηρεσίες / `ypiresies` |
+
+and the entries table under *Services* opened on **EN** with English titles.
+Modules nobody has translated - *το χωριό*, *Σχετικά*, *Δωμάτια* - show what
+they have, which is what the fallback is for.
+
+The mismatch case (a panel language the site does not have) is covered by the
+unit test rather than live: this installation has no `lang/de.json`, so the
+panel cannot currently be set to a language the site lacks.
+
+444 PHP tests, 201 JS tests, build clean.
+

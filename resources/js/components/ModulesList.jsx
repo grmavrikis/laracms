@@ -1,11 +1,26 @@
 import { useState, useEffect, useCallback } from 'react';
 import api from '../lib/api';
-import { t } from '../lib/i18n';
+import { t, locale } from '../lib/i18n';
+import { contentLangCode, languagesFrom } from '../lib/languages';
 
 export default function ModulesList({ onSelectModule, onCreateModule, onTranslateModule }) {
     const [modules, setModules] = useState([]);
+    const [languages, setLanguages] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+
+    // Which language this list reads in: the panel's own when the site has it,
+    // the site's default otherwise (#114, #116).
+    const viewLangCode = contentLangCode(languages, locale);
+
+    // A module's name in that language, falling back to the panel's own name -
+    // which is what a module untranslated into it has, and all a module had
+    // before #114.
+    const nameOf = (module) =>
+        (module.slugs ?? []).find((s) => s.language_code === viewLangCode)?.name ?? module.name;
+
+    const addressOf = (module) =>
+        (module.slugs ?? []).find((s) => s.language_code === viewLangCode)?.slug ?? module.slug;
 
     const fetchModules = useCallback(async () => {
         setLoading(true);
@@ -23,6 +38,16 @@ export default function ModulesList({ onSelectModule, onCreateModule, onTranslat
     useEffect(() => {
         fetchModules();
     }, [fetchModules]);
+
+    useEffect(() => {
+        // Only to decide which language to read the names in. A failure here
+        // is not worth an error on this screen: `contentLangCode` over an
+        // empty list answers null, `nameOf` falls back to the module's own
+        // name, and the list is exactly what it was before #114.
+        api.get('/languages')
+            .then(({ data }) => setLanguages(languagesFrom(data)))
+            .catch((err) => console.error(err));
+    }, []);
 
     if (loading) {
         return (
@@ -112,10 +137,10 @@ export default function ModulesList({ onSelectModule, onCreateModule, onTranslat
                                 <tr key={mod.id ?? mod.slug} className="hover:bg-gray-50/50 transition-colors">
                                     <td className="py-4 pl-6 pr-3 font-medium text-gray-900">
                                         <div className="flex items-center gap-2">
-                                            <span>{mod.name}</span>
+                                            <span>{nameOf(mod)}</span>
                                         </div>
                                     </td>
-                                    <td className="py-4 px-3 font-mono text-xs text-gray-500">{mod.slug}</td>
+                                    <td className="py-4 px-3 font-mono text-xs text-gray-500">{addressOf(mod)}</td>
                                     <td className="py-4 pl-3 pr-6 text-right font-medium">
                                         <button
                                             onClick={() => onTranslateModule(mod)}
