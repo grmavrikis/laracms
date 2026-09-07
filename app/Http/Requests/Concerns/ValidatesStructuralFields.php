@@ -52,7 +52,7 @@ trait ValidatesStructuralFields
             'slugs.*' => [
                 'nullable',
                 'string',
-                'max:255',
+                'max:' . EntrySlug::SLUG_MAX_LENGTH,
                 // The same shape a Module slug must have, and for the same
                 // reason: it is one URL segment, so `a/b` could never route.
                 'regex:/^[a-z0-9]+(?:-[a-z0-9]+)*$/',

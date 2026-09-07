@@ -40,8 +40,7 @@ class EntrySlugTest extends TestCase
 
         // A slug key is a language, so the languages have to exist for one to
         // be written at all - see the key rules below.
-        Language::create(['name' => 'Greek', 'code' => 'el', 'is_default' => true]);
-        Language::create(['name' => 'English', 'code' => 'en']);
+        $this->languages('el', 'en');
     }
 
     private function makeModule(string $slug): Module

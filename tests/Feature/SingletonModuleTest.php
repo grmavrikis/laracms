@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use App\Models\Entry;
-use App\Models\Language;
 use App\Models\Module;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -30,7 +29,7 @@ class SingletonModuleTest extends TestCase
     {
         parent::setUp();
 
-        Language::create(['name' => 'Greek', 'code' => 'el', 'is_default' => true]);
+        $this->languages('el');
 
         $this->owner = User::factory()->create();
     }

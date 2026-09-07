@@ -31,7 +31,7 @@ class EnquiryController extends Controller
     {
         Gate::authorize('viewAny', Enquiry::class);
 
-        return response()->json(Enquiry::query()->newestFirst()->paginate(20));
+        return response()->json(Enquiry::query()->newestFirst()->paginate(Enquiry::PER_PAGE));
     }
 
     public function destroy(Enquiry $enquiry): JsonResponse

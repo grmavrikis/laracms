@@ -3852,3 +3852,75 @@ once. The panel's language was borrowed and put back.
 
 477 PHP tests, 214 JS tests, build clean.
 
+## 35. A limit written twice is two limits (#98)
+
+The enquiry field widths were written three times — in the migration, in
+`StoreEnquiryRequest` and in the theme's `maxlength` — with nothing connecting
+them. `phone` (40) and `source_url` (512) sat **exactly at the column limit**,
+so relaxing either rule without a migration meant MySQL **1406** on the insert:
+a 500 on the one form in the application that accepts writes from strangers.
+That is TASKS.md #76 again, and the SQLite the suite runs on cannot see it.
+
+### One number, on the model that owns the column
+
+`Enquiry::NAME_MAX_LENGTH` and its neighbours are read by the migration, by the
+rules and by the theme — the same place `User::LOCALE_MAX_LENGTH` went when
+this split turned up during #96. Two of them are deliberately **not** widths and
+say so: `MESSAGE_MAX_LENGTH` sits over a `text` column and `GUESTS_MAX` over a
+small integer, so both are statements about what an enquiry means rather than
+what the column holds.
+
+`Module::SLUG_MAX_LENGTH` **moved off `ModuleController`**, where it was
+private and the migration that creates the column could not see it, and
+`Module::NAME_MAX_LENGTH` and `EntrySlug::SLUG_MAX_LENGTH` join it — the three
+places `max:255` appeared anonymously. The upload ceiling is
+`UploadController::MAX_KILOBYTES`, named because it is a decision about what a
+phone photograph weighs. And the two page sizes stayed different but stopped
+being unexplained: an inbox is read top-down, an entries table is reordered by
+hand and has to fit on a screen.
+
+### What a test can prove here, and what it cannot
+
+`ColumnWidthTest` closes three of the four ways these drift apart: a rule
+outgrowing the constant (a value one character over is refused over HTTP, and
+one exactly at it is accepted), a migration outgrowing it (the migration's
+source has to name the constant), and the form outgrowing it (the rendered
+`maxlength`).
+
+**The fourth is invisible to every test**, and the docblock says so rather than
+implying coverage: editing a constant does not alter a column that already
+exists, and Laravel's SQLite grammar writes `varchar` with **no length**
+(`SQLiteGrammar::typeString`), so the suite's own driver has nothing to read
+back. A migration narrows `enquiries.name` and `email` from Laravel's default
+255 to the 120 and 180 their rules have always enforced — checked against the
+live data before it was written (one row, longest name 15, longest email 20)
+and read back after it ran: **120, 180, 40, 512**.
+
+### The languages a test's world has
+
+Folded in from the same audit: **fourteen** test files — eight when the item
+was written — opened with the same two `Language::create` calls.
+`TestCase::languages('el', 'en')` says it once, with
+`inactiveLanguage('de')` for the one a site has not published yet (#114). A
+helper rather than a seeder, by the standing decision that a test builds the
+world it needs and names it.
+
+The default is claimed **only when the site has none**, so a test that adds a
+language part way through — a site gaining French, which is a real thing to
+test — does not quietly move the default onto it.
+
+### Checked
+
+Four tests written first, failing because the constants did not exist and the
+migrations wrote literals. Seven mutations, and one had to be re-aimed: putting
+it on `Enquiry::PER_PAGE` proved nothing, because the test reads the same
+constant it asserts against. Aimed at the controller instead — `paginate(5)` —
+it bites. The same lesson as the last two reviews: a mutation on the number
+both sides read is not a mutation.
+
+Live over Apache against MySQL: the columns read back at the constants, and the
+baked Greek home page carries `maxlength="120"`, `"180"`, `"40"`, `"4000"` and
+`max="99"`. 72 pages re-warmed.
+
+482 PHP tests, 214 JS tests, build clean.
+

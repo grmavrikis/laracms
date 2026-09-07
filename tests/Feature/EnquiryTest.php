@@ -4,7 +4,6 @@ namespace Tests\Feature;
 
 use App\Mail\EnquiryReceived;
 use App\Models\Enquiry;
-use App\Models\Language;
 use App\Models\Module;
 use App\Models\User;
 use Illuminate\Console\Scheduling\Schedule;
@@ -38,8 +37,7 @@ class EnquiryTest extends TestCase
     {
         parent::setUp();
 
-        Language::create(['name' => 'Greek', 'code' => 'el', 'is_default' => true]);
-        Language::create(['name' => 'English', 'code' => 'en']);
+        $this->languages('el', 'en');
 
         Mail::fake();
     }
@@ -247,6 +245,37 @@ class EnquiryTest extends TestCase
             ->getJson('/api/enquiries')
             ->assertOk()
             ->assertJsonPath('data.0.name', 'Δεύτερη');
+    }
+
+    /**
+     * **The inbox pages at the number the model states** (TASKS.md #98).
+     *
+     * It was a bare `paginate(20)` beside the entries table's bare
+     * `paginate(15)`, two different sizes with nothing saying why. The reason
+     * is now on each model - an inbox is read top-down, an entries table is
+     * reordered by hand and has to fit on a screen - and this is what makes
+     * the number here more than a comment.
+     */
+    public function test_the_inbox_pages_at_the_size_the_model_states(): void
+    {
+        // Written straight into the table rather than posted: twenty-three
+        // submissions would meet the limiter, which is a different test.
+        for ($i = 0; $i < Enquiry::PER_PAGE + 3; $i++)
+        {
+            Enquiry::create([
+                'name' => 'Επισκέπτης ' . $i,
+                'email' => "visitor{$i}@example.com",
+                'message' => 'Καλησπέρα σας.',
+                'language_code' => 'el',
+                'consented_at' => now(),
+            ]);
+        }
+
+        $this->actingAs(User::factory()->create())
+            ->getJson('/api/enquiries')
+            ->assertOk()
+            ->assertJsonCount(Enquiry::PER_PAGE, 'data')
+            ->assertJsonPath('total', Enquiry::PER_PAGE + 3);
     }
 
     public function test_an_enquiry_can_be_deleted(): void

@@ -18,9 +18,6 @@ use Illuminate\Validation\ValidationException;
 
 class ModuleController extends Controller
 {
-    /** Matches the modules.slug column, which is varchar(255). */
-    private const SLUG_MAX_LENGTH = 255;
-
     /** Characters held back from a derived slug for a '-N' collision suffix. */
     private const SLUG_SUFFIX_BUDGET = 8;
 
@@ -43,11 +40,11 @@ class ModuleController extends Controller
     public function store(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'name' => 'required|string|max:255',
+            'name' => 'required|string|max:' . Module::NAME_MAX_LENGTH,
             'slug' => [
                 'nullable',
                 'string',
-                'max:' . self::SLUG_MAX_LENGTH,
+                'max:' . Module::SLUG_MAX_LENGTH,
                 // The slug is the Module's route key and routes match a single
                 // segment, so 'a/b' would create a Module nothing can address.
                 // This is the shape Str::slug produces.
@@ -322,11 +319,11 @@ class ModuleController extends Controller
                 }
             }],
 
-            'translations.*.name' => 'required|string|max:255',
+            'translations.*.name' => 'required|string|max:' . Module::NAME_MAX_LENGTH,
             'translations.*.slug' => [
                 'nullable',
                 'string',
-                'max:' . self::SLUG_MAX_LENGTH,
+                'max:' . Module::SLUG_MAX_LENGTH,
                 'regex:/^[a-z0-9]+(?:-[a-z0-9]+)*$/',
                 function (string $attribute, mixed $value, callable $fail) use ($module): void
                 {
@@ -401,7 +398,7 @@ class ModuleController extends Controller
     private function generateModuleSlug(string $name, string $language, Module $module): string
     {
         $base = Str::slug($name) ?: 'section';
-        $base = rtrim(substr($base, 0, self::SLUG_MAX_LENGTH - self::SLUG_SUFFIX_BUDGET), '-') ?: 'section';
+        $base = rtrim(substr($base, 0, Module::SLUG_MAX_LENGTH - self::SLUG_SUFFIX_BUDGET), '-') ?: 'section';
 
         $taken = array_flip(
             ModuleSlug::query()
@@ -451,7 +448,7 @@ class ModuleController extends Controller
         // means every candidate begins with this exact string, which is what
         // lets a single query see all of them. Truncation can land on a hyphen,
         // and a trailing one is not a shape Str::slug ever emits.
-        $base = rtrim(substr($base, 0, self::SLUG_MAX_LENGTH - self::SLUG_SUFFIX_BUDGET), '-') ?: 'module';
+        $base = rtrim(substr($base, 0, Module::SLUG_MAX_LENGTH - self::SLUG_SUFFIX_BUDGET), '-') ?: 'module';
 
         // One read instead of one per candidate. Str::slug emits only
         // [a-z0-9-], so the base cannot contain a LIKE wildcard.

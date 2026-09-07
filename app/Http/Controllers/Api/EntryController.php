@@ -54,7 +54,7 @@ class EntryController extends Controller
         //
         // Drafts are listed. This is the admin, and an author has to be able to
         // see what they have not published yet.
-        return $module->entries()->inListOrder()->paginate(15);
+        return $module->entries()->inListOrder()->paginate(Entry::PER_PAGE);
     }
 
     /**

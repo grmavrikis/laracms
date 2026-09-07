@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Enquiry;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
@@ -25,9 +26,11 @@ return new class extends Migration
         {
             $table->id();
 
-            $table->string('name');
-            $table->string('email');
-            $table->string('phone', 40)->nullable();
+            // The widths are the model's, so the column and the rule that
+            // fills it cannot drift apart (TASKS.md #98).
+            $table->string('name', Enquiry::NAME_MAX_LENGTH);
+            $table->string('email', Enquiry::EMAIL_MAX_LENGTH);
+            $table->string('phone', Enquiry::PHONE_MAX_LENGTH)->nullable();
             $table->text('message');
 
             // An enquiry is not a booking: somebody asking "do you have
@@ -39,7 +42,7 @@ return new class extends Migration
 
             // What the server knows rather than what was typed.
             $table->string('language_code', 5);
-            $table->string('source_url', 512)->nullable();
+            $table->string('source_url', Enquiry::SOURCE_URL_MAX_LENGTH)->nullable();
 
             // The moment consent was given, not a boolean somebody could flip
             // afterwards. Without it there is no lawful basis for the row.

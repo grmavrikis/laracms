@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use App\Http\Requests\StoreEnquiryRequest;
-use App\Models\Language;
 use App\Models\User;
 use App\Services\SchemaRuleBuilder;
 use App\Services\SiteSettings;
@@ -43,8 +42,7 @@ class ValidationLanguageTest extends TestCase
     {
         parent::setUp();
 
-        Language::create(['name' => 'Greek', 'code' => 'el', 'is_default' => true]);
-        Language::create(['name' => 'English', 'code' => 'en']);
+        $this->languages('el', 'en');
 
         // The enquiry route allows five an hour per address, and every request
         // in the suite shares one. Two posts per refusal leaves room for one

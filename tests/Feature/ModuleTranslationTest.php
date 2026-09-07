@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use App\Models\Entry;
-use App\Models\Language;
 use App\Models\Module;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -43,9 +42,7 @@ class ModuleTranslationTest extends TestCase
 
         $this->owner = User::factory()->create();
 
-        Language::create(['name' => 'Greek', 'code' => 'el', 'is_default' => true]);
-        Language::create(['name' => 'English', 'code' => 'en']);
-        Language::create(['name' => 'French', 'code' => 'fr']);
+        $this->languages('el', 'en', 'fr');
     }
 
     /**
@@ -511,7 +508,7 @@ class ModuleTranslationTest extends TestCase
      */
     public function test_the_panel_is_offered_a_language_that_is_not_published_yet(): void
     {
-        Language::create(['name' => 'German', 'code' => 'de', 'is_active' => false]);
+        $this->inactiveLanguage('de');
 
         $codes = collect($this->actingAs($this->owner)->getJson('/api/languages')->json())
             ->pluck('code')

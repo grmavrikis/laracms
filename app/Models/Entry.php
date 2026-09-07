@@ -33,6 +33,15 @@ class Entry extends Model
     public const UNPOSITIONED = 100000;
 
     /**
+     * How many rows the panel's table shows at once.
+     *
+     * Smaller than an enquiry inbox's page because this table is *reordered*
+     * by hand: the arrows move a row within the page, so a page has to be
+     * something a person can see the whole of.
+     */
+    public const PER_PAGE = 15;
+
+    /**
      * The most entries one reorder request may carry.
      *
      * Reordering takes the module's whole order, so this is also a ceiling on

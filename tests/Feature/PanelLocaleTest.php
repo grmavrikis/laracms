@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Models\Language;
 use App\Models\User;
 use App\Services\InterfaceLocales;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -35,8 +34,7 @@ class PanelLocaleTest extends TestCase
 
         // Content languages, deliberately not the same set as the interface
         // locales: nothing below may read these.
-        Language::create(['name' => 'Greek', 'code' => 'el', 'is_default' => true]);
-        Language::create(['name' => 'French', 'code' => 'fr']);
+        $this->languages('el', 'fr');
     }
 
     /** What the server injected into the page, decoded. */

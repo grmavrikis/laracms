@@ -1121,7 +1121,7 @@ a safe slug on create, but there is no endpoint that updates a Module, so this
 one was written by hand. If module editing is ever added, the slug needs the
 same derivation, and the existing rows need a migration.
 
-### 98. One source for a number
+### 98. One source for a number — DONE (CHANGELOG §35)
 
 An audit of `app/` for magic numbers found one real hazard and several
 irritations. The hazard: the enquiry field widths are written in the migration,
@@ -1150,6 +1150,31 @@ reads the constant.
 Folded in: **eight test files create the same two `Language` rows by hand.** A
 shared helper. Not a seeder — see Decisions for why tests build their own
 world.
+
+**What shipped.** The widths are constants on the model that owns the column
+(`Enquiry`, `Module`, `EntrySlug`), read by the migration, the rules and the
+theme's `maxlength`; `ColumnWidthTest` pins all three readers. The two page
+sizes are `Entry::PER_PAGE` and `Enquiry::PER_PAGE` and now say why they
+differ, the upload ceiling is `UploadController::MAX_KILOBYTES`, and
+`SLUG_MAX_LENGTH` moved from a private constant on `ModuleController` — where
+the migration could not see it — onto the model. A migration narrows
+`enquiries.name` and `email` to the rules that fill them, checked against the
+live data first and read back afterwards: 120, 180, 40, 512.
+
+**The test could not read a column's width, and the reason is worth keeping.**
+Laravel's SQLite grammar writes `varchar` with no length at all
+(`SQLiteGrammar::typeString`), so the suite's driver has nothing to report.
+Three of the four drift paths are closed by tests; the fourth — a column that
+already exists — is what `php artisan migrate` is for, and was verified live.
+
+It was **fourteen** test files rather than eight by the time this ran, and they
+share `TestCase::languages('el', 'en')` now. The default is only claimed when
+the site has none, so a test that adds a language part way through does not
+move it.
+
+**Left deliberately**, and recorded per file in ARCHITECTURE §8a:
+`language_code` is `varchar(5)` in four places and would take a constant on
+`Language`, but nothing has needed to move it.
 
 ### 69. Redirects — DONE (CHANGELOG §33)
 

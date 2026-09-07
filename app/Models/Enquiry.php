@@ -32,6 +32,42 @@ class Enquiry extends Model
      */
     public const PER_HOUR = 5;
 
+    /**
+     * How many an inbox shows at once. An enquiry is read and answered, so
+     * the page is a queue rather than a table somebody rearranges.
+     */
+    public const PER_PAGE = 20;
+
+    /*
+     * **The width of each column, and the rule that fills it** (TASKS.md #98).
+     *
+     * One number each, read by the migration, by `StoreEnquiryRequest` and by
+     * the theme's `maxlength`. They were three separate literals, and `phone`
+     * and `source_url` happened to sit exactly at the column limit - so
+     * relaxing a rule without a migration answered MySQL 1406, which is a 500
+     * on the one form open to strangers (#76, one table over).
+     *
+     * `ColumnWidthTest` pins all three readers. What it cannot pin is a column
+     * that already exists, because editing a constant does not alter one -
+     * that is what a migration is for.
+     */
+    public const NAME_MAX_LENGTH = 120;
+
+    public const EMAIL_MAX_LENGTH = 180;
+
+    public const PHONE_MAX_LENGTH = 40;
+
+    public const SOURCE_URL_MAX_LENGTH = 512;
+
+    /**
+     * **A rule rather than a width.** The column is `text`, which holds far
+     * more; this is how much anybody may type, and the form stops there too.
+     */
+    public const MESSAGE_MAX_LENGTH = 4000;
+
+    /** Likewise: the column is a small integer, this is what an enquiry means. */
+    public const GUESTS_MAX = 99;
+
     protected $fillable = [
         'name', 'email', 'phone', 'message',
         'arrives_on', 'departs_on', 'guests',

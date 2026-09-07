@@ -27,8 +27,7 @@ class PublicPageTest extends TestCase
     {
         parent::setUp();
 
-        Language::create(['name' => 'Greek', 'code' => 'el', 'is_default' => true]);
-        Language::create(['name' => 'English', 'code' => 'en']);
+        $this->languages('el', 'en');
 
         $this->rooms = Module::create([
             'user_id' => User::factory()->create()->id,

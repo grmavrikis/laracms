@@ -14,6 +14,19 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 #[ObservedBy(RedirectObserver::class)]
 class Module extends Model
 {
+    /**
+     * The width of `modules.name` and `modules.slug`, and of the per-language
+     * pair in `module_slugs` (TASKS.md #98).
+     *
+     * `SLUG_MAX_LENGTH` used to be private to `ModuleController`, where the
+     * migration that creates the column could not see it. It belongs to the
+     * column, so it lives with the model that owns it - the same place
+     * `User::LOCALE_MAX_LENGTH` went when #76 came up in #96.
+     */
+    public const NAME_MAX_LENGTH = 255;
+
+    public const SLUG_MAX_LENGTH = 255;
+
     protected $fillable = ['user_id', 'name', 'slug', 'schema', 'is_singleton'];
 
     protected $casts = [

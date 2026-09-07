@@ -14,6 +14,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class EntrySlug extends Model
 {
+    /** The width of `entry_slugs.slug`, and the rule that fills it (#98). */
+    public const SLUG_MAX_LENGTH = 255;
+
     /**
      * Nothing reads them, and a slug's history is the entry's history.
      */

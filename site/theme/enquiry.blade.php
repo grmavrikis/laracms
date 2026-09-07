@@ -54,17 +54,17 @@
 
         <p>
             <label for="enq-name">{{ __('Name') }} *</label>
-            <input id="enq-name" type="text" name="name" required maxlength="120">
+            <input id="enq-name" type="text" name="name" required maxlength="{{ \App\Models\Enquiry::NAME_MAX_LENGTH }}">
         </p>
 
         <p>
             <label for="enq-email">{{ __('Email') }} *</label>
-            <input id="enq-email" type="email" name="email" required maxlength="180">
+            <input id="enq-email" type="email" name="email" required maxlength="{{ \App\Models\Enquiry::EMAIL_MAX_LENGTH }}">
         </p>
 
         <p>
             <label for="enq-phone">{{ __('Phone') }}</label>
-            <input id="enq-phone" type="tel" name="phone" maxlength="40">
+            <input id="enq-phone" type="tel" name="phone" maxlength="{{ \App\Models\Enquiry::PHONE_MAX_LENGTH }}">
         </p>
 
         <p>
@@ -75,12 +75,12 @@
             <input id="enq-departs" type="date" name="departs_on">
 
             <label for="enq-guests">{{ __('Guests') }}</label>
-            <input id="enq-guests" type="number" name="guests" min="1" max="99">
+            <input id="enq-guests" type="number" name="guests" min="1" max="{{ \App\Models\Enquiry::GUESTS_MAX }}">
         </p>
 
         <p>
             <label for="enq-message">{{ __('Message') }} *</label>
-            <textarea id="enq-message" name="message" required maxlength="4000" rows="5"></textarea>
+            <textarea id="enq-message" name="message" required maxlength="{{ \App\Models\Enquiry::MESSAGE_MAX_LENGTH }}" rows="5"></textarea>
         </p>
 
         {{-- The retention period is stated because the form asks for consent,

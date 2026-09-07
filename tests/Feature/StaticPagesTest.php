@@ -53,8 +53,7 @@ class StaticPagesTest extends TestCase
 
         $this->owner = User::factory()->create();
 
-        Language::create(['name' => 'Greek', 'code' => 'el', 'is_default' => true]);
-        Language::create(['name' => 'English', 'code' => 'en']);
+        $this->languages('el', 'en');
     }
 
     protected function tearDown(): void

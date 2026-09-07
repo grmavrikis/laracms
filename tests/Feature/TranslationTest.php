@@ -40,8 +40,7 @@ class TranslationTest extends TestCase
     {
         parent::setUp();
 
-        Language::create(['name' => 'Greek', 'code' => 'el', 'is_default' => true]);
-        Language::create(['name' => 'English', 'code' => 'en']);
+        $this->languages('el', 'en');
     }
 
     // ------------------------------------------------------ the public side
@@ -64,7 +63,12 @@ class TranslationTest extends TestCase
      */
     public function test_a_language_with_no_translation_falls_back_to_english(): void
     {
-        Language::create(['name' => 'French', 'code' => 'fr']);
+        $this->languages('fr');
+
+        // A site gaining a language does not gain a second default with it -
+        // the helper only flags one when the site has none, and two rows
+        // claiming it would make a listing open on whichever came back first.
+        $this->assertSame(1, Language::query()->where('is_default', true)->count());
 
         $this->get('/fr')->assertOk()->assertSee('Name', false)->assertDontSee('theme.', false);
     }

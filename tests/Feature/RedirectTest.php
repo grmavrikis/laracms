@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use App\Models\Entry;
-use App\Models\Language;
 use App\Models\Module;
 use App\Models\Redirect;
 use App\Models\User;
@@ -41,8 +40,7 @@ class RedirectTest extends TestCase
 
         $this->owner = User::factory()->create();
 
-        Language::create(['name' => 'Greek', 'code' => 'el', 'is_default' => true]);
-        Language::create(['name' => 'English', 'code' => 'en']);
+        $this->languages('el', 'en');
 
         $this->module = $this->aModule([
             'el' => ['Υπηρεσίες', 'ypiresies'],

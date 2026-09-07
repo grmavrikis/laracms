@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use App\Models\Entry;
-use App\Models\Language;
 use App\Models\Module;
 use App\Models\ModuleSlug;
 use App\Models\User;
@@ -46,8 +45,7 @@ class ModuleSchemaEditTest extends TestCase
 
         $this->owner = User::factory()->create();
 
-        Language::create(['name' => 'Greek', 'code' => 'el', 'is_default' => true]);
-        Language::create(['name' => 'English', 'code' => 'en']);
+        $this->languages('el', 'en');
     }
 
     private function aModule(?array $schema = null): Module
@@ -329,7 +327,7 @@ class ModuleSchemaEditTest extends TestCase
 
     public function test_a_language_that_is_not_published_yet_can_still_be_translated(): void
     {
-        Language::create(['name' => 'German', 'code' => 'de', 'is_active' => false]);
+        $this->inactiveLanguage('de');
 
         $module = $this->aModule();
 

@@ -1245,6 +1245,52 @@ instance with `baseURL: /api, withCredentials: true`. Frontend
 restrictions (e.g. hidden buttons) are **not** a security control —
 UX only. The backend is the only real security boundary.
 
+## 8a. Numbers that mean something (TASKS.md #98)
+
+A limit written twice is two limits. The enquiry widths were written three
+times — the migration, `StoreEnquiryRequest`, the theme's `maxlength` — and
+`phone` (40) and `source_url` (512) happened to sit exactly at the column
+limit, so relaxing a rule without a migration answered MySQL **1406**: a 500 on
+the one form open to strangers, and invisible to the SQLite the suite runs on.
+
+**A width belongs to the model that owns the column**, which is where
+`User::LOCALE_MAX_LENGTH` went when the same split turned up during #96:
+
+| Constant | Read by |
+|---|---|
+| `Enquiry::NAME_MAX_LENGTH`, `EMAIL_`, `PHONE_`, `SOURCE_URL_` | the migration, the rules, the theme's `maxlength` |
+| `Enquiry::MESSAGE_MAX_LENGTH`, `GUESTS_MAX` | the rules and the form — **not** widths: the columns are `text` and a small integer |
+| `Module::NAME_MAX_LENGTH`, `Module::SLUG_MAX_LENGTH` | `modules`, `module_slugs`, `ModuleController` |
+| `EntrySlug::SLUG_MAX_LENGTH` | `entry_slugs`, `ValidatesStructuralFields` |
+| `Entry::PER_PAGE` (15), `Enquiry::PER_PAGE` (20) | the two listings |
+| `UploadController::MAX_KILOBYTES` | the upload rule |
+
+`ColumnWidthTest` pins three of the four ways these drift: the rule outgrowing
+the constant (refusals over HTTP), the migration outgrowing it (the migration
+source names the constant), and the form outgrowing it (the rendered
+`maxlength`). **The fourth is invisible to any test** — a column that already
+exists does not change when a constant does — which is what
+`2026_09_07_140000_narrow_enquiry_columns_to_their_rules` is for, and why the
+live widths were read by hand after it ran: 120, 180, 40, 512.
+
+The two page sizes were different for no stated reason. They still differ, and
+now say why: an inbox is read top-down, an entries table is **reordered by
+hand** and has to fit on a screen.
+
+**What was looked at and deliberately left**, so a later pass knows:
+
+- **`language_code` is `varchar(5)` in four tables** (`enquiries`,
+  `entry_slugs`, `module_slugs`, and `users.locale` as `LOCALE_MAX_LENGTH`).
+  One constant on `Language` would cover the first three. Left because the
+  number is the same everywhere and nothing has ever needed to move it, but it
+  is the next one of these if something does.
+- **`SchemaRuleBuilder::GALLERY_URL_MAX_LENGTH` and `GALLERY_MAX_IMAGES`** were
+  already named, and are read by the builder and by `SiteSettings`.
+- **`Entry::UNPOSITIONED` (100000)** is a sentinel rather than a limit, and its
+  reasoning is in #56's section.
+- **`Enquiry::RETENTION_MONTHS` and `PER_HOUR`** were already named and already
+  read by the form, the pruner and the limiter.
+
 ## 9. Source of truth
 
 If anything here disagrees with the code, the code wins — update the doc.

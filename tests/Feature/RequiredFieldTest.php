@@ -148,9 +148,7 @@ class RequiredFieldTest extends TestCase
 
     private function seedLanguages(): void
     {
-        Language::create(['name' => 'Greek', 'code' => 'el', 'is_default' => true]);
-        Language::create(['name' => 'English', 'code' => 'en']);
-        Language::create(['name' => 'French', 'code' => 'fr']);
+        $this->languages('el', 'en', 'fr');
     }
 
     /**

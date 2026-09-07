@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\EntrySlug;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
@@ -34,7 +35,7 @@ return new class extends Migration
             // its translations: the language is a code, not a relation
             // (ARCHITECTURE.md - "flat list, no DB relation to Entry").
             $table->string('language_code', 5);
-            $table->string('slug');
+            $table->string('slug', EntrySlug::SLUG_MAX_LENGTH);
 
             $table->unique(['module_id', 'language_code', 'slug']);
         });

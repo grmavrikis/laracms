@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Models\Enquiry;
 use Illuminate\Foundation\Http\FormRequest;
 
 /**
@@ -28,10 +29,10 @@ class StoreEnquiryRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'name' => ['required', 'string', 'max:120'],
-            'email' => ['required', 'string', 'email', 'max:180'],
-            'phone' => ['nullable', 'string', 'max:40'],
-            'message' => ['required', 'string', 'max:4000'],
+            'name' => ['required', 'string', 'max:' . Enquiry::NAME_MAX_LENGTH],
+            'email' => ['required', 'string', 'email', 'max:' . Enquiry::EMAIL_MAX_LENGTH],
+            'phone' => ['nullable', 'string', 'max:' . Enquiry::PHONE_MAX_LENGTH],
+            'message' => ['required', 'string', 'max:' . Enquiry::MESSAGE_MAX_LENGTH],
 
             // A date in the past is somebody typing the wrong year, not an
             // enquiry - but today is allowed, because "tonight" is a real ask.
@@ -44,7 +45,7 @@ class StoreEnquiryRequest extends FormRequest
             // looking for a problem that is not there.
             'arrives_on' => ['nullable', 'bail', 'date', 'after_or_equal:today'],
             'departs_on' => ['nullable', 'bail', 'date', 'after:arrives_on'],
-            'guests' => ['nullable', 'integer', 'min:1', 'max:99'],
+            'guests' => ['nullable', 'integer', 'min:1', 'max:' . Enquiry::GUESTS_MAX],
 
             // Without it there is no lawful basis to keep the row, so there is
             // no row. `accepted` covers the shapes a checkbox arrives as.
@@ -52,7 +53,7 @@ class StoreEnquiryRequest extends FormRequest
 
             // The page they were on. Sent by the form rather than read from
             // the referer, which is absent often enough to be useless.
-            'source_url' => ['nullable', 'string', 'max:512'],
+            'source_url' => ['nullable', 'string', 'max:' . Enquiry::SOURCE_URL_MAX_LENGTH],
 
             // The honeypot is deliberately **not** validated here. A rule
             // would answer a bot with an error naming a field no human can

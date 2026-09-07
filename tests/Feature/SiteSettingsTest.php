@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use App\Mail\EnquiryReceived;
-use App\Models\Language;
 use App\Models\Setting;
 use App\Models\User;
 use App\Services\SchemaRuleBuilder;
@@ -43,8 +42,7 @@ class SiteSettingsTest extends TestCase
     {
         parent::setUp();
 
-        Language::create(['name' => 'Greek', 'code' => 'el', 'is_default' => true]);
-        Language::create(['name' => 'English', 'code' => 'en']);
+        $this->languages('el', 'en');
 
         Mail::fake();
     }
