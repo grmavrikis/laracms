@@ -15,20 +15,29 @@ use Tests\TestCase;
  * `schema:doctor && pages:warm`, so a command that answered 0 on a failing
  * report would carry a deployment straight past the check built to stop it.
  *
- * The suite runs on SQLite, which declares no width at all, so the healthy path
- * here is the *honest warning* one: it names the columns it could not read and
- * still succeeds. Everything that must fail is arranged by taking the schema
+ * **The exit code rather than the wording**, because which line the healthy
+ * path prints depends on the driver: SQLite declares no width at all, so it
+ * names the columns it could not read and still succeeds, while MySQL says
+ * everything is wide enough. What the states read like belongs to
+ * `ColumnWidthTest`, which asks `SchemaLimits` directly and needs no database
+ * to do it. Everything that must fail is arranged here by taking the schema
  * apart, which is exactly the state the command exists to describe.
  */
 class SchemaDoctorTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_a_migrated_database_passes_with_the_columns_it_could_not_read(): void
+    /**
+     * **The exit code, not the wording.** Which line this prints depends on the
+     * driver - SQLite declares no widths, so it names the columns it could not
+     * read - and asserting that here would fail the day the suite ran against
+     * MySQL, at the moment the command started answering properly. What the
+     * three states read like is `ColumnWidthTest`'s subject, against
+     * `SchemaLimits` directly.
+     */
+    public function test_a_migrated_database_passes(): void
     {
-        $this->artisan('schema:doctor')
-            ->expectsOutputToContain('could not be checked')
-            ->assertExitCode(0);
+        $this->artisan('schema:doctor')->assertExitCode(0);
     }
 
     /**

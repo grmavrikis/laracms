@@ -199,7 +199,12 @@ class SchemaLimits
 
             if ($size === null)
             {
-                $problems[] = "{$name} is `{$raw}`, which is not a size PHP can read";
+                // **What PHP actually does with it**, which is not "nothing":
+                // it takes the leading digits and the *last* character, so
+                // `2MB` is two bytes. Saying it cannot be read sends somebody
+                // looking for a syntax error instead of for the suffix.
+                $problems[] = "{$name} is `{$raw}`, whose suffix has to be the last character - "
+                    . "PHP reads it as " . ((int) $raw) . " bytes";
 
                 continue;
             }
@@ -214,7 +219,14 @@ class SchemaLimits
 
             if ($tooSmall)
             {
-                $problems[] = "{$name} is {$raw}, and the panel accepts {$limit}K";
+                // The equality case prints two identical numbers, and the
+                // reason it is a fault at all lives in a service nobody
+                // debugging a php.ini will open.
+                $because = $name === 'post_max_size'
+                    ? ', which leaves no room for the rest of the request around it'
+                    : '';
+
+                $problems[] = "{$name} is {$raw}, and the panel accepts {$limit}K{$because}";
             }
         }
 
@@ -227,6 +239,11 @@ class SchemaLimits
      * `2M` is 2048, `512K` is 512, and a bare `8388608` is bytes. `0` is zero,
      * which the caller reads as unlimited - keeping that apart from null is the
      * point: unreadable and unlimited are different answers.
+     *
+     * **A byte count rounds up.** `post_max_size = 100` is a hundred bytes, and
+     * dividing down made it zero - which the caller then read as unlimited, so
+     * a setting that breaks every form on the site was reported as no fault at
+     * all. Only a literal `0` may be zero here.
      */
     public static function kilobytesOf(?string $setting): ?int
     {
@@ -244,7 +261,7 @@ class SchemaLimits
             'G' => $size * 1024 * 1024,
             'M' => $size * 1024,
             'K' => $size,
-            default => intdiv($size, 1024),
+            default => (int) ceil($size / 1024),
         };
     }
 }

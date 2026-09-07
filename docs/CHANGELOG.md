@@ -4089,3 +4089,43 @@ puts `char_length()` back.
 
 506 PHP tests, 214 JS tests, build clean.
 
+### The fourth pass, and a finding that was wrong
+
+**A size under a kilobyte read as unlimited.** Separating "unreadable" from
+"unlimited" was the fix in the pass above, and it put them on `null` and `0` -
+but a bare byte count was still divided *down*, so `post_max_size = 100`, a
+hundred bytes, landed on zero and was reported as no limit at all. A hundred
+bytes breaks every form on the site, not only an upload. Verified by asking:
+`kilobytesOf('100')` answered 0 and `uploadProblems('10M', '100', 2048)` answered
+an empty list. It rounds **up** now, so only a literal zero is zero.
+
+**And the message about a mistyped setting was untrue.** It said `2MB` "is not a
+size PHP can read", while the docblock two inches above explained correctly that
+PHP reads it as *two bytes* - it takes the leading digits and the last
+character. An administrator told the line cannot be read goes looking for a
+syntax error or a second ini file; told that the suffix has to be the last
+character, they fix it. The report says the second thing now, with the number
+PHP actually arrived at.
+
+The equality case says why it is a fault rather than printing two identical
+numbers, the rollback test names the migration it is about by path instead of
+taking whatever ran last, `declaredTypes()` no longer carries a sentence saying
+the opposite of the paragraph under it, and the command test asserts the exit
+code rather than a line that is only true on SQLite - which would have failed
+the day the suite ran against MySQL, at the moment the doctor started answering
+properly.
+
+**One finding was wrong, and the mutation is what said so.** The `unknown`
+warning was reported as counting out of every expectation, including columns in
+a table that is absent - but an absent table sets the failure flag, and the
+command returns before that warning is ever printed. The case cannot arise. The
+expression is now `count($declared)` because that is what it means, and nothing
+observable changed.
+
+The rollback mutation also survives, and honestly: `--step=1` and `--path=...`
+do the same thing while this is the last migration. The test asserts which
+migration came back, so the two stop agreeing the day another one lands - which
+is the whole risk.
+
+507 PHP tests, 214 JS tests, build clean.
+

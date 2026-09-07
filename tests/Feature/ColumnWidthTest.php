@@ -250,12 +250,25 @@ class ColumnWidthTest extends TestCase
         $this->assertSame([], SchemaLimits::uploadProblems('0', '0', $limit));
         $this->assertSame([], SchemaLimits::uploadProblems(null, null, $limit));
 
-        // **But a setting PHP cannot read is a fault.** `2MB` is the ordinary
-        // typo, and PHP reads it as two bytes.
-        $unreadable = SchemaLimits::uploadProblems('2MB', '10M', $limit);
+        // **A setting PHP reads as something else is a fault.** `2MB` is the
+        // ordinary typo: PHP takes the leading digits and the *last* character,
+        // so it is two bytes - and the report has to say that rather than
+        // claiming the line cannot be read, which sends somebody looking for a
+        // syntax error.
+        $mistyped = SchemaLimits::uploadProblems('2MB', '10M', $limit);
 
-        $this->assertCount(1, $unreadable);
-        $this->assertStringContainsString('not a size PHP can read', $unreadable[0]);
+        $this->assertCount(1, $mistyped);
+        $this->assertStringContainsString('2 bytes', $mistyped[0]);
+        $this->assertStringContainsString('last character', $mistyped[0]);
+
+        // **And a size under a kilobyte is a size, not "unlimited".** Rounding
+        // it down made `post_max_size = 100` - a hundred bytes, which breaks
+        // every form on the site - read as no limit at all.
+        $tiny = SchemaLimits::uploadProblems('10M', '100', $limit);
+
+        $this->assertCount(1, $tiny);
+        $this->assertStringContainsString('post_max_size', $tiny[0]);
+        $this->assertStringContainsString('rest of the request', $tiny[0]);
     }
 
     public function test_a_php_ini_size_is_read_in_kilobytes(): void
@@ -264,6 +277,10 @@ class ColumnWidthTest extends TestCase
         $this->assertSame(512, SchemaLimits::kilobytesOf('512K'));
         $this->assertSame(1024 * 1024, SchemaLimits::kilobytesOf('1G'));
         $this->assertSame(8, SchemaLimits::kilobytesOf('8192'));
+
+        // Rounded up, so that only a literal zero is zero - the caller reads a
+        // zero as unlimited.
+        $this->assertSame(1, SchemaLimits::kilobytesOf('100'));
 
         // Zero is zero - the caller reads it as unlimited. Only something that
         // is not a size at all is null, which is what keeps "unreadable" and
@@ -396,7 +413,22 @@ class ColumnWidthTest extends TestCase
      */
     public function test_the_widening_can_be_rolled_back_on_this_driver(): void
     {
-        $this->artisan('migrate:rollback', ['--step' => 1])->assertExitCode(0);
+        // **By path, not by step.** `--step=1` rolls back whatever ran last,
+        // so the next migration anybody adds would silently become the subject
+        // of this test while its name went on claiming otherwise.
+        $migration = 'database/migrations/2026_09_07_170000_widen_two_columns_that_could_not_hold_an_address.php';
+
+        $this->assertFileExists(base_path($migration), 'The migration this test is named for has moved.');
+
+        $this->artisan('migrate:rollback', ['--path' => $migration])->assertExitCode(0);
+
+        // Names what came back, so that the day a migration lands after this
+        // one, `--step=1` would take that instead and this would say so. Until
+        // then the two spellings do the same thing, which is why the assertion
+        // rather than the flag is what holds the test to its subject.
+        $this->assertDatabaseMissing('migrations', [
+            'migration' => '2026_09_07_170000_widen_two_columns_that_could_not_hold_an_address',
+        ]);
 
         $this->artisan('migrate')->assertExitCode(0);
     }

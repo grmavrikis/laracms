@@ -113,7 +113,11 @@ class DoctorSchema extends Command
         {
             $driver = DB::connection()->getDriverName();
 
-            $this->warn(count($report['unknown']) . ' of ' . count(SchemaLimits::expectations())
+            // Out of what it looked at, not out of every expectation: the
+            // columns of an absent table were never candidates, and counting
+            // them here invites the reader to hunt for problems that are
+            // already reported above as a missing table.
+            $this->warn(count($report['unknown']) . ' of ' . count($declared)
                 . " could not be checked - {$driver} declares no width for them:");
 
             foreach ($report['unknown'] as $line)
@@ -131,7 +135,7 @@ class DoctorSchema extends Command
 
     /**
      * The type of each column an expectation names, or null when there is no
-     * such column - including when the whole table is absent.
+     * such column.
      *
      * One read per table rather than one per expectation, and **every** gap is
      * collected rather than the first: a database several migrations behind
