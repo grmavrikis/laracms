@@ -74,7 +74,7 @@ Read all of these before touching backend behaviour. They are small.
 | `app/Services/RichTextDocument.php` | Rich text is stored as a **Tiptap JSON document, never HTML**. This rebuilds every incoming document from an allowlist. Read the class docblock — it explains why. |
 | `app/Services/RichTextRenderer.php` | The other half: document → HTML for public pages. Normalises first, escapes everything, returns an `HtmlString` so no template writes `{!! !!}`. Takes the language as a second argument — a translatable field holds a map, not a document. |
 | `app/Services/StaticPages.php` | The public site is **files on disk**, served by Apache before PHP starts (#97). Replaced `PageCache`, which is gone. Addresses are composed from rows and re-checked here; a page carrying a CSRF token is never written. |
-| `app/Services/Redirects.php` | An address that has moved answers 301 rather than 404 (#69). Called from the 404 in `bootstrap/app.php`, never a middleware, so a row can never hide a live page. Renames write their own rows; the client's old site is rows the agency writes by hand. |
+| `app/Services/Redirects.php` | An address that has moved answers 301 rather than 404 (#69). Called from the 404 in `bootstrap/app.php`, never a middleware, so a row can never hide a live page. Renames write their own rows in three statements whatever the catalogue; the client's old site is rows the agency writes by hand, matched decoded and optionally keyed by a query string. Nothing in a row is trusted: the destination must be a path on this site and the status must be a redirect. |
 | `app/Services/SiteSettings.php` | What a client may change about their own site (#67). Declares the fields **in a Module schema's shape**, so `SchemaRuleBuilder` validates them; `config('site.*')` is the default for a key nobody has saved, never the answer for one that was. One row, fixed key. |
 | `app/Http/Controllers/Api/ModuleController.php` | Slug derivation (single-query collision resolution, length, format) and schema validation at creation. |
 | `app/Http/Controllers/Api/EntryController.php` | Authorization calls, pagination, and where documents get normalised. Short. |
@@ -173,7 +173,7 @@ JS tests sit **beside** their source as `resources/js/lib/*.test.js`.
 ## Commands
 
 ```bash
-php artisan test                    # 457 tests
+php artisan test                    # 470 tests
 npm test                            # 214 tests
 npm run build
 php artisan schema:sync-field-types # after changing field type constants
@@ -244,7 +244,7 @@ Started from a repo that would not boot (eight files of merge conflicts).
 Worked through a prioritised list; every item is either done or recorded in
 `CHANGELOG.md` with its reasoning.
 
-- **457 PHP tests, 214 JS tests**, all passing. Build clean.
+- **470 PHP tests, 214 JS tests**, all passing. Build clean.
 - **The project has a commercial goal as of 2026-08-30**, and it now decides
   what gets worked on. A multilingual CMS that feeds client sites, owned
   outright, for a one-person web agency: **one installation per client site**,

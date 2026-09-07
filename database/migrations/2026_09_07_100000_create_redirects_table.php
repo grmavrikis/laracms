@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Redirect;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
@@ -38,9 +39,33 @@ return new class extends Migration
              * bytes: utf8mb4 makes 512 characters 2048 of them, and 768 would
              * be exactly at the edge. A redirect that cannot be recorded must
              * never cost the author their rename.
+             *
+             * The number is the model's, not this file's (#98): the service
+             * refuses above the same length, and two numbers that have to
+             * agree are one.
+             *
+             * **Binary collation**, so both engines agree. MySQL's default is
+             * case-insensitive and SQLite's is not, which would make `/Rooms`
+             * and `/rooms` one row in production and two in the suite - a
+             * client's old site with both would be a duplicate-key 500 that no
+             * test could ever see. The routes are lower-case by pattern, so
+             * exact matching is also what a visitor's address means.
+             * SQLite ignores the modifier.
              */
-            $table->string('from_path', 512)->unique();
-            $table->string('to_path', 512);
+            $from = $table->string('from_path', Redirect::PATH_MAX_LENGTH);
+            $to = $table->string('to_path', Redirect::PATH_MAX_LENGTH);
+
+            // Named only where it is needed. SQLite compares text byte by byte
+            // already and rejects the name outright - `no such collation
+            // sequence: utf8mb4_bin` - so asking for it unconditionally breaks
+            // the suite rather than aligning it.
+            if (Schema::getConnection()->getDriverName() === 'mysql')
+            {
+                $from->collation('utf8mb4_bin');
+                $to->collation('utf8mb4_bin');
+            }
+
+            $from->unique();
 
             // 301 by default: a rename is permanent, and only a permanent
             // redirect moves the ranking to the new address. 302 exists for a

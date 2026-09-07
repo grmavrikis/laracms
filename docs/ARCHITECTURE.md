@@ -778,6 +778,47 @@ both kinds of miss, which a route could not — a renamed module still *matches*
 `/{language}/{module}` and 404s inside the controller, while
 `/rooms/deluxe.html` from the site being replaced matches no route at all.
 
+**Nothing in a row is trusted.** They are written by hand, so every field is
+checked on the way out as well as on the way in: the destination must be a path
+on this site, and **the status must be a redirect**. Symfony's
+`RedirectResponse` throws on anything that is not 3xx, and that exception would
+be raised while a 404 was being rendered — so one mistyped row would answer
+500 where the site used to answer 404 politely. Anything unrecognised is served
+as 301.
+
+**Addresses are compared decoded.** `getPathInfo()` is percent-encoded and a
+person writing a row types what they read; the first market is Greek
+accommodation, so `/δωμάτια` against `/%CE%B4%CF%89...` is the ordinary case.
+Both ends are decoded, a row written either way is matched, and the `Location`
+header is encoded again on the way out. Decoding happens **before** the safety
+checks, which is what makes them mean anything: `/%2Fevil.example` is
+`//evil.example`.
+
+**A row may be keyed by its query string.** `/index.php?p=17` is one page, not a
+hundred — that is every pre-permalink WordPress, which is what a client's old
+site usually is. The most specific key wins, and the query a visitor arrived
+with is carried across to the new address *unless* the row was matched by it,
+so a campaign link to a renamed page still tells the client where the visit came
+from.
+
+**Matching is case-sensitive on both engines.** The two path columns carry
+`utf8mb4_bin` on MySQL, whose default collation would otherwise fold case where
+SQLite does not: `/Rooms` and `/rooms` would be one row in production and two in
+the suite, and a client's old site holding both would be a duplicate-key 500 no
+test could see.
+
+**A rename costs three statements, not three per page.** A catalogue of two
+hundred entries in three languages is six hundred moves; one transaction each
+would hold the panel's Rename button open for seconds and roll the whole rename
+back on a timeout. `RedirectTest` pins the count, the way `EntryOrderingTest`
+pins reordering's.
+
+**Nothing points at a page that has gone.** `RedirectObserver` deletes the rows
+naming an Entry's or a Module's addresses as it is deleted — `deleting`, like
+`StaticPageObserver`, because the slug rows cascade. A 301 into a 404 is worse
+for the client than the old address simply being gone: a crawler follows it and
+records the *new* address as broken.
+
 **A 404 stays a 404 when the lookup fails.** The query is wrapped, because this
 is the last thing between a visitor and the page telling them there is nothing
 here: a database that is down, or a deployment where nobody ran the migrations,

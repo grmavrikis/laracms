@@ -3603,3 +3603,92 @@ recorded and older than this).
 
 457 PHP tests, 214 JS tests, build clean.
 
+### The review of it found twelve
+
+Three were bugs on the path that had just been built and verified.
+
+**A hand-written status that is not a redirect answered 500.** Symfony's
+`RedirectResponse` throws on anything that is not 3xx, and this code runs *while
+a 404 is being rendered* — so `status = 200`, or `30` typed for `301`, turned
+an address that used to answer 404 politely into a server error. The column
+accepts 0 to 65535 and the rows are written by hand: that is the same threat
+model that had already earned the open-redirect check twenty lines above, and it
+had been applied to the destination and not to the status. Anything unrecognised
+is served as 301 now.
+
+**A Greek address never matched its row.** `getPathInfo()` is percent-encoded
+and a person writing a row types what they read. Verified rather than reasoned:
+`Request::create('/el/δωμάτια')->getPathInfo()` answers
+`/el/%CE%B4%CF%89%CE%BC%CE%AC%CF%84%CE%B9%CE%B1`, and `/rooms/deluxe suite.html`
+answers `/rooms/deluxe%20suite.html`. #69 exists for a client's previous
+website, and the first market is Greek accommodation — a Greek WordPress site
+with Greek permalinks is the *normal* case. The agency would have inserted the
+row, tested it, seen a 404 and had nothing in the logs to explain it. Both ends
+are decoded now, a row written either way matches, and the `Location` header is
+encoded again on the way out. Decoding happens before the safety checks, so
+`/%2Fevil.example` is still refused.
+
+**Query strings were ignored at both ends.** An old site addressed by query —
+`/index.php?p=17`, which is every pre-permalink WordPress — collapsed to one
+key, so it could not be expressed at all; and a live link carrying
+`?utm_source=` to a renamed page arrived stripped, so the client's own campaign
+reporting went blank on exactly the pages that moved. A row may now be keyed by
+its query, the most specific key wins, and the visitor's query is carried across
+unless the row was matched by it.
+
+**A rename cost three statements per address.** Two hundred entries in three
+languages is six hundred moves, so about 1,800 statements and 600 savepoints
+inside the request holding the panel's Rename button — and the failure mode is
+a timeout that rolls the rename back, which looks to the owner like nothing
+happened. It is three statements per chunk now: one bound `CASE` to repoint the
+chain, one delete, one upsert. Measured at 21 moves: **63 writes became 3**, and
+a test pins it the way `EntryOrderingTest` pins reordering.
+
+**The migration restated 512** while `Redirect::PATH_MAX_LENGTH` had been added
+in the same commit precisely so the width lived once — #98's own defect, on the
+day it was written about. It reads the constant.
+
+**MySQL and SQLite disagreed about case.** MySQL's default collation folds it
+and SQLite's does not, so `/Rooms` and `/rooms` were one row in production and
+two in the suite: a client's old site holding both would have been a
+duplicate-key 500 no test could see. `utf8mb4_bin` on both path columns, named
+only where it exists — SQLite rejects the name outright, which the suite said
+immediately.
+
+**Nothing removed a row when the page it pointed at was deleted.** Rename an
+entry, then delete it, and the old address answered 301 into a 404 — which is
+worse for the client than the address simply being gone, because a crawler
+follows it and records the *new* address as broken. `RedirectObserver` handles
+it on `deleting`, for the same reason `StaticPageObserver` does: the slug rows
+cascade.
+
+**Drafts were recorded too**, so a site being written over a winter collected a
+dozen rows per rename per language, each a redirect from a 404 to a 404.
+Published entries only.
+
+The last three were the shape of the code rather than its behaviour. Addresses
+were composed by string interpolation, making this the third place that knew
+what a public URL looks like — it goes through `route()` now, so `routes/web.php`
+decides the shape and `StaticPages` and this both follow it. `entryMoved`
+queried `slugFor` once per language on a relation that is never loaded, which is
+one `loadMissing`. And the two `moved` methods were the same loop twice, with
+the subtle part — *a language missing from the new map means there is no page
+there, which is #114's decision rather than an oversight* — explained on only
+one of them; one private helper says it once.
+
+**Nothing pinned the method guard.** Only the `api/*` half had a test, so
+deleting the GET/HEAD check or the `expectsJson()` half passed the whole suite —
+which is exactly how `carriesSessionState` was lost (section 27). Both are
+pinned now: a POST to a moved address stays a 404, and so does a request that
+wants JSON.
+
+Twelve mutations, all biting, including one per fix above. Live over Apache
+against MySQL: an encoded request matched a Greek row, a row whose status was
+200 answered 301, a query-keyed row answered without carrying the query on, a
+visitor's `?utm_source=` survived the move, `/ZZ-OLD` stayed a 404 where
+`/zz-old` redirected — which is the collation, and the one thing the SQLite
+suite cannot prove — and a destination off the site stayed a 404. Five rows
+written, five removed, none left.
+
+470 PHP tests, 214 JS tests, build clean.
+
