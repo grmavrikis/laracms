@@ -3475,3 +3475,131 @@ Verified live in the panel: the list reads *The team* and *Services* over
 
 444 PHP tests, 214 JS tests, build clean.
 
+## 33. An address that moved says where it went (#69, step three of #114)
+
+#114 gave a Module a name and an address per language, and step two put a
+Rename screen in front of it. Together they made a defect the item had already
+predicted: **renaming a section moves every URL underneath it**, and until now
+the old ones simply died. Translating `ypiresies` to `services` turned
+`/en/ypiresies/breakfast` into a 404 at the moment the owner pressed a button
+in their own panel — and for a live site that is the rankings the client had,
+lost by a delivery we performed. That is why the owner made #69 step three
+rather than *first real client* work.
+
+#69's own case is the same table from the other end: a client's previous
+website has URLs Google already knows, and on the day the new site goes live
+they must not answer 404.
+
+### The table
+
+`redirects` — `from_path`, `to_path`, `status`, 301 by default, both paths 512
+characters because a language code, a module slug and an entry slug are about
+518 at their widest and `from_path` is a unique index InnoDB caps at 3072
+bytes. A path too long to record is logged and skipped: a redirect that cannot
+be written must not cost the author their rename, the same rule
+`StaticPages::write` follows for a page it cannot bake.
+
+**No endpoint.** Renames write their own rows; the client's old site is rows
+the agency writes by hand, exactly like adding a language (#52). A client
+editing redirects is a support call about a redirect loop.
+
+### It runs from the 404, not from a middleware
+
+#69 said "one middleware", and that is not what shipped. `bootstrap/app.php`
+asks `Redirects::answer` while rendering a `NotFoundHttpException`, which is
+better on three counts:
+
+- it is the only moment the question is worth asking, so no request pays for a
+  lookup it does not need;
+- **a stale row cannot hide a live page.** By the time this runs the router and
+  the controller have both declined, so a row can only ever add an answer where
+  there was none. A middleware asking first would let one hand-written row take
+  a working page off the site;
+- it catches both kinds of miss. A renamed module still *matches*
+  `/{language}/{module}` and 404s inside the controller, while
+  `/rooms/deluxe.html` from the old site matches no route at all. A route-level
+  hook covers only the second.
+
+### A 404 stays a 404 when the lookup fails
+
+Found by the suite within minutes: `CoreSiteBoundaryTest` boots the router
+without a schema, and the new query turned its 404 into a **500**. In
+production the same shape is a database that is down, or a deployment where
+nobody ran the migrations — and this is the last thing between a visitor and
+the page saying there is nothing here. The lookup is wrapped and logged, and a
+test drops the table to keep it that way.
+
+### Chains are flattened when they are written
+
+So serving is one lookup, and a client who cannot settle on a name does not
+build a queue of hops:
+
+| After | The table holds |
+|---|---|
+| `services` → `facilities` | `/en/services` → `/en/facilities`, plus one row per entry page |
+| `facilities` → `amenities` | `/en/services` → `/en/amenities`, `/en/facilities` → `/en/amenities` |
+| renamed back to `services` | only `/en/facilities` → `/en/services` |
+
+The third row is the loop case: repointing turns the first rename's row into
+`/en/services` pointing at itself, and it is deleted rather than left inert.
+`answer()` refuses to serve a self-reference anyway, but a table filling with
+them is one hand-written edit away from being read as a real destination.
+
+### The destination is a path on this site
+
+Never a URL, and never `//host` — which starts with a slash, passes a naive
+check and sends every visitor who hits that address to somebody else's server.
+Rows are written by hand, so an open redirect here is one UPDATE away rather
+than hypothetical. Checked when a row is written **and** when it is served,
+because only the second covers a row that never went through the service.
+
+### Entries too, deliberately
+
+Step three was written for module renames, and an entry rename is the same
+defect through the same door — more common, since an entry is renamed far more
+often than a section. `EntryController::syncSlugs` records its own moves, in
+the same place and for the same reason `StaticPageObserver` reads the old
+addresses *before* the rows are replaced: a mass delete fires no model events,
+and afterwards nothing can say where the pages were.
+
+A module rename also writes a row for **every entry page** in that language,
+not just the listing, because those are the addresses a client actually has
+links and rankings for.
+
+### What is not done
+
+Nothing reads a client's old site to produce their rows. That is an import
+against a URL list, and it belongs to the first delivery that needs one.
+
+### Checked
+
+Thirteen tests, written first and failing for the right reason (404 where a 301
+was expected, and no such model). Nine mutations, and two of them are worth
+recording:
+
+- removing the loop-guard delete **survived**, because the address it protects
+  is live and never reaches the 404 at all. The guard was real but nothing
+  could see it, so the test now asserts the row is gone rather than only that
+  the page still serves. It bites;
+- catching `RuntimeException` instead of `Throwable` also survived — a
+  `PDOException` *is* a `RuntimeException`, so the mutation changed nothing.
+  Re-aimed at `LogicException`, it bites.
+
+Live, over Apache against MySQL, with a `zz` probe module and one entry:
+
+| Asked for | Answer |
+|---|---|
+| `/en/zz-services` | **301** → `/en/zz-facilities` |
+| `/en/zz-services/zz-breakfast` | **301** → `/en/zz-facilities/zz-breakfast` |
+| `/en/zz-facilities/zz-breakfast` | 200 |
+| `/el/zz-ypiresies/zz-proino` (untouched language) | 200 |
+| `/en/zz-nothing-here` | 404 |
+
+The probe was removed afterwards and the removal checked rather than assumed:
+zero `zz` modules, module slugs, entry slugs and redirect rows, 15 modules and
+54 entries left — all the owner's own. The site was re-baked with
+`pages:warm` (72 pages, and the three `τεστ κεις` failures of #113, which is
+recorded and older than this).
+
+457 PHP tests, 214 JS tests, build clean.
+

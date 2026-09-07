@@ -759,6 +759,58 @@ all. The public side never asked this endpoint anything — `PageController` and
 `SitemapController` query `is_active` themselves — so what a visitor sees is
 unchanged, and the panel now shows each language with its state.
 
+## 5e. An address that moved (TASKS.md #69)
+
+`redirects` is one table — `from_path`, `to_path`, `status` — and it answers
+two needs that arrived together. **A rename moves URLs**: since #114 a Module's
+address is per language, so translating one takes its listing and every entry
+page underneath it somewhere else, and the old addresses would 404 from the
+moment the owner pressed *Rename*. **And a new site replaces an old one**: the
+client's previous website has URLs Google already ranks, and losing them is a
+drop the delivery caused.
+
+**It runs from the 404, not from a middleware.** `bootstrap/app.php` calls
+`Redirects::answer` while rendering a `NotFoundHttpException`. That is the one
+moment the question is worth asking, and it is what makes a stale row inert
+rather than dangerous: the router and the controller have both declined by
+then, so a row can only ever add an answer where there was none. It also covers
+both kinds of miss, which a route could not — a renamed module still *matches*
+`/{language}/{module}` and 404s inside the controller, while
+`/rooms/deluxe.html` from the site being replaced matches no route at all.
+
+**A 404 stays a 404 when the lookup fails.** The query is wrapped, because this
+is the last thing between a visitor and the page telling them there is nothing
+here: a database that is down, or a deployment where nobody ran the migrations,
+would otherwise turn every missing address into a 500. `CoreSiteBoundaryTest`
+found that within minutes of the hook going in — it boots the router without
+the schema. Same rule as `StaticPages::write`: the feature may make a request
+better, never worse.
+
+**Chains are flattened as they are written**, so serving is one lookup:
+
+| Then | The table holds |
+|---|---|
+| `services` → `facilities` | `/en/services` → `/en/facilities`, and one row per entry page |
+| `facilities` → `amenities` | `/en/services` → `/en/amenities`, `/en/facilities` → `/en/amenities` |
+| renamed back to `services` | only `/en/facilities` → `/en/services` — the row for the live address is deleted, not left pointing at itself |
+
+**The destination is a path on this site.** Never a URL, and never `//host`,
+which starts with a slash and would send every visitor who hit that address to
+somebody else's server. Rows are written by hand, so that is one UPDATE away
+rather than hypothetical, and it is checked both when a row is written and when
+it is served.
+
+**Who writes the rows.** The two rename endpoints write their own —
+`ModuleController::update` and `EntryController::syncSlugs`, both reading the
+old addresses *before* the slug rows are replaced, exactly as
+`StaticPageObserver` has to. The client's old site is rows the agency writes by
+hand, like a language (#52): there is no endpoint, because a client editing
+redirects is a support call about a redirect loop.
+
+**A baked page would hide all of this**, and does not: a rename saves the
+Module, the observer flushes the whole directory, and the old address has no
+file to serve, so the request reaches PHP and gets its 301.
+
 ## 5a. Translations (TASKS.md #96 — public side done, panel not yet)
 
 **The address decides the language, not a header.** `SetLocale`, aliased as

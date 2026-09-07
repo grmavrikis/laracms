@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Language;
 use App\Models\Module;
 use App\Models\ModuleSlug;
+use App\Services\Redirects;
 use App\Services\SchemaRuleBuilder;
 use App\Services\StaticPages;
 use Illuminate\Http\JsonResponse;
@@ -34,6 +35,10 @@ class ModuleController extends Controller
     private const SCHEMA_FIELD_KEYS = [
         'name', 'type', 'translatable', 'required', 'validation', 'options',
     ];
+
+    public function __construct(private readonly Redirects $redirects)
+    {
+    }
 
     public function store(Request $request): JsonResponse
     {
@@ -136,13 +141,20 @@ class ModuleController extends Controller
             $this->refuseReshaping($module, $validated['schema']);
         }
 
+        // **Read before the rows are replaced**, because that is the only
+        // moment anything can say where this module's pages used to be
+        // (TASKS.md #69). `syncTranslations` deletes them en masse - no model
+        // events, nothing left to compare against afterwards. The same reason
+        // `StaticPageObserver` runs on the save above rather than after it.
+        $before = $module->slugs()->pluck('slug', 'language_code')->all();
+
         // **One write, or none.** `syncTranslations` deletes every slug row
         // before re-inserting them, so a failure part way through left the
         // module with fewer addresses than it had, or none - and since #114 a
         // module with no addresses has no public page anywhere. That is
         // TASKS.md #77 one level up, and `EntryController` wraps the identical
         // delete-then-insert for the same reason.
-        DB::transaction(function () use ($module, $validated)
+        DB::transaction(function () use ($module, $validated, $before)
         {
             if (array_key_exists('schema', $validated))
             {
@@ -160,6 +172,14 @@ class ModuleController extends Controller
             if (array_key_exists('translations', $validated))
             {
                 $this->syncTranslations($module, $validated['translations']);
+
+                // Inside the transaction: a rename that rolls back must not
+                // leave the site redirecting away from pages it still serves.
+                $this->redirects->moduleMoved(
+                    $module,
+                    $before,
+                    $module->slugs()->pluck('slug', 'language_code')->all()
+                );
             }
         });
 

@@ -1,9 +1,11 @@
 <?php
 
+use App\Services\Redirects;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -94,5 +96,23 @@ return Application::configure(basePath: dirname(__DIR__))
         // redirect, which is what `EnquiryTest` keeps honest.
         $exceptions->shouldRenderJsonWhen(
             fn(Request $request) => $request->is('api/*') || $request->expectsJson(),
+        );
+
+        /*
+         * An address that has moved answers 301 rather than 404 (TASKS.md #69,
+         * and step three of #114).
+         *
+         * Here rather than in a middleware on purpose. This is the one moment
+         * the question is worth asking - the router and the controller have
+         * both declined, so a row can only ever add an answer where there was
+         * none, never hide a page that is live. It also catches both kinds of
+         * miss: a renamed module still matches `/{language}/{module}` and 404s
+         * inside the controller, while `/rooms/deluxe.html` from the site being
+         * replaced matches no route at all.
+         *
+         * Returning null leaves Laravel's own 404 exactly as it was.
+         */
+        $exceptions->render(
+            fn (NotFoundHttpException $e, Request $request) => app(Redirects::class)->answer($request)
         );
     })->create();

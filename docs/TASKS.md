@@ -201,9 +201,11 @@ it is wrong, move them and nothing else changes.
 
 ### After the first paying client
 
-**#69 redirects** and **#70 cookie consent** land with the first client that
-replaces an existing site — which will be most of them. Then **#71 relations
-between entries**, the next real gap in the type system after #68.
+**#70 cookie consent** lands with the first client that replaces an existing
+site — which will be most of them. Then **#71 relations between entries**, the
+next real gap in the type system after #68. **#69 redirects came early**, as
+step three of #114: our own rename moves URLs, so the mechanism was needed
+before any client's old site was.
 
 After those, in this order and not before: **menu editing**, **media library**,
 **module definitions as files** (pays off at installation #2), **user groups**,
@@ -1094,8 +1096,10 @@ Each is separately verifiable, and the order is what keeps the site working:
    with its state, while `activeLanguages()` keeps deciding what a visitor
    sees. That split exists everywhere else already; this endpoint was the one
    place it did not. **Fixed with step 2.**
-3. **#69 redirects**, so step 2's first rename does not cost the client their
-   rankings.
+3. **#69 redirects — DONE** (CHANGELOG §33). A rename writes its own rows:
+   the listing, and every entry page underneath it in that language. Verified
+   live — `/en/zz-services/zz-breakfast` answered 301 to
+   `/en/zz-facilities/zz-breakfast` from Apache, against MySQL.
 
 ### Sequenced
 
@@ -1147,15 +1151,27 @@ Folded in: **eight test files create the same two `Language` rows by hand.** A
 shared helper. Not a seeder — see Decisions for why tests build their own
 world.
 
-### 69. Redirects *(first real client)*
+### 69. Redirects — DONE (CHANGELOG §33)
 
 When a client's existing website is replaced, its old URLs must redirect to the
 new ones. Otherwise they answer 404 on the day of delivery and Google drops the
 rankings the client already had — caused by your delivery, and they will say so.
 
-A table of `old_path → new_path` with a status code, and one middleware. Half a
-day. Outside the MVP only because the demo has no predecessor; needed by the
-first client who does, which will be most of them.
+Brought forward from *first real client* by #114 item 4: translating a Module
+moves every URL underneath it, so the mechanism was needed by our own rename
+before any client's old site arrived.
+
+`redirects` is the table — `from_path`, `to_path`, `status`, 301 by default.
+**Not a middleware in the end**: `bootstrap/app.php` asks `Redirects::answer`
+while rendering a 404, which is the only moment the question is worth asking
+and the only way a row can never hide a page that is live. Renames write their
+own rows; the client's old site is rows the agency writes by hand, like a
+language (#52), because a client editing redirects is a support call about a
+loop.
+
+**What is not done**: nothing reads the old site to produce those rows. That
+is an import against a client's own URL list, and it belongs to the first
+delivery that needs it.
 
 ### 70. Cookie consent *(first real client)*
 

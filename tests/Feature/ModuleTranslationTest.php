@@ -450,7 +450,11 @@ class ModuleTranslationTest extends TestCase
                 'An entry page under the old address survived the rename.'
             );
 
-            $this->get('/fr/prestations')->assertNotFound();
+            // A 301 since step three (#69): the file is gone, PHP runs, and
+            // the address it used to serve now names where it went. It was a
+            // 404 here until redirects landed, which is what that step exists
+            // to stop - the client keeps the rankings the old address earned.
+            $this->get('/fr/prestations')->assertRedirect('/fr/manifestations');
             $this->get('/fr/manifestations')->assertOk();
         }
         finally

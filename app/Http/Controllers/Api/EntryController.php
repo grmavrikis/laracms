@@ -7,6 +7,7 @@ use App\Http\Requests\StoreEntryRequest;
 use App\Http\Requests\UpdateEntryRequest;
 use App\Models\Entry;
 use App\Models\Module;
+use App\Services\Redirects;
 use App\Services\StaticPages;
 use App\Services\RichTextDocument;
 use Illuminate\Http\Request;
@@ -27,6 +28,7 @@ class EntryController extends Controller
     public function __construct(
         private readonly RichTextDocument $richText,
         private readonly StaticPages $pages,
+        private readonly Redirects $redirects,
     ) {
     }
 
@@ -351,6 +353,12 @@ class EntryController extends Controller
             return;
         }
 
+        // Read before the delete, for the same reason the observer reads them
+        // before this runs: afterwards nothing can say where the entry's pages
+        // were (TASKS.md #69). An entry is renamed far more often than a
+        // module, so this is the common half of step three.
+        $before = $entry->slugs()->pluck('slug', 'language_code')->all();
+
         $entry->slugs()->delete();
 
         foreach ((array) $validated['slugs'] as $language => $slug)
@@ -369,5 +377,11 @@ class EntryController extends Controller
 
         // The relation may have been loaded before these rows changed.
         $entry->unsetRelation('slugs');
+
+        $this->redirects->entryMoved(
+            $module,
+            $before,
+            $entry->slugs()->pluck('slug', 'language_code')->all()
+        );
     }
 }
