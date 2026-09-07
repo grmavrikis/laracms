@@ -900,10 +900,25 @@ of el/en/fr opens on Greek, a panel in English on English.
 It decides the **initial** language only; the selector still switches it, and
 changing the panel's own language reloads the page, so the two never drift
 apart on screen. An inactive language is excluded — it is in the panel so it
-can be translated before going live (#114), not so a listing opens on it.
+can be translated before going live (#114), not so a listing opens on it — and
+that holds for the **fallback as well**. Three steps, narrowing: the panel's
+own language when the site publishes it, then the published language the site
+opens on, then, only when nothing at all is published, whatever default there
+is, because a site still being set up has to stay editable.
 
-Read by the module list (names and addresses), the entries table, that screen's
-heading, and the entry form's opening tab. Leaving any one of them behind is
+Two helpers carry it. `lib/modules.js` answers which name a row shows in a
+given language, falling back to the panel's own; two screens make that decision
+and, while it was an expression inside each of them, one of the two was missed
+until somebody opened the panel. `lib/languageStore.js` fetches
+`/api/languages` **once per page load** for all five screens that want it —
+they each had their own request, so moving between the module list, a module's
+entries and back re-asked for a table that changes only when the agency runs an
+INSERT by hand (#52). A rejection is not cached: one screen's dropped
+connection should not follow somebody around the panel.
+
+Read by the module list (the names — the Slug column beside them stays the
+panel's own key, which is what the admin API resolves a module by), the entries
+table, that screen's heading, and the entry form's opening tab.
 the complaint that produced this: the interface in English above a section
 still titled in Greek.
 

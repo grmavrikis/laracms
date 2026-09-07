@@ -1,7 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import api from '../lib/api';
 import { t, locale } from '../lib/i18n';
-import { contentLangCode, languagesFrom } from '../lib/languages';
+import { contentLangCode } from '../lib/languages';
+import { loadLanguages } from '../lib/languageStore';
+import { moduleNameIn } from '../lib/modules';
 
 export default function ModulesList({ onSelectModule, onCreateModule, onTranslateModule }) {
     const [modules, setModules] = useState([]);
@@ -13,21 +15,33 @@ export default function ModulesList({ onSelectModule, onCreateModule, onTranslat
     // the site's default otherwise (#114, #116).
     const viewLangCode = contentLangCode(languages, locale);
 
-    // A module's name in that language, falling back to the panel's own name -
-    // which is what a module untranslated into it has, and all a module had
-    // before #114.
-    const nameOf = (module) =>
-        (module.slugs ?? []).find((s) => s.language_code === viewLangCode)?.name ?? module.name;
-
-    const addressOf = (module) =>
-        (module.slugs ?? []).find((s) => s.language_code === viewLangCode)?.slug ?? module.slug;
-
     const fetchModules = useCallback(async () => {
         setLoading(true);
         setError(null);
+
         try {
-            const { data } = await api.get('/modules');
+            // **Both, before anything renders.** The names come from the
+            // modules and the language to read them in comes from the other
+            // request, so showing the table on the first of the two meant every
+            // visit flashed the untranslated names and then flipped - on the
+            // panel's landing screen, which is the first thing an
+            // English-speaking owner sees.
+            //
+            // The languages are allowed to fail on their own: `contentLangCode`
+            // over an empty list answers null and `moduleNameIn` falls back to
+            // the module's own name, which is the list exactly as it was before
+            // #114. Losing the modules is the failure worth reporting.
+            const [{ data }, list] = await Promise.all([
+                api.get('/modules'),
+                loadLanguages().catch((err) => {
+                    console.error(err);
+
+                    return [];
+                }),
+            ]);
+
             setModules(Array.isArray(data) ? data : data?.data ?? []);
+            setLanguages(list);
         } catch (err) {
             setError(t('Could not load the modules.'));
         } finally {
@@ -38,16 +52,6 @@ export default function ModulesList({ onSelectModule, onCreateModule, onTranslat
     useEffect(() => {
         fetchModules();
     }, [fetchModules]);
-
-    useEffect(() => {
-        // Only to decide which language to read the names in. A failure here
-        // is not worth an error on this screen: `contentLangCode` over an
-        // empty list answers null, `nameOf` falls back to the module's own
-        // name, and the list is exactly what it was before #114.
-        api.get('/languages')
-            .then(({ data }) => setLanguages(languagesFrom(data)))
-            .catch((err) => console.error(err));
-    }, []);
 
     if (loading) {
         return (
@@ -137,10 +141,10 @@ export default function ModulesList({ onSelectModule, onCreateModule, onTranslat
                                 <tr key={mod.id ?? mod.slug} className="hover:bg-gray-50/50 transition-colors">
                                     <td className="py-4 pl-6 pr-3 font-medium text-gray-900">
                                         <div className="flex items-center gap-2">
-                                            <span>{nameOf(mod)}</span>
+                                            <span>{moduleNameIn(mod, viewLangCode)}</span>
                                         </div>
                                     </td>
-                                    <td className="py-4 px-3 font-mono text-xs text-gray-500">{addressOf(mod)}</td>
+                                    <td className="py-4 px-3 font-mono text-xs text-gray-500">{mod.slug}</td>
                                     <td className="py-4 pl-3 pr-6 text-right font-medium">
                                         <button
                                             onClick={() => onTranslateModule(mod)}

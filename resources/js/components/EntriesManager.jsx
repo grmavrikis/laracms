@@ -4,7 +4,9 @@ import EntryForm from './EntryForm';
 import EntriesTable from './EntriesTable';
 import { paginationFrom, rowsFrom, isPastLastPage } from '../lib/pagination';
 import { t, locale } from '../lib/i18n';
-import { contentLangCode, languagesFrom } from '../lib/languages';
+import { contentLangCode } from '../lib/languages';
+import { loadLanguages } from '../lib/languageStore';
+import { moduleNameIn } from '../lib/modules';
 import { createLatestWriteQueue } from '../lib/latestWriteQueue';
 
 export default function EntriesManager({ module, onBack }) {
@@ -21,12 +23,12 @@ export default function EntriesManager({ module, onBack }) {
     const slugRef = useRef(module.slug);
     slugRef.current = module.slug;
 
-    // The section's name in the language this screen is reading, falling back
-    // to the panel's own name - which is what a module untranslated into it
-    // has. Without this the interface read English and the heading above it
-    // stayed Greek, which is the inconsistency this follows from.
-    const moduleName =
-        (module.slugs ?? []).find((s) => s.language_code === viewLangCode)?.name ?? module.name;
+    // The section's name in the language this screen is reading. Without it
+    // the interface read English and the heading above it stayed Greek, which
+    // is the inconsistency #116 follows from - and it was missed until the
+    // panel was opened by hand, which is why the decision is now a tested
+    // function rather than an expression in two components.
+    const moduleName = moduleNameIn(module, viewLangCode);
 
     const orderQueue = useRef(null);
 
@@ -61,9 +63,8 @@ export default function EntriesManager({ module, onBack }) {
     const [editingEntry, setEditingEntry] = useState(null);
 
     useEffect(() => {
-        api.get('/languages')
-            .then(({ data }) => {
-                const list = languagesFrom(data);
+        loadLanguages()
+            .then((list) => {
                 setLanguages(list);
 
                 // `loading` belongs to the entries request alone. These used to
@@ -76,7 +77,12 @@ export default function EntriesManager({ module, onBack }) {
                     // the site does not have has nothing to follow.
                     setViewLangCode(contentLangCode(list, locale));
                 } else {
-                    setLanguagesError(t('No active languages. Add one before writing content.'));
+                    // Not "no *active* languages": since #114 this list carries
+                    // unpublished ones too, so an empty answer means the site
+                    // has none at all. And it deliberately does not say "add
+                    // one" - there is no endpoint for that, because adding a
+                    // language is a service the agency performs (#52).
+                    setLanguagesError(t('This site has no languages yet.'));
                 }
             })
             .catch((err) => {

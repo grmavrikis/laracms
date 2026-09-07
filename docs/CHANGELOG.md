@@ -3401,8 +3401,12 @@ two:
 
 | Panel | The module list reads |
 |---|---|
-| **EN** | The team / `the-team`, Services / `services` |
-| **EL** | Η ομάδα / `h-omada`, Υπηρεσίες / `ypiresies` |
+| **EN** | The team, Services |
+| **EL** | Η ομάδα, Υπηρεσίες |
+
+The Slug column beside them does not move: it stays `h-omada` and `ypiresies`,
+the panel's own key. The first version of this changed that column as well, and
+the review put it back — below.
 
 and the entries table under *Services* opened on **EN** with English titles.
 Modules nobody has translated - *το χωριό*, *Σχετικά*, *Δωμάτια* - show what
@@ -3413,4 +3417,61 @@ unit test rather than live: this installation has no `lang/de.json`, so the
 panel cannot currently be set to a language the site lacks.
 
 444 PHP tests, 201 JS tests, build clean.
+
+### The review of it found eight
+
+**The rule held for one of the function's two branches.** `contentLangCode`
+filtered `is_active` when matching the panel's language and then fell through
+to `defaultLangCode`, which never looked at it — so with the default
+deactivated, or with nothing flagged default and an unpublished language first
+by id, a listing could open on a language the public site does not serve at
+all. It is three steps now, narrowing: the panel's own if the site publishes
+it, the published default, and only when *nothing* is published the plain
+default, because a site still being set up has to stay editable.
+
+Beside it, a null panel locale compared equal to a row carrying no `code`, and
+the function answered `null` instead of falling back. Not reachable from the
+panel — `locale` defaults to `'en'` — but the signature offers `null` and a
+test asserts that case.
+
+**The module list flashed the wrong names.** It rendered the moment `/modules`
+resolved, while the language to read those names in came from a second request:
+every visit to the panel's landing screen showed the untranslated names and
+then flipped, a visible flicker of exactly what this change set out to remove.
+One `Promise.all` now, with the languages allowed to fail on their own.
+
+**The Slug column had stopped being the slug.** It showed the per-language
+public address, which is not what `/api/modules/{module}`, Edit or Entries
+resolve by — and it fell back to the panel key for an untranslated module, so
+one column mixed a public address and an internal identity row by row. Back to
+`mod.slug`, which is what the heading always meant.
+
+**Five screens each fetched `/api/languages`.** `lib/languageStore.js` asks
+once per page load. Measured live with `performance.getEntriesByType`, a list
+→ entries → list round trip is now **one** request where it was three. A
+rejection is deliberately not cached: one screen's dropped connection should
+not follow somebody around the panel.
+
+And the empty-list message still read *"No active languages. Add one before
+writing content."* Since #114 that endpoint returns unpublished languages too,
+so the branch now means "this site has none at all" — and either way it asked
+the reader to do something there is deliberately no endpoint for (#52).
+
+Two findings were cleanup with a point behind them: `nameOf` and `addressOf`
+scanned the same row twice, and nothing pinned that the screens *use*
+`contentLangCode` — which is how the entries screen's heading went the whole
+of this change reading `module.name`, and was caught by opening the panel
+rather than by the suite. Both are answered by `lib/modules.js`, where the
+decision is a tested function that two screens call.
+
+One mutation survived, and was right to: the line it changed was not the one
+doing the work. What stops a null panel locale matching a codeless row is the
+null check below the coercion, not the coercion itself; re-mutated there, the
+test bites.
+
+Verified live in the panel: the list reads *The team* and *Services* over
+`h-omada` and `ypiresies`, and one `/api/languages` covers a list → entries
+→ list round trip.
+
+444 PHP tests, 214 JS tests, build clean.
 

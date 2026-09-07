@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import api, { uploadImage } from '../lib/api';
 import { errorSummary, validationErrors } from '../lib/apiErrors';
-import { getLangCode, languagesFrom } from '../lib/languages';
+import { getLangCode } from '../lib/languages';
+import { loadLanguages } from '../lib/languageStore';
 import { t } from '../lib/i18n';
 
 /**
@@ -28,11 +29,11 @@ export default function SettingsManager({ onBack }) {
     const [fieldErrors, setFieldErrors] = useState({});
 
     useEffect(() => {
-        Promise.all([api.get('/settings'), api.get('/languages')])
+        Promise.all([api.get('/settings'), loadLanguages()])
             .then(([settings, langs]) => {
                 setSchema(settings.data.schema);
                 setData(settings.data.data ?? {});
-                setLanguages(languagesFrom(langs.data));
+                setLanguages(langs);
             })
             .catch((err) => {
                 console.error(err);

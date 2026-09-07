@@ -128,3 +128,47 @@ describe('contentLangCode', () => {
         expect(contentLangCode([], 'en')).toBeNull();
     });
 });
+
+describe('contentLangCode and languages nobody has published', () => {
+    const draftDefault = { id: 1, code: 'de', name: 'German', is_default: true, is_active: false };
+
+    /**
+     * The rule the docblock states - "only a published language" - held for
+     * the branch that matches the panel and not for the fallback, which went
+     * through `defaultLangCode` and never looked at `is_active`. Since #114
+     * the endpoint returns unpublished languages too, so the fallback could
+     * hand a listing a language with no public pages at all.
+     */
+    it('does not fall back to an unpublished default', () => {
+        expect(contentLangCode([draftDefault, en], 'fr')).toBe('en');
+    });
+
+    it('does not fall back to an unpublished first row either', () => {
+        const noneFlagged = [
+            { id: 1, code: 'de', name: 'German', is_default: false, is_active: false },
+            { id: 2, code: 'el', name: 'Greek', is_default: false, is_active: true },
+        ];
+
+        expect(contentLangCode(noneFlagged, 'fr')).toBe('el');
+    });
+
+    /**
+     * But a site where nothing is published yet still has to be editable, so
+     * the last resort is whatever default there is. A panel that answered
+     * `null` here would leave the entries table with no language to show.
+     */
+    it('still answers when nothing is published at all', () => {
+        expect(contentLangCode([draftDefault], 'fr')).toBe('de');
+    });
+
+    /**
+     * A row carrying no code used to match a null panel locale - `null ===
+     * null` - and the function then answered `null` instead of the default.
+     */
+    it('is not matched by a row with no code', () => {
+        const broken = { id: 9, name: 'Broken', is_default: false, is_active: true };
+
+        expect(contentLangCode([broken, en], null)).toBe('en');
+        expect(contentLangCode([broken, en], '')).toBe('en');
+    });
+});

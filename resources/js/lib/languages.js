@@ -56,18 +56,38 @@ export const defaultLangCode = (languages = []) => {
  * whatever the site itself opens on. A panel in German over a site with no
  * German has nothing to follow.
  *
- * **Only a published language.** An inactive one is offered in the panel so it
- * can be translated ahead of going live (#114), which is not a reason for a
- * listing to open on it.
+ * **Only a published language**, and that applies to the fallback as well.
+ * An inactive one is offered in the panel so it can be translated ahead of
+ * going live (#114), which is not a reason for a listing to open on it — and
+ * since #114 this list contains unpublished languages, so a fallback that went
+ * straight to `is_default` could hand a listing a language with no public
+ * pages at all.
+ *
+ * Three steps, narrowing: the panel's own language if the site publishes it,
+ * then the published language the site opens on, then — only when nothing is
+ * published — whatever default there is, because a site still being set up has
+ * to be editable.
  *
  * This decides the *initial* language only. The selector still switches it,
  * and switching the panel's language reloads the page, so the two never drift
  * apart while somebody is looking at them.
  */
 export const contentLangCode = (languages = [], panelLocale = null) => {
-    const matching = (languages ?? []).find(
-        (language) => language?.is_active !== false && getLangCode(language) === panelLocale
-    );
+    const all = languages ?? [];
+    const published = all.filter((language) => language?.is_active !== false);
 
-    return matching ? getLangCode(matching) : defaultLangCode(languages);
+    // A row carrying no code answers `null` from `getLangCode`, which used to
+    // compare equal to a null panel locale and make this return null instead
+    // of falling back.
+    const wanted = typeof panelLocale === 'string' && panelLocale !== '' ? panelLocale : null;
+
+    const matching = wanted === null
+        ? null
+        : published.find((language) => getLangCode(language) === wanted);
+
+    if (matching) {
+        return getLangCode(matching);
+    }
+
+    return published.length > 0 ? defaultLangCode(published) : defaultLangCode(all);
 };

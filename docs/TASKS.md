@@ -962,10 +962,15 @@ it decides the **initial** language only — the selector still switches it by
 hand. Switching the panel's own language reloads the page, so the two cannot
 drift apart while somebody is looking at them. An **inactive** language is
 excluded: it is offered in the panel so it can be translated ahead of going
-live (#114), which is not a reason for a listing to open on it.
+live (#114), which is not a reason for a listing to open on it — and the
+review made that true of the fallback as well, which reached `is_default`
+without looking at `is_active`.
 
-Four screens read it: the module list (names and addresses), the entries table,
-that screen's own heading, and the entry form's opening tab.
+Four screens read it: the module list (the names — the Slug column beside
+them stays the panel's own key), the entries table, that screen's own heading,
+and the entry form's opening tab. `lib/modules.js` holds the name decision the
+first two share, and `lib/languageStore.js` fetches the language list once per
+page load for all five screens that want it.
 
 ### 115. A Module's schema is editable, additively — DONE (CHANGELOG §31)
 

@@ -2,7 +2,8 @@
 import { useState, useEffect } from 'react';
 import api from '../lib/api';
 import { errorSummary } from '../lib/apiErrors';
-import { languagesFrom, defaultLangCode } from '../lib/languages';
+import { defaultLangCode } from '../lib/languages';
+import { loadLanguages } from '../lib/languageStore';
 import ModuleTranslations, { translationsPayload } from './ModuleTranslations';
 import ModuleFields from './ModuleFields';
 import { isGalleryField } from '../lib/gallery';
@@ -30,8 +31,8 @@ export default function ModuleBuilder({ onCreated, onCancel }) {
     useEffect(() => {
         // Every language, including ones not published yet: the agency adds
         // a language and the client translates into it before it goes live.
-        api.get('/languages')
-            .then(({ data }) => setLanguages(languagesFrom(data)))
+        loadLanguages()
+            .then(setLanguages)
             .catch((err) => {
                 console.error(err);
                 setLanguagesError(errorSummary(err, t('Could not load the languages.')));

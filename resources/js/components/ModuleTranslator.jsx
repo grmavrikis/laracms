@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import api from '../lib/api';
 import { errorSummary } from '../lib/apiErrors';
-import { languagesFrom } from '../lib/languages';
+import { loadLanguages } from '../lib/languageStore';
 import { t } from '../lib/i18n';
 import { isGalleryField } from '../lib/gallery';
 import { emptyField, fieldsFromSchema, nextFieldId, applyFieldChange, schemaPayload } from '../lib/moduleFields';
@@ -38,8 +38,8 @@ export default function ModuleTranslator({ module, onSaved, onCancel }) {
     useEffect(() => {
         // Every language, published or not: the agency adds one and the client
         // translates into it before it goes live.
-        api.get('/languages')
-            .then(({ data }) => setLanguages(languagesFrom(data)))
+        loadLanguages()
+            .then(setLanguages)
             .catch((err) => {
                 console.error(err);
                 setErrors(errorSummary(err, t('Could not load the languages.')));
