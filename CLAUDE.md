@@ -271,13 +271,15 @@ Worked through a prioritised list; every item is either done or recorded in
   dropped as the authorization axis — plus a login defect the tests turned up,
   where a correct password answered 500 from any non-stateful origin while a
   wrong one answered 401.
-- **Phase 1 is nearly done.** Landed: #68 (CHANGELOG §14), #55 (§15),
-  #56/#57/#58 (§16), the whole of `## P0` (§17 and §19), #59 (§21), #60 (§23),
-  #61 (§24), #66 (§25) and #67 (§26) — a gallery field, a Tiptap-to-HTML
-  renderer, the three structural columns and their admin UI, the fourteen
-  review findings against them, the public Blade site with its cache and
-  sitemap, singleton modules, the core/site line, enquiries, and site
-  settings.
+- **Phase 1 is DONE.** Landed: #68 (CHANGELOG §14), #55 (§15), #56/#57/#58
+  (§16), the whole of `## P0` (§17 and §19), #59 (§21), #60 (§23), #61 (§24),
+  #66 (§25), #67 (§26), #97 (§27–§28), #114 (§29–§30, §33), #115 (§31),
+  #116 (§32), #69 (§33), #99 (§34), #98 (§35) and #96 (§36) — a gallery
+  field, a Tiptap-to-HTML renderer, the three structural columns and their
+  admin UI, the public Blade site, the static pages, singleton modules, the
+  core/site line, enquiries, site settings, per-language module addresses,
+  additive schema editing, redirects, translated interfaces on both sides, and
+  one source for every width.
 - **`## P0` is closed.** It was fourteen findings against #56/#57/#58 and it
   outranked the MVP list until it was done; the three that were wrong in the
   browser (#75 reordering across pages, #76 a long `slugs` key answering 500 on
@@ -312,26 +314,30 @@ Worked through a prioritised list; every item is either done or recorded in
   *What does editing a Module mean for its Entries?* in `TASKS.md` → To
   discuss: **additive edits only**. `ModuleFields` disables the four on a field
   that already exists.
-- **Then #98**, plus the review that keeps #96 open. Both were added on
-  2026-09-05 at a stop the owner called, and recorded in `TASKS.md` →
-  Amendments and → Decisions taken (2026-09-05, third). Read those before
-  starting either; each rests on a decision that is not obvious from the code.
+- **Phase 1 is closed, and the next work is Phase 2** — #62 and #65, the demo
+  site. Everything Phase 1 was waiting on is done: #96, #97, #98, #99, #114,
+  #115, #116 and #69. **Read `TASKS.md` → Phase 2 before starting it**: the
+  demo is built exactly as a paying client would be, so client #1 is a copy of
+  `site/` rather than a fresh start, and the rooms, facilities and home-page
+  slider need no engineering at all — they are modules built in the existing
+  builder.
   **#67 is done** (CHANGELOG §26): site settings are one core table, not the
   singleton Module the item first described — core cannot read the notification
   address out of a row the client owns and could delete.
-  - **#96 translated interfaces — both halves are built; the review is not
-    done** (ARCHITECTURE §5a). Public: `SetLocale` from the address, `lang/`
-    for core and `site/lang/` for the theme. Panel: `InterfaceLocales`,
+  - **#96 translated interfaces — DONE**, review included (ARCHITECTURE §5a,
+    CHANGELOG §34 and §36). Public: `SetLocale` from the address, `lang/` for
+    core and `site/lang/` for the theme. Panel: `InterfaceLocales`,
     `users.locale`, a picker, and the catalogue **injected into the page** so
     a new locale needs no `npm run build`. Content languages are **rows**;
     interface locales are **files** — different axes, and they must not share
     the `languages` table.
-    **What is left is #100–#110**. #99 and #109 are done (CHANGELOG §34):
-    `lang/el/validation.php` carries the rules both surfaces use, and the
-    enquiry form's field names come from `StoreEnquiryRequest::attributes()`
-    so one declaration serves every locale. Read that section before touching
-    translations — three of the tests that look like they hold this mechanism
-    do not (#101, #102, #103).
+    **Three rules a theme has to keep.** `SetLocale` is on the whole `web`
+    group and reads the first URL segment when a route has no `{language}`
+    parameter, so a client route gets its language without asking. Every
+    `__('…')` literal must be in `site/lang/en.json` —
+    `CatalogueCoversTheCodeTest` fails otherwise, and that is what stops a
+    Greek page shipping an English word. And the honeypot's label is
+    deliberately **not** translated (#110).
   - **#97 static HTML pages — DONE** (CHANGELOG §27 and §28). The public site
     is written to `public/cache/{lang}/{module}/{slug}.html` and Apache serves
     it before PHP starts; `PageCache` is **deleted**. Commands: `pages:warm`,
