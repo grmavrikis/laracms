@@ -800,6 +800,40 @@ booking hand-off, three rooms, four facts, location, and a closing *book
 direct*. The enquiry form (#66) is **not** on it — it belongs on the contact
 page. The front page has one job, which is to start a booking.
 
+**Every page of the site is now a mock-up, in the same language** (2026-09-08):
+`index`, `rooms` (a list module's listing), `room` (one entry), `facilities`
+(the second list module), `gallery`, `about` and `contact` (the three
+singletons, the last carrying the enquiry form). The chrome that repeats -
+focus rings, reduced motion, the `<details>` panel, and the rich-text block -
+is in `public/mockup/chrome.css` so the seven pages cannot drift apart before
+they become Blade.
+
+Four things came out of drawing them, and they change what Blade has to do:
+
+- **`theme::entry` cannot stay a blind loop over `$fields`.** The `rooms`
+  schema is title, description, photos, sleeps, size_m2, price_from - and the
+  design puts three of those on one line under the heading and the photographs
+  above the text. A designed theme **addresses fields by name**, which is the
+  argument for handing templates a map keyed by field name rather than the
+  ordered list. The generic loop stays as the fallback for a module nobody has
+  styled.
+- **The two listings share one template and differ only in which fields they
+  print.** `theme::module` branches on `$module->slug` *inside the theme* - the
+  theme is allowed to know the names of its own modules, and core stays out of
+  it.
+- **The header has two variants**, white over the hero photograph and ink on
+  paper everywhere else. One template with a flag, not two.
+- **The theme's stylesheet must cover exactly what `RichTextRenderer` emits**:
+  `p`, `ul`/`ol`/`li`, `blockquote`, `h1`-`h6`, `hr`, `br`, `pre>code` and the
+  marks `strong`, `em`, `s`, `u`, `code`, `a`, `mark`. The renderer hands over
+  one `HtmlString` with no classes on it. That block is written and working in
+  `chrome.css`; it moves to `site/theme/theme.css` unchanged.
+
+The menu is five items - Δωμάτια, Παροχές, Φωτογραφίες, Το ξενοδοχείο,
+Επικοινωνία - horizontal, and it **wraps onto two lines on a phone** rather
+than collapsing into a hamburger. The earlier `hidden md:flex` left a phone
+with no navigation at all.
+
 #### The core work this item still needs
 
 **1. The front page cannot show content, and that is the only real gap.**
@@ -856,6 +890,21 @@ slides.
 Prices in the mock-up are real — read off their booking engine for mid-October
 — but a real site needs low-season *from* prices, not one date's. *Breakfast
 with a view of the old port* and the telephone hours are invented.
+
+The other pages added four more, all of them content rather than code:
+
+- **Two of the five prices are invented.** Economy triple (149) and Superior
+  triple (174) were interpolated; the other three are read off the engine.
+- **There are four photographs of rooms and five room types.** The fifth card
+  shows the empty state - a tinted box saying the photograph is coming - rather
+  than a photograph of something else. It is also a fair test of what an entry
+  with an empty `photos` field looks like.
+- **The reception hours are invented and now stated in three places**
+  (the floating panel, the facilities card, the contact page). They say
+  08:00-22:00 everywhere; the first draft said "24 hours" on one page and
+  08:00-22:00 on another, which is the failure mode a demo cannot afford.
+- **Breakfast 07:30-10:30 is invented**, as is the walking time to the ferry
+  port (ten minutes).
 
 ### 63. Bookings module *(Phase 3)*
 
