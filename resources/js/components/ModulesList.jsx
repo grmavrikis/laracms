@@ -1,4 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
+// One named import per icon. A namespace import (`import * as icons`) defeats
+// tree-shaking and pulls the whole set - about 1,400 components - into the
+// bundle.
+import { ChevronRight } from 'lucide-react';
 import api from '../lib/api';
 import { t, locale } from '../lib/i18n';
 import { contentLangCode } from '../lib/languages';
@@ -158,9 +162,10 @@ export default function ModulesList({ onSelectModule, onCreateModule, onTranslat
                                             className="inline-flex items-center gap-1.5 text-indigo-600 hover:text-indigo-900 font-semibold text-sm transition-colors"
                                         >
                                             {t('Entries')}
-                                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                                            </svg>
+                                            {/* Decorative: the button already
+                                                says "Entries", so announcing
+                                                the arrow as well is noise. */}
+                                            <ChevronRight className="h-4 w-4" aria-hidden="true" />
                                         </button>
                                     </td>
                                 </tr>

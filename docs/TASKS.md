@@ -121,6 +121,23 @@ to be redone.
 
 #96 goes first: #97 bakes HTML, and it should bake translated HTML.
 
+**2026-09-10 — added #117, the panel redesign, before any outreach.** Called by
+the owner after the Bella Vista mock-up succeeded: *"το όλο θέμα δεν μου αρέσει,
+είναι πάρα πολύ απλοϊκό"*. The demo work is deliberately paused for it.
+
+The argument is not taste. **The panel is half the product and the client is the
+one who lives in it** — we see it once, at handover, and they see it every week
+for three years. `BUSINESS.md` §5 puts the ceiling of the entire business at
+**support minutes per client**, and every screen that does not explain itself is
+a telephone call against that ceiling. It is also the only part of the product a
+prospect is shown that is *ours* rather than a theme: a bought template makes
+any WordPress build look the same as ours from the front, and the panel is where
+the difference is visible.
+
+Deliberately sequenced **before** #62 finishes rather than after, for the same
+reason #96 came before #97: the demo is the sales tool, and showing it means
+showing the panel behind it. Doing it afterwards means doing it twice.
+
 ## Phases
 
 ### Phase 0 — blocks everything (half a day) — **done**
@@ -1144,6 +1161,121 @@ Three things to know before touching it:
 - **There is no expiry.** The old cache had a seven-day TTL underneath its
   explicit invalidation. A file has none, so anything that changes a page has
   to say so — which is why `Language` is observed now and never was.
+
+### 117. The panel redesign — IN PROGRESS (2026-09-10)
+
+See the Amendment above for **why**, which is a business argument rather than a
+visual one. This item records **how**, and the constraint that shapes it.
+
+**The rule of this pass: appearance only.** No PHP, no migrations, no controller
+changes. Which splits every screen in two:
+
+> Whatever works today against real data **keeps** working against real data.
+> Whatever is **new** and would need PHP or a query is drawn with static data,
+> wears a visible marker, and leaves a TODO naming the endpoint it wants.
+
+That covers column sorting, filters, the bulk-action bar, the dashboard and the
+analytics screen. It is a deliberate choice and the reason is #76's: a control
+that sorts only the fifteen rows of the page in front of you is **worse than no
+control**, because it answers confidently and wrongly. The listing endpoint
+takes `?page` and nothing else — `EntryController::index` is three lines — so
+real sorting is `sort`, `direction` and `q` with an allow-list behind them, and
+that is PHP.
+
+**Decisions taken with the owner, 2026-09-10:**
+
+- **Accent palettes and Light/Dark are two independent axes**, carried as
+  `data-accent` and `data-theme` on `<html>`. Six accents × two themes as one
+  list would be twelve blocks that drift; as two axes it is eight. The
+  **sidebar keeps its own tokens, fixed dark in both themes** — the reference
+  the owner chose has a dark sidebar against a light page, so it must not flip
+  with the switch.
+- **Deep linking, at last.** A URL per screen. `routes/web.php` has carried
+  `Route::get('/admin/{any?}')->where('any', '.*')` since the panel was built,
+  so the server has always been able to serve it and only the client never
+  read it — **zero PHP**. Today a reload always lands on the module list, which
+  a sidebar of ten destinations makes worse, and the browser's Back button
+  currently leaves the panel altogether.
+- **The form's right column holds only what is structural** — status, first
+  published, and the per-language slug. Every schema field stays in the main
+  column. The rule is not invented: `EntryForm` already separates exactly these
+  into their own blocks, so the column is a move rather than a redesign. A
+  per-field `column` key was considered and deferred, because it is PHP.
+- **The theme choice lives in `localStorage` for now**, with a TODO: `users.locale`
+  already exists and `users.theme` is where this belongs, but that is a
+  migration.
+
+**Where it stands.** The ordered list is twenty items; four are done.
+
+- **1. Component test harness — DONE.** See #94, which this closed. It found two
+  defects within ten minutes of existing, one of them a test file that no
+  pattern collected.
+- **2. `lucide-react` — DONE.** The panel had no icon library at all: ten
+  hand-written SVGs, one of them pasted three times in `ModulesList` alone, and
+  `↻` and `+` as text standing in for icons.
+
+  **Measured rather than assumed**, because the bundle is already 686 kB and
+  #90's lesson is that a number decides this kind of question:
+
+  | Build | Raw | Gzip |
+  |---|---|---|
+  | Baseline, no icons | 686.30 kB | 212.66 kB |
+  | One icon | 689.29 kB | 213.97 kB |
+  | Thirty icons | 697.39 kB | 216.83 kB |
+
+  So the library costs **~3 kB once** and **~0.28 kB raw / ~0.10 kB gzip per
+  icon** after that — tree-shaking confirmed working, and the fifty icons this
+  redesign wants are about 14 kB raw over baseline. That holds **only for named
+  imports**: `import * as icons` defeats it and pulls all ~1,400.
+- **3. The token layer — DONE.** Three tiers in `resources/css/app.css`: an
+  accent ramp per palette keyed on `[data-accent]`, semantic `--ui-*` roles per
+  `[data-theme]`, and `@theme inline` turning those into utilities. Anything
+  written from here on inherits both axes without asking.
+
+  **`--accent-solid` is declared per palette rather than derived, and that is
+  the finding.** A fixed ramp step does not survive contact with hue:
+  `emerald-600` on white measures **3.4:1** and fails WCAG AA for normal text,
+  while `violet-600` measures 5.9:1 and is fine. Each palette therefore names
+  the darkest step it needs — emerald, teal and amber take `700`; blue, violet
+  and rose take `600`. Dark mode has no such problem and maps uniformly: a
+  `400` with near-black text clears 4.5:1 for all six.
+
+  Two rules that are not style:
+
+  - **Every `--ui-*` is defined on plain `:root`**, and the dark block only
+    re-points it. Tailwind compiles `bg-accent/50` to `color-mix(…,
+    var(--color-accent) 50%, …)`, and a variable that exists only inside
+    `[data-theme='dark']` resolves to nothing in light mode — the modifier goes
+    silently transparent rather than failing.
+  - **`@theme inline`, not `@theme`.** Without `inline` Tailwind copies the
+    declarations into its own `:root`, freezing each to the value it held at
+    that point, so `bg-surface` would keep light mode's white after the
+    attribute flipped. Verified in the built CSS: it emits
+    `--color-accent:var(--ui-accent)`, which is the live form.
+
+  **The sidebar keeps its own tokens and stays dark in both themes**, because
+  the design being copied puts a dark rail against a light page.
+
+  The anti-flash script sits in `admin.blade.php` **before** `@vite` and is a
+  classic script, while the bundle is `type="module"` and therefore deferred —
+  so the attributes are on `<html>` during parsing, before anything is painted.
+  Reading `localStorage` is wrapped: a browser set to block site data *throws*
+  rather than answering null, and this is the first script on the page.
+- **4. The theme switcher — DONE.** `lib/theme.js` (pure resolve/read/write/
+  apply), `hooks/useTheme.js`, and `layout/ThemeMenu.jsx`, mounted into the old
+  chrome so it is reachable before the sidebar exists.
+
+  The stored value is **resolved against an allow-list before it reaches the
+  DOM**, in both halves. A stored theme beats the system preference in both
+  directions — the media query is a fallback for having no choice yet, never an
+  override, or the switch looks broken to anyone whose machine disagrees.
+
+  `theme.test.js` carries a **contract test** naming `admin.blade.php`: that
+  script duplicates the keys and the allow-lists on purpose, and the test is
+  what says which other file to edit when the lists change.
+
+  Verified live over a cold reload: `light`/`amber` survived, with
+  `--ui-accent` resolving to `#b45309` — amber's own tuned step.
 
 ### 116. The panel's language decides which content language it opens on — DONE (CHANGELOG §32)
 
@@ -2448,7 +2580,7 @@ Worth doing before the first client publishes a site in two languages, because
 that is when "half the English is missing and nobody noticed" becomes a
 support call. Not before the MVP ships.
 
-### 94. The panel has no component-test harness
+### 94. The panel has no component-test harness — DONE (2026-09-10)
 
 Six defects in a row now sit in `EntriesManager`, `EntryForm` and
 `EntriesTable`, verified by reading rather than by a test: the in-flight queue
@@ -2474,6 +2606,32 @@ here; what is missing is a renderer and a way to fake `api`.
 
 Not urgent, and deliberately not in the MVP — but the next time a panel bug is
 found by a human clicking, this is the reason.
+
+**Done, 2026-09-10**, as the first step of the panel redesign — a redesign that
+rewrites every component is exactly the moment the argument above stops being
+theoretical. `@testing-library/react` over jsdom, `resources/js/test/setup.js`
+stubbing `window.miniCms`, and `vitest.config.js` carrying `@vitejs/plugin-react`
+so `.jsx` is transformed at all.
+
+Two things it caught in the first ten minutes, and they are the reason the item
+was right:
+
+- **`vitest.config.js` matched `*.test.js` only.** A `Login.test.jsx` was
+  collected by nothing and reported by nothing — the run stayed green at 214
+  and the file may as well not have existed. A test that never runs is worse
+  than no test, because the count still goes up. The pattern is now
+  `*.test.{js,jsx}`.
+- **`Login.jsx` had no `for`/`id` on either label**, so neither input had an
+  accessible name: a screen reader announced "edit text, blank", and tapping a
+  label did not focus the field. Found by `getByLabelText` refusing to resolve,
+  which is the query doing its job rather than a test being awkward.
+
+**One trap for anyone adding a component test.**
+`CatalogueCoversTheCodeTest::literalsInJavaScript()` skips `*.test.js` and, by
+`str_ends_with`, does **not** skip `*.test.jsx` — so a `t('…')` written inside a
+component test is demanded of `lang/en.json` as though the panel used it. Assert
+the **raw English** instead: the setup file leaves `messages` empty on purpose,
+so `t()` answers its own key and the key is the English text.
 
 ### 93. Drag-and-drop instead of ↑/↓ *(after Phase 2)*
 

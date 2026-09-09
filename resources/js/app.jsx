@@ -11,6 +11,7 @@ import ModuleBuilder from './components/ModuleBuilder';
 import ModuleTranslator from './components/ModuleTranslator';
 import EnquiriesManager from './components/EnquiriesManager';
 import SettingsManager from './components/SettingsManager';
+import ThemeMenu from './layout/ThemeMenu';
 
 export default function App() {
     const [user, setUser] = useState(null);
@@ -39,6 +40,11 @@ export default function App() {
             <header className="bg-gray-800 text-white p-4 flex justify-between items-center">
                 <h1 className="font-bold">{t('Admin Panel')}</h1>
                 <div className="flex items-center gap-3">
+                    {/* Mounted into the old chrome so the theme is reachable
+                        from this commit rather than from the one that builds
+                        the sidebar. This whole header is replaced by
+                        `layout/Topbar` shortly (#117 item 8). */}
+                    <ThemeMenu />
                     {/* The panel's own language, which is **not** the content
                         languages (TASKS.md #96): the list is the files in
                         `lang/`, and a person's choice is theirs rather than

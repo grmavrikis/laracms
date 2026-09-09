@@ -45,10 +45,21 @@ php artisan test   # backend: authorization, validation, schema, pagination
 npm test           # frontend helpers in resources/js/lib
 ```
 
-`npm run test:watch` reruns on change. The JS side covers the pure helpers
-only — API error handling, pagination metadata and rich-text documents. It
-does not render components, so anything about the forms themselves is still
-verified by running the app.
+`npm run test:watch` reruns on change. The JS side covers the pure helpers in
+`resources/js/lib` (`*.test.js`, plain functions) **and** renders components
+over jsdom (`*.test.jsx`, React Testing Library). Both patterns are collected —
+`vitest.config.js` matches `*.test.{js,jsx}`, and it has to: an earlier pattern
+matched only `.test.js`, so a component test was silently never run.
+
+`resources/js/test/setup.js` stubs `window.miniCms`, which the server normally
+writes into the page. Its `messages` map is empty on purpose, so `t()` answers
+its own key — meaning **components render English and a test asserts the English
+it can read in the source**. Never call `t()` inside a test file:
+`CatalogueCoversTheCodeTest` does not skip `.test.jsx`, and would demand your
+test's string of `lang/en.json`.
+
+Rendering is not a substitute for opening the app. Several defects here passed
+the suite and failed in the browser.
 
 After changing the field types in `SchemaRuleBuilder` or
 `RichTextDocument`, regenerate the copy the frontend imports:
