@@ -12,6 +12,7 @@ import ModuleTranslator from './components/ModuleTranslator';
 import EnquiriesManager from './components/EnquiriesManager';
 import SettingsManager from './components/SettingsManager';
 import ThemeMenu from './layout/ThemeMenu';
+import { ThemeProvider } from './hooks/useTheme';
 
 export default function App() {
     const [user, setUser] = useState(null);
@@ -152,5 +153,12 @@ if (rootElement) {
     // save. Harmless in a production build, where the module runs once - and
     // exactly where it is not harmless is while working on the panel.
     rootElement._adminRoot ??= createRoot(rootElement);
-    rootElement._adminRoot.render(<App />);
+    // The provider wraps the mount rather than `App`'s return, because `App`
+    // leaves early while loading and again when nobody is signed in - so
+    // wrapping inside it would put the login screen outside the theme.
+    rootElement._adminRoot.render(
+        <ThemeProvider>
+            <App />
+        </ThemeProvider>
+    );
 }

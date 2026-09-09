@@ -98,6 +98,7 @@ The `lib/` helpers are pure functions and carry the interesting decisions:
 | `resources/js/lib/entries.js` | The structural bits: statuses (generated), slug maps, and working out a new order. |
 | `resources/js/lib/apiErrors.js` | Turns an axios rejection into wording. Used by all three forms. |
 | `resources/js/lib/pagination.js` | Reduces Laravel's paginator envelope. |
+| `resources/js/lib/theme.js` | The panel's appearance (#117): two independent axes, `data-theme` and `data-accent` on `<html>`. **Its other half is an inline script in `admin.blade.php`** that applies the same two keys before the first paint; `theme.test.js` pins the shared lists as a contract and names that template when it fails. Storage records only an explicit choice — writing the resolved value would freeze `prefers-color-scheme` into a decision the person never made. |
 | `resources/js/lib/languages.js` | `getLangCode`, which language is the default, and `contentLangCode` — the content language a listing opens on, which **follows the panel's own language when the site has it** and falls back to the default when it does not (#116). |
 | `resources/js/lib/modules.js` | Which name a Module shows in a given language, falling back to the panel's own (#114, #116). Two screens ask; while each held its own expression, one was missed. |
 | `resources/js/lib/languageStore.js` | One `/api/languages` fetch per page load, shared by the five screens that want it. A rejection is not cached. |
@@ -128,7 +129,17 @@ the type), `RequiredFieldTest` (the `required` flag), `SchemaFieldNamesTest`
 (names must be unique) and `SchemaErrorKeyTest` (which request field a
 complaint is reported against).
 
-JS tests sit **beside** their source as `resources/js/lib/*.test.js`.
+JS tests sit **beside** their source. Pure helpers are `*.test.js` and run in
+`environment: 'node'`, which is the default; anything that renders a component
+is `*.test.jsx` and opts into a DOM with `// @vitest-environment jsdom` on its
+first line. Opting in per file rather than globally is measured, not taste —
+building a jsdom for the thirteen helper files cost 77s of setup for 422ms of
+tests.
+
+**Never call `t()` inside a test file.** `CatalogueCoversTheCodeTest` skips
+`*.test.js` but not `*.test.jsx`, so it would demand your test's string of
+`lang/en.json`. `resources/js/test/setup.js` leaves the catalogue empty on
+purpose, so `t()` answers its own key — assert the raw English instead.
 
 ---
 
@@ -181,7 +192,7 @@ JS tests sit **beside** their source as `resources/js/lib/*.test.js`.
 
 ```bash
 php artisan test                    # 515 tests
-npm test                            # 214 tests
+npm test                            # 243 tests
 npm run build
 php artisan schema:sync-field-types # after changing field type constants
 php artisan pages:warm              # bake the public site to files (#97) - THE DEPLOY STEP
@@ -252,7 +263,7 @@ Started from a repo that would not boot (eight files of merge conflicts).
 Worked through a prioritised list; every item is either done or recorded in
 `CHANGELOG.md` with its reasoning.
 
-- **515 PHP tests, 214 JS tests**, all passing. Build clean.
+- **515 PHP tests, 243 JS tests**, all passing. Build clean.
 - **The project has a commercial goal as of 2026-08-30**, and it now decides
   what gets worked on. A multilingual CMS that feeds client sites, owned
   outright, for a one-person web agency: **one installation per client site**,

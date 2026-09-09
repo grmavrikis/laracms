@@ -5,23 +5,44 @@ import { ACCENTS } from '../lib/theme';
 import useTheme from '../hooks/useTheme';
 
 /**
- * The swatch each accent shows in the menu.
+ * The colour each accent actually paints with, per theme.
  *
- * A literal rather than `var(--accent-500)`: every swatch is drawn at once,
- * inside one document that has a single `data-accent`, so reading the variable
- * would paint all six the same colour - the one already chosen.
+ * Literals rather than `var(--accent-…)`: all six swatches are drawn at once
+ * inside one document that carries a single `data-accent`, so reading the
+ * variable would paint every one of them the colour already chosen.
+ *
+ * **Two maps, because the panel applies two different steps.** Light mode uses
+ * each palette's `--accent-solid` - the darkest step that clears 4.5:1 on
+ * white, which is 700 for emerald, teal and amber and 600 for the rest - while
+ * dark mode uses 400. A single map showed 500 for everything, so the swatch
+ * advertised a colour the panel never paints, and the gap was widest for
+ * exactly the palettes tuned darkest.
  */
-const SWATCH = {
-    emerald: '#10b981',
-    teal: '#14b8a6',
-    blue: '#3b82f6',
-    violet: '#8b5cf6',
-    rose: '#f43f5e',
-    amber: '#f59e0b',
+const ACCENT_SWATCH = {
+    light: {
+        emerald: '#047857',
+        teal: '#0f766e',
+        blue: '#2563eb',
+        violet: '#7c3aed',
+        rose: '#e11d48',
+        amber: '#b45309',
+    },
+    dark: {
+        emerald: '#34d399',
+        teal: '#2dd4bf',
+        blue: '#60a5fa',
+        violet: '#a78bfa',
+        rose: '#fb7185',
+        amber: '#fbbf24',
+    },
 };
 
-// Translated names rather than the keys. `t()` is called at render, not here,
-// so the catalogue is read after the server has injected it.
+// The tick sits on the swatch, so it follows the same rule `--ui-accent-fg`
+// does: white on light mode's dark fills, near-black on dark mode's bright ones.
+const CHECK_COLOUR = { light: '#ffffff', dark: '#0b1120' };
+
+// Translated names. `t()` is called at render rather than here, so the
+// catalogue is read after the server has injected it into the page.
 const ACCENT_LABEL = {
     emerald: () => t('Emerald'),
     teal: () => t('Teal'),
@@ -58,15 +79,20 @@ export default function ThemeMenu() {
         };
     }, [open]);
 
+    const swatches = ACCENT_SWATCH[theme] ?? ACCENT_SWATCH.light;
+
     return (
         <div className="relative" ref={container}>
+            {/* `aria-expanded` alone, with the controls sitting next in DOM
+                order so the keyboard simply walks into them. This carried
+                `role="dialog"` and `aria-haspopup="true"` - which means *menu* -
+                so it announced two different things and was neither: focus was
+                never moved inside, and Tab left it for the page behind. */}
             <button
                 type="button"
                 onClick={() => setOpen((was) => !was)}
                 aria-expanded={open}
-                aria-haspopup="true"
                 aria-label={t('Appearance')}
-                title={t('Appearance')}
                 className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg text-sidebar-fg-muted transition-colors hover:bg-sidebar-hover hover:text-sidebar-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring-accent"
             >
                 <Palette className="h-[18px] w-[18px]" aria-hidden="true" />
@@ -74,7 +100,7 @@ export default function ThemeMenu() {
 
             {open && (
                 <div
-                    role="dialog"
+                    role="group"
                     aria-label={t('Appearance')}
                     className="absolute right-0 z-50 mt-2 w-56 rounded-xl border border-line bg-surface-raised p-3 shadow-lg"
                 >
@@ -108,7 +134,16 @@ export default function ThemeMenu() {
                     </p>
                     <div className="flex flex-wrap gap-2">
                         {ACCENTS.map((value) => {
-                            const label = ACCENT_LABEL[value]();
+                            // Optional call and fallbacks throughout: `ACCENTS`
+                            // is declared in `lib/theme.js` because the inline
+                            // script in `admin.blade.php` shares it, so a
+                            // seventh palette can be added there without these
+                            // maps. Unguarded, that threw inside render - and
+                            // with no error boundary anywhere in the tree it
+                            // took the whole panel down, not just this menu.
+                            // `ThemeMenu.test.jsx` fails first, which is the
+                            // part that actually prevents it.
+                            const label = ACCENT_LABEL[value]?.() ?? value;
                             const chosen = accent === value;
 
                             return (
@@ -124,12 +159,18 @@ export default function ThemeMenu() {
                                     // hues. The tick does the same for sight.
                                     aria-label={label}
                                     title={label}
-                                    style={{ backgroundColor: SWATCH[value] }}
+                                    style={{ backgroundColor: swatches[value] ?? 'transparent' }}
                                     className={`inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-full transition-transform hover:scale-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring-accent ${
                                         chosen ? 'ring-2 ring-fg ring-offset-2 ring-offset-surface-raised' : ''
                                     }`}
                                 >
-                                    {chosen && <Check className="h-4 w-4 text-white drop-shadow" aria-hidden="true" />}
+                                    {chosen && (
+                                        <Check
+                                            className="h-4 w-4"
+                                            style={{ color: CHECK_COLOUR[theme] ?? CHECK_COLOUR.light }}
+                                            aria-hidden="true"
+                                        />
+                                    )}
                                 </button>
                             );
                         })}

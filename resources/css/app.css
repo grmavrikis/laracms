@@ -166,6 +166,11 @@
     --ui-warning-text: #b45309;
     --ui-warning-soft: #fffbeb;
 
+    /* Tiptap's highlight mark. Declared here with the rest rather than beside
+       the rule that uses it, so the dark theme is defined in one block. */
+    --ui-highlight-bg: #faf594;
+    --ui-highlight-fg: #1c1917;
+
     /* The sidebar does **not** follow the theme, and that is deliberate: the
        design this is taken from puts a dark rail against a light page, so
        flipping it with the switch would destroy the thing being copied. Only
@@ -211,6 +216,9 @@
     --ui-warning: #fbbf24;
     --ui-warning-text: #fcd34d;
     --ui-warning-soft: color-mix(in oklab, #fbbf24 16%, transparent);
+
+    --ui-highlight-bg: #a16207;
+    --ui-highlight-fg: #fef9c3;
 
     --ui-sidebar-bg: #151d2e;
     --ui-sidebar-border: #26324a;
@@ -276,10 +284,19 @@
 
 /* The panel's own ground. `admin.blade.php` carries no classes on <body>, and
    a transparent body would show the browser's default white behind a dark
-   theme. */
-body {
-    background-color: var(--ui-bg);
-    color: var(--ui-fg);
+   theme.
+
+   `@layer base` is not decoration. Unlayered CSS outranks every layered rule
+   whatever the specificity, and Tailwind emits its utilities into
+   `@layer utilities` - so as a bare `body { … }` this silently beat any
+   `class="bg-…"` later put on the element, which reads as a purge or build
+   fault rather than as a cascade one. Inside the base layer it is a default
+   that a utility can still override. */
+@layer base {
+    body {
+        background-color: var(--ui-bg);
+        color: var(--ui-fg);
+    }
 }
 
 /* Tiptap Custom Styles */
@@ -332,16 +349,11 @@ body {
    on pale yellow - correct on white and unreadable the moment the surface
    behind it went dark. Tokenised here rather than in the restyle that comes
    later, because dark mode exists from this commit onward and would otherwise
-   ship broken. */
+   ship broken. The two tokens are declared with the rest, above. */
 .tiptap-editor mark {
-    background-color: var(--ui-highlight-bg, #faf594);
-    color: var(--ui-highlight-fg, #1c1917);
+    background-color: var(--ui-highlight-bg);
+    color: var(--ui-highlight-fg);
     border-radius: 0.4rem;
     box-decoration-break: clone;
     padding: 0.1rem 0.3rem;
-}
-
-:root[data-theme='dark'] {
-    --ui-highlight-bg: #a16207;
-    --ui-highlight-fg: #fef9c3;
 }
