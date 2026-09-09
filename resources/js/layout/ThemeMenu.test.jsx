@@ -81,11 +81,15 @@ describe('ThemeMenu', () => {
     });
 
     // `ACCENTS` lives in `lib/theme.js`, because the inline script in
-    // `admin.blade.php` shares that list; the labels and the swatches live
-    // here. Adding a palette to one and not the other used to throw inside
-    // render and blank the whole panel. The component now degrades instead, so
-    // this is the test that has to be the loud part.
-    it('has a translated name and a swatch for every accent that exists', async () => {
+    // `admin.blade.php` shares that list; the labels live here. Adding a
+    // palette to one and not the other used to throw inside render and blank
+    // the whole panel. The component now degrades instead, so this is the test
+    // that has to be the loud part.
+    //
+    // The swatch *colours* are no longer checked here - they are in `app.css`
+    // and `theme.css.test.js` compares them with the step each palette really
+    // paints with, which is a stronger claim than this file could make.
+    it('has a translated name for every accent that exists', async () => {
         const user = userEvent.setup();
         mount();
         await open(user);
@@ -95,10 +99,32 @@ describe('ThemeMenu', () => {
 
             // A missing label falls back to the raw key, which is lowercase.
             expect(button.getAttribute('aria-label')).not.toBe(value);
-            // A missing swatch falls back to transparent.
-            expect(button.style.backgroundColor).not.toBe('');
-            expect(button.style.backgroundColor).not.toBe('transparent');
+            // …and each asks the stylesheet for its own palette's colour.
+            expect(button.style.backgroundColor).toBe(`var(--swatch-${value})`);
         }
+    });
+
+    // An icon-only control with no text and no tooltip tells a sighted pointer
+    // user nothing. `aria-label` serves the screen reader; `title` is the other
+    // half, and it was dropped once already.
+    it('names the trigger for pointer users as well as for screen readers', () => {
+        mount();
+
+        const trigger = screen.getByRole('button', { name: 'Appearance' });
+
+        expect(trigger).toHaveAttribute('title', 'Appearance');
+    });
+
+    it('ties the trigger to the panel it opens', async () => {
+        const user = userEvent.setup();
+        mount();
+
+        const trigger = screen.getByRole('button', { name: 'Appearance' });
+        await user.click(trigger);
+
+        const controls = trigger.getAttribute('aria-controls');
+        expect(controls).toBeTruthy();
+        expect(document.getElementById(controls)).toBeInTheDocument();
     });
 
     it('closes on Escape, so the keyboard is not trapped in it', async () => {

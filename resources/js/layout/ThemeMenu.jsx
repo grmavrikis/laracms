@@ -5,41 +5,19 @@ import { ACCENTS } from '../lib/theme';
 import useTheme from '../hooks/useTheme';
 
 /**
- * The colour each accent actually paints with, per theme.
+ * Every colour here comes from `app.css` through a variable, and none of it is
+ * written twice.
  *
- * Literals rather than `var(--accent-…)`: all six swatches are drawn at once
- * inside one document that carries a single `data-accent`, so reading the
- * variable would paint every one of them the colour already chosen.
+ * A swatch cannot be `var(--accent-solid)`: all six are drawn at once inside
+ * one document carrying a single `data-accent`, so that would paint six
+ * identical circles in the colour already chosen. `--swatch-<name>` exists for
+ * exactly this - declared per palette, re-pointed under dark, and pinned to the
+ * step the panel really paints with by `theme.css.test.js`.
  *
- * **Two maps, because the panel applies two different steps.** Light mode uses
- * each palette's `--accent-solid` - the darkest step that clears 4.5:1 on
- * white, which is 700 for emerald, teal and amber and 600 for the rest - while
- * dark mode uses 400. A single map showed 500 for everything, so the swatch
- * advertised a colour the panel never paints, and the gap was widest for
- * exactly the palettes tuned darkest.
+ * These were twelve hexes in this file until a review observed that nothing
+ * could see them drift from the stylesheet. They had already drifted once.
  */
-const ACCENT_SWATCH = {
-    light: {
-        emerald: '#047857',
-        teal: '#0f766e',
-        blue: '#2563eb',
-        violet: '#7c3aed',
-        rose: '#e11d48',
-        amber: '#b45309',
-    },
-    dark: {
-        emerald: '#34d399',
-        teal: '#2dd4bf',
-        blue: '#60a5fa',
-        violet: '#a78bfa',
-        rose: '#fb7185',
-        amber: '#fbbf24',
-    },
-};
-
-// The tick sits on the swatch, so it follows the same rule `--ui-accent-fg`
-// does: white on light mode's dark fills, near-black on dark mode's bright ones.
-const CHECK_COLOUR = { light: '#ffffff', dark: '#0b1120' };
+const swatchVar = (accent) => `var(--swatch-${accent})`;
 
 // Translated names. `t()` is called at render rather than here, so the
 // catalogue is read after the server has injected it into the page.
@@ -51,6 +29,10 @@ const ACCENT_LABEL = {
     rose: () => t('Rose'),
     amber: () => t('Amber'),
 };
+
+// Referenced by `aria-controls`, so the trigger and the panel it reveals are
+// related programmatically rather than only by sitting next to each other.
+const PANEL_ID = 'theme-menu-panel';
 
 export default function ThemeMenu() {
     const [{ theme, accent }, setPreference] = useTheme();
@@ -79,20 +61,22 @@ export default function ThemeMenu() {
         };
     }, [open]);
 
-    const swatches = ACCENT_SWATCH[theme] ?? ACCENT_SWATCH.light;
-
     return (
         <div className="relative" ref={container}>
-            {/* `aria-expanded` alone, with the controls sitting next in DOM
-                order so the keyboard simply walks into them. This carried
-                `role="dialog"` and `aria-haspopup="true"` - which means *menu* -
-                so it announced two different things and was neither: focus was
-                never moved inside, and Tab left it for the page behind. */}
+            {/* `aria-expanded` plus `aria-controls`, and no `role="dialog"`.
+                It carried one, together with `aria-haspopup="true"` - which
+                means *menu* - so it announced two different things and was
+                neither: focus was never moved inside, and Tab left it for the
+                page behind. `title` is not a duplicate of `aria-label` here;
+                it is the only thing naming an icon-only button for a sighted
+                pointer user, and dropping it left a bare glyph. */}
             <button
                 type="button"
                 onClick={() => setOpen((was) => !was)}
                 aria-expanded={open}
+                aria-controls={PANEL_ID}
                 aria-label={t('Appearance')}
+                title={t('Appearance')}
                 className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg text-sidebar-fg-muted transition-colors hover:bg-sidebar-hover hover:text-sidebar-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring-accent"
             >
                 <Palette className="h-[18px] w-[18px]" aria-hidden="true" />
@@ -100,6 +84,7 @@ export default function ThemeMenu() {
 
             {open && (
                 <div
+                    id={PANEL_ID}
                     role="group"
                     aria-label={t('Appearance')}
                     className="absolute right-0 z-50 mt-2 w-56 rounded-xl border border-line bg-surface-raised p-3 shadow-lg"
@@ -143,7 +128,14 @@ export default function ThemeMenu() {
                             // took the whole panel down, not just this menu.
                             // `ThemeMenu.test.jsx` fails first, which is the
                             // part that actually prevents it.
-                            const label = ACCENT_LABEL[value]?.() ?? value;
+                            //
+                            // `||` rather than `??`: `t()` preserves an empty
+                            // translation deliberately (see lib/i18n.js), so a
+                            // catalogue carrying `"Emerald": ""` would pass
+                            // `??` straight through and leave a colour-only
+                            // button with no accessible name at all - the one
+                            // thing these labels exist to prevent.
+                            const label = ACCENT_LABEL[value]?.() || value;
                             const chosen = accent === value;
 
                             return (
@@ -159,15 +151,21 @@ export default function ThemeMenu() {
                                     // hues. The tick does the same for sight.
                                     aria-label={label}
                                     title={label}
-                                    style={{ backgroundColor: swatches[value] ?? 'transparent' }}
+                                    style={{ backgroundColor: swatchVar(value) }}
                                     className={`inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-full transition-transform hover:scale-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring-accent ${
                                         chosen ? 'ring-2 ring-fg ring-offset-2 ring-offset-surface-raised' : ''
                                     }`}
                                 >
+                                    {/* The tick sits on the swatch, so it wants
+                                        the same foreground the panel puts on an
+                                        accent fill. Reading the token means one
+                                        decision in one place rather than a
+                                        third copy of white-on-light,
+                                        near-black-on-dark. */}
                                     {chosen && (
                                         <Check
                                             className="h-4 w-4"
-                                            style={{ color: CHECK_COLOUR[theme] ?? CHECK_COLOUR.light }}
+                                            style={{ color: 'var(--ui-accent-fg)' }}
                                             aria-hidden="true"
                                         />
                                     )}

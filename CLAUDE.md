@@ -129,12 +129,16 @@ the type), `RequiredFieldTest` (the `required` flag), `SchemaFieldNamesTest`
 (names must be unique) and `SchemaErrorKeyTest` (which request field a
 complaint is reported against).
 
-JS tests sit **beside** their source. Pure helpers are `*.test.js` and run in
-`environment: 'node'`, which is the default; anything that renders a component
-is `*.test.jsx` and opts into a DOM with `// @vitest-environment jsdom` on its
-first line. Opting in per file rather than globally is measured, not taste —
-building a jsdom for the thirteen helper files cost 77s of setup for 422ms of
-tests.
+JS tests sit **beside** their source. The extension tracks whether the file
+contains JSX — `*.test.jsx` for anything that renders a component, `*.test.js`
+otherwise — and it does **not** decide the environment.
+
+**`node` is the default; a file that needs a DOM opts in** with
+`// @vitest-environment jsdom` on its first line, whatever its extension.
+`lib/theme.test.js` and `public-forms.test.js` are both plain `.js` and both
+opt in, because they touch `localStorage` and `document`. Opting in per file
+rather than globally is measured, not taste: building a jsdom for the thirteen
+helper files cost 77s of setup for 422ms of tests.
 
 **Never call `t()` inside a test file.** `CatalogueCoversTheCodeTest` skips
 `*.test.js` but not `*.test.jsx`, so it would demand your test's string of
@@ -192,7 +196,7 @@ purpose, so `t()` answers its own key — assert the raw English instead.
 
 ```bash
 php artisan test                    # 515 tests
-npm test                            # 243 tests
+npm test                            # 269 tests
 npm run build
 php artisan schema:sync-field-types # after changing field type constants
 php artisan pages:warm              # bake the public site to files (#97) - THE DEPLOY STEP
@@ -263,7 +267,7 @@ Started from a repo that would not boot (eight files of merge conflicts).
 Worked through a prioritised list; every item is either done or recorded in
 `CHANGELOG.md` with its reasoning.
 
-- **515 PHP tests, 243 JS tests**, all passing. Build clean.
+- **515 PHP tests, 269 JS tests**, all passing. Build clean.
 - **The project has a commercial goal as of 2026-08-30**, and it now decides
   what gets worked on. A multilingual CMS that feeds client sites, owned
   outright, for a one-person web agency: **one installation per client site**,

@@ -53,6 +53,23 @@ const prefersDark = () =>
     && window.matchMedia('(prefers-color-scheme: dark)').matches;
 
 /**
+ * A partial preference with every key it carries resolved, and none it does not.
+ *
+ * Partial matters: the two axes are independent, so `{ accent: 'rose' }` has to
+ * stay a statement about the accent alone. Filling the theme in here would make
+ * every colour change also record whichever theme the machine happened to be
+ * in, which is the defect this module's callers exist to avoid.
+ */
+export const resolvePreference = (patch) => {
+    const resolved = {};
+
+    if (patch?.theme !== undefined) resolved.theme = resolveTheme(patch.theme, prefersDark());
+    if (patch?.accent !== undefined) resolved.accent = resolveAccent(patch.accent);
+
+    return resolved;
+};
+
+/**
  * What is stored, already resolved - so nothing unvalidated leaves this module.
  *
  * Every access is guarded: a browser set to block site data *throws* here

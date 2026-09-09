@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { readPreference, writePreference, applyPreference } from '../lib/theme';
+import { readPreference, writePreference, applyPreference, resolvePreference } from '../lib/theme';
 
 const ThemeContext = createContext(null);
 
@@ -29,6 +29,13 @@ export function ThemeProvider({ children }) {
     }, [preference]);
 
     const update = useCallback((patch) => {
+        // Resolved **once**, here, and the same value then goes to all three
+        // places. Storing and applying used to resolve independently while the
+        // raw patch was merged into state, so an unrecognised value left React
+        // holding something neither storage nor the document agreed with - the
+        // menu would show nothing selected while the panel was themed.
+        const chosen = resolvePreference(patch);
+
         // Written from the patch rather than from the merged result, and this
         // is the whole point. `readPreference` fills a missing theme in from
         // `prefers-color-scheme`, so storing the *merged* value on any change
@@ -38,8 +45,8 @@ export function ThemeProvider({ children }) {
         // as well, and the panel would stop following the system for ever.
         // `writePreference` skips whichever key is absent, so a patch stores
         // exactly the axis that was actually chosen.
-        writePreference(patch);
-        setPreference((current) => ({ ...current, ...patch }));
+        writePreference(chosen);
+        setPreference((current) => ({ ...current, ...chosen }));
     }, []);
 
     return (

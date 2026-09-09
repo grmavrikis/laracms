@@ -171,6 +171,24 @@
     --ui-highlight-bg: #faf594;
     --ui-highlight-fg: #1c1917;
 
+    /* Every palette's swatch, all six visible at once.
+       ---------------------------------------------------------------
+       The accent blocks above only ever expose the *chosen* palette, so a
+       picker that offered `var(--accent-solid)` six times would paint six
+       identical circles. These are the one place a palette's colour is named
+       outside its own block, and each must equal the step that palette
+       actually paints with - `--accent-solid` here, `--accent-400` under
+       dark. They lived in JavaScript until a review pointed out that nothing
+       could notice them drifting; `theme.css.test.js` reads this file and
+       compares the two, so a retuned palette fails rather than quietly
+       advertising a colour the panel never uses. */
+    --swatch-emerald: #047857;
+    --swatch-teal: #0f766e;
+    --swatch-blue: #2563eb;
+    --swatch-violet: #7c3aed;
+    --swatch-rose: #e11d48;
+    --swatch-amber: #b45309;
+
     /* The sidebar does **not** follow the theme, and that is deliberate: the
        design this is taken from puts a dark rail against a light page, so
        flipping it with the switch would destroy the thing being copied. Only
@@ -219,6 +237,14 @@
 
     --ui-highlight-bg: #a16207;
     --ui-highlight-fg: #fef9c3;
+
+    /* Dark paints with each palette's 400, so the swatches follow. */
+    --swatch-emerald: #34d399;
+    --swatch-teal: #2dd4bf;
+    --swatch-blue: #60a5fa;
+    --swatch-violet: #a78bfa;
+    --swatch-rose: #fb7185;
+    --swatch-amber: #fbbf24;
 
     --ui-sidebar-bg: #151d2e;
     --ui-sidebar-border: #26324a;

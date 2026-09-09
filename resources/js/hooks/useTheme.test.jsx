@@ -14,8 +14,13 @@ function Probe() {
     return (
         <div>
             <span data-testid="state">{theme}/{accent}</span>
-            <button type="button" onClick={() => update({ theme: 'light' })}>choose light</button>
+            {/* Dark, not light. jsdom has no `matchMedia`, so the theme on
+                mount is always light - a probe that "chose" light would be
+                asserting a value the mount effect had already written, and
+                would pass even if `update` never touched the state. */}
+            <button type="button" onClick={() => update({ theme: 'dark' })}>choose dark</button>
             <button type="button" onClick={() => update({ accent: 'rose' })}>choose rose</button>
+            <button type="button" onClick={() => update({ theme: 'nonsense' })}>choose nonsense</button>
         </div>
     );
 }
@@ -57,10 +62,31 @@ describe('useTheme', () => {
         const user = userEvent.setup();
         renderProbe();
 
-        await user.click(screen.getByRole('button', { name: 'choose light' }));
-
-        expect(localStorage.getItem('miniCms.theme')).toBe('light');
+        // The document starts light here, so choosing dark is a real change in
+        // all three places rather than a restatement of the mount effect.
         expect(document.documentElement.getAttribute('data-theme')).toBe('light');
+
+        await user.click(screen.getByRole('button', { name: 'choose dark' }));
+
+        expect(localStorage.getItem('miniCms.theme')).toBe('dark');
+        expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
+        expect(screen.getByTestId('state').textContent).toBe('dark/emerald');
+    });
+
+    // State, storage and the document all take the *resolved* value, so they
+    // cannot disagree. They used to resolve separately while the raw patch went
+    // into state: an unrecognised value left React holding it, and a menu
+    // comparing `theme === value` then showed nothing selected at all while the
+    // panel was themed perfectly well.
+    it('resolves a bad value once, for all three destinations', async () => {
+        const user = userEvent.setup();
+        renderProbe();
+
+        await user.click(screen.getByRole('button', { name: 'choose nonsense' }));
+
+        expect(screen.getByTestId('state').textContent).toBe('light/emerald');
+        expect(document.documentElement.getAttribute('data-theme')).toBe('light');
+        expect(localStorage.getItem('miniCms.theme')).toBe('light');
     });
 
     // The other half of the same defect: storing the *merged* preference means
@@ -91,6 +117,61 @@ describe('useTheme', () => {
         const [first, second] = screen.getAllByTestId('state');
         expect(second.textContent).toBe(first.textContent);
         expect(first.textContent).toContain('rose');
+    });
+
+    // jsdom implements no `matchMedia` at all, so every other test in this file
+    // runs the light branch and the system-preference path - the mechanism the
+    // storage defect was about - was never executed end to end. Stubbing it is
+    // the only way to see it work.
+    describe('on a machine that asks for dark', () => {
+        beforeEach(() => {
+            window.matchMedia = (query) => ({
+                matches: query.includes('dark'),
+                media: query,
+                addEventListener: () => {},
+                removeEventListener: () => {},
+            });
+        });
+
+        afterEach(() => {
+            delete window.matchMedia;
+        });
+
+        it('follows the system when nothing has been chosen', () => {
+            renderProbe();
+
+            expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
+            expect(screen.getByTestId('state').textContent).toBe('dark/emerald');
+        });
+
+        it('still records nothing, so the machine can change its mind later', () => {
+            renderProbe();
+
+            expect(localStorage.getItem('miniCms.theme')).toBeNull();
+        });
+
+        // The exact sequence that made the original defect permanent: a dark
+        // machine, a person who only ever picks a colour, and then a machine
+        // that switches to light. The theme has to follow it.
+        it('keeps following the system after an accent is chosen', async () => {
+            const user = userEvent.setup();
+            renderProbe();
+
+            await user.click(screen.getByRole('button', { name: 'choose rose' }));
+
+            expect(localStorage.getItem('miniCms.accent')).toBe('rose');
+            expect(localStorage.getItem('miniCms.theme')).toBeNull();
+        });
+
+        it('lets an explicit light choice override the machine', async () => {
+            const user = userEvent.setup();
+            renderProbe();
+
+            await user.click(screen.getByRole('button', { name: 'choose nonsense' }));
+
+            // 'nonsense' resolves through the system preference, which is dark.
+            expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
+        });
     });
 
     it('refuses to run outside a provider rather than making a private copy', () => {
