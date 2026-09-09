@@ -1205,7 +1205,7 @@ that is PHP.
   already exists and `users.theme` is where this belongs, but that is a
   migration.
 
-**Where it stands.** The ordered list is twenty items; four are done.
+**Where it stands.** The ordered list is twenty items; five are done.
 
 - **1. Component test harness — DONE.** See #94, which this closed. It found two
   defects within ten minutes of existing, one of them a test file that no
@@ -1276,6 +1276,57 @@ that is PHP.
 
   Verified live over a cold reload: `light`/`amber` survived, with
   `--ui-accent` resolving to `#b45309` — amber's own tuned step.
+
+  **A review of items 1–4 found ten things**, and the two worth carrying
+  forward are both about where a value lives. The theme was being *stored* on
+  mount, which turned `prefers-color-scheme` — a fallback for having made no
+  choice — into a recorded decision on the first page load, permanently
+  decoupling the panel from the machine. And the swatch colours had been
+  hand-copied out of the stylesheet into JavaScript, where nothing could see
+  them drift; they now live only in `app.css` as `--swatch-*`, with
+  `theme.css.test.js` reading that file and asserting each equals the step its
+  palette actually paints with.
+- **5. The router — DONE.** `lib/router.js` (pure `matchPath`, `buildPath`,
+  `matchRoute`), `routes.js` (the table), `hooks/useRoute.jsx`
+  (`RouterProvider`, `useRoute`, `hrefFor`). **Not yet wired into the panel** —
+  that is item 8, where the Shell can be verified in a browser.
+
+  **Hand-written rather than `react-router`.** Ten routes, no nesting, no
+  loaders, against ~20 kB on a bundle already at 686 kB — and a pure matcher
+  runs in `environment: 'node'`, which is where this project's confidence
+  lives. It is 32 tests, including a real `history.back()`.
+
+  **Content sits under `/content/:module`, and the prefix is the decision.**
+  A module slug has exactly the shape of the panel's own words, so a client
+  section slugged `settings` or `analytics` would shadow that screen and become
+  unreachable — and no pattern constraint can separate them, because there is
+  nothing to constrain. Craft and Directus both prefix content for this reason.
+  Same instinct as the public side's non-optional language prefix: one page,
+  one address, no ambiguity, paid for with a longer URL.
+
+  **The table is an array because order disambiguates**, exactly as
+  `routes/web.php` declares `/admin` above `/{language}`. `routes.test.js`
+  checks that invariant *generally* rather than case by case: any route made
+  only of literal segments that some earlier pattern already matches is
+  reported unreachable, by name. Enumerating today's pairs would pass while
+  saying nothing about the pair somebody adds next.
+
+  Three things the tests pin that were not obvious:
+
+  - `decodeURIComponent` **throws** on a malformed escape, and `%E0%A4%A` from
+    a truncated address is enough. Thrown from the matcher it would come out of
+    render, so a mistyped URL would blank the panel instead of simply not being
+    a route.
+  - `buildPath` refuses a parameter it was not given rather than emitting
+    `/content/undefined` — a link that looks right and leads nowhere is harder
+    to trace than a throw at the site that produced it.
+  - An address nothing matches is **rewritten** with `replaceState`, not merely
+    ignored. Rendering the dashboard under `/admin/nonsense` would leave the
+    URL describing a screen that is not on show.
+
+  `RouterProvider` is a provider from the start, for the reason `ThemeProvider`
+  had to become one: the sidebar navigates and the content area renders the
+  result, so per-component state would move the rail and nothing else.
 
 ### 116. The panel's language decides which content language it opens on — DONE (CHANGELOG §32)
 
