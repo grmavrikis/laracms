@@ -110,7 +110,7 @@ export const matchPath = (pattern, path) => {
  * `matchPath` then declines to resolve, which is a link to nowhere with no
  * error anywhere.
  */
-export const buildPath = (pattern, params = {}) => {
+export const buildPath = (pattern, params = {}, query = null) => {
     const path = compile(pattern)
         .map((part) => {
             if (part.literal !== undefined) return part.literal;
@@ -131,7 +131,21 @@ export const buildPath = (pattern, params = {}) => {
         })
         .join('/');
 
-    return path === '' ? BASE : `${BASE}/${path}`;
+    // A query string carries the state that belongs to an address without
+    // being part of its identity - which page of a listing you are on, and
+    // later a filter. Keeping it here rather than in component state is what
+    // makes a reload, a bookmark and the Back button all land on the same
+    // fifteen rows.
+    //
+    // An empty, null or undefined value is dropped rather than written as
+    // `?page=`, so the address of page one is the plain path.
+    const search = new URLSearchParams(
+        Object.entries(query ?? {}).filter(([, value]) => value !== null && value !== undefined && value !== '')
+    ).toString();
+
+    const address = path === '' ? BASE : `${BASE}/${path}`;
+
+    return search === '' ? address : `${address}?${search}`;
 };
 
 /**
@@ -144,7 +158,7 @@ export const buildPath = (pattern, params = {}) => {
  */
 export const matchRoute = (routes, address) => {
     const [withoutFragment] = String(address ?? '').split('#');
-    const [pathname] = withoutFragment.split('?');
+    const [pathname, search = ''] = withoutFragment.split('?');
 
     const given = segmentsOf(pathname);
 
@@ -159,7 +173,13 @@ export const matchRoute = (routes, address) => {
     for (const route of routes) {
         const params = matchPath(route.path, inside);
 
-        if (params) return Object.freeze({ name: route.name, params });
+        if (params) {
+            return Object.freeze({
+                name: route.name,
+                params,
+                query: Object.freeze(Object.fromEntries(new URLSearchParams(search))),
+            });
+        }
     }
 
     return null;

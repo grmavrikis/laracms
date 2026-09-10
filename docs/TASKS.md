@@ -1246,7 +1246,7 @@ every screen moves.
 | 9 | Login, two panels | ✅ a 401 still reads "Wrong email or password." under test |
 | 10 | `ModulesList` restyle | ✅ real modules render; a singleton links straight to its fields |
 | 11 | `EntriesTable` restyle | ✅ the reorder arrows and pagination still work **live** |
-| 12 | `EntriesManager` split into two screens | `/admin/content/rooms/12` loads the real entry after a cold reload |
+| 12 | `EntriesManager` split into two screens | ✅ `/admin/content/rooms/12` loads the real entry after a cold reload |
 | 13 | `EntryForm` step 1 — `FieldInput` extracted | every field type still saves, against real data |
 | 14 | `EntryForm` step 2 — three blocks, two columns | the right column holds only status, date and slug, and a save round-trips |
 | 15 | Gallery + RichText restyle | an upload and a highlight are readable in **both** themes |
@@ -1274,7 +1274,7 @@ else, and making them real is PHP.
 > components — mitigated because item 3's tokens already hold the line where
 > drift is most visible, which is colour.
 
-**Where it stands.** Nine are done.
+**Where it stands.** Ten are done.
 
 - **1. Component test harness — DONE.** See #94, which this closed. It found two
   defects within ten minutes of existing, one of them a test file that no
@@ -1546,6 +1546,40 @@ else, and making them real is PHP.
   last row of page 1 and the server's own order confirmed the write - which is
   #75's fix still holding, since the arrows work on the module's order rather
   than the page's.
+- **12. Two screens, and entry addresses that are real — DONE.**
+  `EntriesManager` held the listing *and* the form and chose between them with
+  a `view` string. That string was the panel's only record of where you were,
+  so the form had no address at all and a reload threw the work away. It is now
+  `screens/EntriesScreen` and `screens/EntryEditScreen`, and the router
+  decides; the old component is deleted.
+
+  **The guard that made this worth doing carefully.** `EntryForm` seeds its
+  state in `useState` initialisers from `initialData` and `languages` - so
+  mounting it before the entry arrives does not merely show a blank form, it
+  *captures* blank as the entry's content, and the first save writes that over
+  whatever was there. A deep link is precisely the case that would do it, so
+  `EntryEditScreen` renders nothing until both have landed. Verified by cold-
+  loading an entry with content: `sleeps`, `size_m2`, `price_from` and the
+  title all arrived seeded.
+
+  **The page moved into the query string**, and that was forced by the split
+  rather than chosen for elegance: held in state it was lost the moment the
+  form replaced the listing, so editing an entry from page two and saving
+  returned the reader to page one. `?page=2` is now part of the address, which
+  also makes it survive a reload and a bookmark. Page one is the plain path -
+  `buildPath` drops empty query values, so there are never two URLs for the
+  same fifteen rows - and a page past the end still clamps, with the address
+  following it back.
+
+  **Three navigations use `replace`**, which is what that option existed for: a
+  singleton opening straight into its entry, a create becoming an edit once the
+  entry has an id, and paging. Pushed instead, Back would walk into a create
+  form for an entry that already exists, or bounce off a singleton that
+  immediately sends the reader forward again.
+
+  `EntryForm.onSaved` now hands back the saved row, because a create has to
+  know where it landed. All three entry endpoints already answer with the row
+  read back from the database (ARCHITECTURE §5), so it is the whole entry.
 
 ### 116. The panel's language decides which content language it opens on — DONE (CHANGELOG §32)
 

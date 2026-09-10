@@ -56,7 +56,7 @@ export const PATTERNS = Object.fromEntries(ROUTES.map((route) => [route.name, ro
  * ctrl-click and "copy link address" all work on one and none of them work on
  * the other.
  */
-export const hrefFor = (name, params = {}) => {
+export const hrefFor = (name, params = {}, query = null) => {
     const pattern = PATTERNS[name];
 
     // Named rather than free-form, so no call site retypes a pattern and a
@@ -65,7 +65,7 @@ export const hrefFor = (name, params = {}) => {
         throw new Error(`hrefFor: there is no route named "${name}".`);
     }
 
-    return buildPath(pattern, params);
+    return buildPath(pattern, params, query);
 };
 
 /**
@@ -75,4 +75,8 @@ export const hrefFor = (name, params = {}) => {
  * itself produces is built from `PATTERNS`, so a miss is a stale bookmark or a
  * hand-typed URL, and the useful answer to both is the way in.
  */
-export const FALLBACK = Object.freeze({ name: 'dashboard', params: Object.freeze({}) });
+export const FALLBACK = Object.freeze({
+    name: 'dashboard',
+    params: Object.freeze({}),
+    query: Object.freeze({}),
+});

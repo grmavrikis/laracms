@@ -80,6 +80,7 @@ describe('the panel’s route table', () => {
         expect(matchRoute(ROUTES, '/admin/content/rooms/12')).toEqual({
             name: 'entryEdit',
             params: { module: 'rooms', entry: '12' },
+            query: {},
         });
 
         // Anything that is not an id and is not `new` is simply not a route,
@@ -114,7 +115,7 @@ describe('the panel’s route table', () => {
     });
 
     it('sends the panel’s own address to the dashboard', () => {
-        expect(matchRoute(ROUTES, '/admin')).toEqual({ name: 'dashboard', params: {} });
+        expect(matchRoute(ROUTES, '/admin')).toEqual({ name: 'dashboard', params: {}, query: {} });
     });
 
     // The prefix that keeps a client's section from shadowing a panel screen.
@@ -124,7 +125,7 @@ describe('the panel’s route table', () => {
         for (const reserved of ['settings', 'analytics', 'enquiries', 'modules']) {
             const asContent = matchRoute(ROUTES, `/admin/content/${reserved}`);
 
-            expect(asContent).toEqual({ name: 'entries', params: { module: reserved } });
+            expect(asContent).toEqual({ name: 'entries', params: { module: reserved }, query: {} });
             expect(matchRoute(ROUTES, `/admin/${reserved}`).name).not.toBe('entries');
         }
     });

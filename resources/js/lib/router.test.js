@@ -135,12 +135,12 @@ describe('round trip', () => {
 describe('matchRoute', () => {
     it('resolves a path to its route and parameters', () => {
         expect(matchRoute(TABLE, '/admin/content/rooms/12'))
-            .toEqual({ name: 'entryEdit', params: { module: 'rooms', entry: '12' } });
+            .toEqual({ name: 'entryEdit', params: { module: 'rooms', entry: '12' }, query: {} });
     });
 
     it('resolves the base itself to the index', () => {
-        expect(matchRoute(TABLE, '/admin')).toEqual({ name: 'dashboard', params: {} });
-        expect(matchRoute(TABLE, '/admin/')).toEqual({ name: 'dashboard', params: {} });
+        expect(matchRoute(TABLE, '/admin')).toEqual({ name: 'dashboard', params: {}, query: {} });
+        expect(matchRoute(TABLE, '/admin/')).toEqual({ name: 'dashboard', params: {}, query: {} });
     });
 
     // Order is the whole disambiguation strategy, and it is the reason the
@@ -166,5 +166,49 @@ describe('matchRoute', () => {
 
     it('ignores a query string and a fragment', () => {
         expect(matchRoute(TABLE, '/admin/settings?tab=core#top').name).toBe('settings');
+    });
+});
+
+// The page of a listing belongs to the address rather than to component state:
+// it is what makes a reload, a bookmark and the Back button land on the same
+// fifteen rows. Without it, editing an entry from page two and saving returned
+// the reader to page one.
+describe('a query string', () => {
+    it('is appended to a built address', () => {
+        expect(buildPath('/content/:module', { module: 'rooms' }, { page: 2 }))
+            .toBe('/admin/content/rooms?page=2');
+    });
+
+    // The address of page one is the plain path, so there are not two URLs for
+    // the same fifteen rows.
+    it('drops keys with nothing in them', () => {
+        expect(buildPath('/content/:module', { module: 'rooms' }, { page: null, q: '' }))
+            .toBe('/admin/content/rooms');
+        expect(buildPath('/content/:module', { module: 'rooms' }, {}))
+            .toBe('/admin/content/rooms');
+    });
+
+    it('is encoded', () => {
+        expect(buildPath('/settings', {}, { q: 'a b&c' })).toBe('/admin/settings?q=a+b%26c');
+    });
+
+    it('is read back off a matched address', () => {
+        expect(matchRoute(TABLE, '/admin/content/rooms?page=2'))
+            .toEqual({ name: 'entries', params: { module: 'rooms' }, query: { page: '2' } });
+    });
+
+    it('is an empty object when the address carries none', () => {
+        expect(matchRoute(TABLE, '/admin/settings').query).toEqual({});
+    });
+
+    // It must not change which route matches - only what that route is showing.
+    it('does not affect which route is chosen', () => {
+        expect(matchRoute(TABLE, '/admin/content/rooms?page=9').name).toBe('entries');
+    });
+
+    it('is frozen, like the params beside it', () => {
+        const { query } = matchRoute(TABLE, '/admin/content/rooms?page=2');
+
+        expect(Object.isFrozen(query)).toBe(true);
     });
 });

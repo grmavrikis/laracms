@@ -6,7 +6,8 @@ import { t } from './lib/i18n';
 import { loadModules, forgetModules, onModulesChanged } from './lib/moduleStore';
 import Login from './components/Login';
 import ModulesList from './components/ModulesList';
-import EntriesManager from './components/EntriesManager';
+import EntriesScreen from './screens/EntriesScreen';
+import EntryEditScreen from './screens/EntryEditScreen';
 import ModuleBuilder from './components/ModuleBuilder';
 import ModuleTranslator from './components/ModuleTranslator';
 import EnquiriesManager from './components/EnquiriesManager';
@@ -115,13 +116,22 @@ function Placeholder({ title }) {
     );
 }
 
-// `entryCreate` and `entryEdit` resolve here too. Nothing in the panel produces
-// those addresses yet - `EntriesManager` still owns create and edit as internal
-// state - so they are unreachable except by typing one. Item 12 splits that
-// component and makes them real.
-const entriesScreen = ({ params, navigate }) => (
+const entriesScreen = ({ params }) => (
     <ByModuleSlug slug={params.module}>
-        {(module) => <EntriesManager module={module} onBack={() => navigate('modules')} />}
+        {(module) => <EntriesScreen module={module} />}
+    </ByModuleSlug>
+);
+
+// One screen for both, told apart by whether the address carries an id. The
+// route constrains `:entry` to digits, so this parse cannot fail.
+const entryFormScreen = ({ params }) => (
+    <ByModuleSlug slug={params.module}>
+        {(module) => (
+            <EntryEditScreen
+                module={module}
+                entryId={params.entry ? Number(params.entry) : null}
+            />
+        )}
     </ByModuleSlug>
 );
 
@@ -171,8 +181,8 @@ const SCREENS = {
     ),
 
     entries: entriesScreen,
-    entryCreate: entriesScreen,
-    entryEdit: entriesScreen,
+    entryCreate: entryFormScreen,
+    entryEdit: entryFormScreen,
 };
 
 function Screen() {

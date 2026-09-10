@@ -16,14 +16,16 @@ const RouteContext = createContext(null);
  * `/admin/{any?}`, so nothing on the server has to change for this.
  */
 export function RouterProvider({ children }) {
-    const [address, setAddress] = useState(() => window.location.pathname);
+    // Search included: the page of a listing lives in the address, so a
+    // change to it has to re-render exactly as a path change does.
+    const [address, setAddress] = useState(() => window.location.pathname + window.location.search);
 
     // The browser's own Back and Forward. Without this they move the address
     // bar and leave the panel showing the previous screen - and Back from the
     // panel's first screen leaves the application altogether, which is what
     // happens today.
     useEffect(() => {
-        const onPopState = () => setAddress(window.location.pathname);
+        const onPopState = () => setAddress(window.location.pathname + window.location.search);
 
         window.addEventListener('popstate', onPopState);
 
@@ -51,8 +53,8 @@ export function RouterProvider({ children }) {
     // a singleton module opening straight into its one entry, or a save that
     // returns to the listing. Pushed instead, those trap the reader bouncing
     // between the form and itself.
-    const navigate = useCallback((name, params = {}, { replace = false } = {}) => {
-        const to = hrefFor(name, params);
+    const navigate = useCallback((name, params = {}, { replace = false, query = null } = {}) => {
+        const to = hrefFor(name, params, query);
 
         window.history[replace ? 'replaceState' : 'pushState']({}, '', to);
         setAddress(to);

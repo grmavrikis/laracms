@@ -153,8 +153,14 @@ export default function EntryForm({ moduleSlug, schema, languages, onSaved, onCa
         try {
             const url = isEdit ? `/modules/${moduleSlug}/entries/${initialData.id}` : `/modules/${moduleSlug}/entries`;
             const method = isEdit ? 'put' : 'post';
-            await api[method](url, payload);
-            onSaved?.();
+            const { data: saved } = await api[method](url, payload);
+
+            // Handed back, because a create has to know where it landed: since
+            // #117 item 12 the form lives at its own address, so saving a new
+            // entry navigates to that entry rather than to a list. All three
+            // entry endpoints answer with the row read back from the database
+            // (ARCHITECTURE §5), so this is the whole entry and not an echo.
+            onSaved?.(saved);
         } catch (err) {
             console.error('API Error:', err);
 
