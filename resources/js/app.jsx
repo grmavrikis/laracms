@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import '../css/app.css';
 import api from './lib/api';
-import { t, locale, locales } from './lib/i18n';
-import { errorSummary } from './lib/apiErrors';
+import { t } from './lib/i18n';
+import { loadModules, forgetModules, onModulesChanged } from './lib/moduleStore';
 import Login from './components/Login';
 import ModulesList from './components/ModulesList';
 import EntriesManager from './components/EntriesManager';
@@ -11,15 +11,135 @@ import ModuleBuilder from './components/ModuleBuilder';
 import ModuleTranslator from './components/ModuleTranslator';
 import EnquiriesManager from './components/EnquiriesManager';
 import SettingsManager from './components/SettingsManager';
-import ThemeMenu from './layout/ThemeMenu';
 import ErrorBoundary from './components/ErrorBoundary';
+import Shell from './layout/Shell';
 import { ThemeProvider } from './hooks/useTheme';
+import { RouterProvider } from './hooks/useRoute';
+import useRoute from './hooks/useRoute';
+
+/**
+ * A screen addressed by a module's slug, which is what the URL carries.
+ *
+ * The components underneath still want the whole row, so it is looked up here.
+ * Item 12 of #117 replaces this with `EntriesScreen`, which will own the
+ * fetching properly; for now it bridges the router to the components that
+ * already work.
+ */
+function ByModuleSlug({ slug, children }) {
+    const [module, setModule] = useState(null);
+    const [missing, setMissing] = useState(false);
+
+    useEffect(() => {
+        let current = true;
+
+        const find = () => {
+            loadModules()
+                .then((list) => {
+                    if (!current) return;
+
+                    const found = list.find((row) => row.slug === slug) ?? null;
+
+                    setModule(found);
+                    setMissing(found === null);
+                })
+                .catch(() => current && setMissing(true));
+        };
+
+        find();
+
+        return onModulesChanged(find);
+    }, [slug]);
+
+    if (missing) {
+        return <p className="text-sm text-fg-muted">{t('That section no longer exists.')}</p>;
+    }
+
+    if (!module) {
+        return <p className="text-sm text-fg-muted">{t('Loading…')}</p>;
+    }
+
+    return children(module);
+}
+
+/**
+ * Placeholder until item 18 of #117.
+ *
+ * TODO (#117 item 18): a real dashboard needs counts the API does not expose -
+ * there is no endpoint answering how many entries, drafts or enquiries exist.
+ * Drawn statically until there is, per this item's rule.
+ */
+function Placeholder({ title }) {
+    return (
+        <div className="rounded-xl border border-dashed border-line-strong p-12 text-center">
+            <h2 className="text-lg font-semibold text-fg">{title}</h2>
+            <p className="mt-2 text-sm text-fg-muted">{t('This screen is not built yet.')}</p>
+        </div>
+    );
+}
+
+function Screen() {
+    const [route, navigate] = useRoute();
+    const { name, params } = route;
+
+    if (name === 'dashboard') return <Placeholder title={t('Dashboard')} />;
+    if (name === 'analytics') return <Placeholder title={t('Analytics')} />;
+
+    if (name === 'enquiries') return <EnquiriesManager onBack={() => navigate('dashboard')} />;
+    if (name === 'settings') return <SettingsManager onBack={() => navigate('dashboard')} />;
+
+    if (name === 'modules') {
+        return (
+            <ModulesList
+                onSelectModule={(mod) => navigate('entries', { module: mod.slug })}
+                onCreateModule={() => navigate('moduleCreate')}
+                onTranslateModule={(mod) => navigate('moduleEdit', { module: mod.slug })}
+            />
+        );
+    }
+
+    if (name === 'moduleCreate') {
+        return (
+            <ModuleBuilder
+                // The rail lists the modules, so one that has just been created
+                // has to appear in it without a reload.
+                onCreated={() => { forgetModules(); navigate('modules'); }}
+                onCancel={() => navigate('modules')}
+            />
+        );
+    }
+
+    if (name === 'moduleEdit') {
+        return (
+            <ByModuleSlug slug={params.module}>
+                {(module) => (
+                    <ModuleTranslator
+                        module={module}
+                        onSaved={() => { forgetModules(); navigate('modules'); }}
+                        onCancel={() => navigate('modules')}
+                    />
+                )}
+            </ByModuleSlug>
+        );
+    }
+
+    // `entryCreate` and `entryEdit` resolve here too. Nothing in the panel
+    // produces those addresses yet - `EntriesManager` still owns create and
+    // edit as internal state - so they are unreachable except by typing one.
+    // Item 12 splits that component and makes them real.
+    if (name === 'entries' || name === 'entryCreate' || name === 'entryEdit') {
+        return (
+            <ByModuleSlug slug={params.module}>
+                {(module) => <EntriesManager module={module} onBack={() => navigate('modules')} />}
+            </ByModuleSlug>
+        );
+    }
+
+    return <Placeholder title={t('Dashboard')} />;
+}
 
 export default function App() {
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
-    const [view, setView] = useState({ type: 'list', data: null });
-    const [localeError, setLocaleError] = useState(null);
 
     useEffect(() => {
         api.get('/user')
@@ -28,119 +148,24 @@ export default function App() {
             .finally(() => setLoading(false));
     }, []);
 
-    const handleLogout = async () => {
-        await api.post('/logout');
-        setUser(null);
-        setView({ type: 'list', data: null });
-    };
+    if (loading) return <div className="p-10 text-center text-fg-muted">{t('Loading…')}</div>;
 
-    if (loading) return <div className="p-10 text-center">{t('Loading…')}</div>;
-    if (!user) return <Login onLogin={(userData) => setUser(userData)} />;
+    if (!user) {
+        return <Login onLogin={(userData) => setUser(userData)} />;
+    }
 
     return (
-        <div>
-            <header className="bg-gray-800 text-white p-4 flex justify-between items-center">
-                <h1 className="font-bold">{t('Admin Panel')}</h1>
-                <div className="flex items-center gap-3">
-                    {/* Mounted into the old chrome so the theme is reachable
-                        from this commit rather than from the one that builds
-                        the sidebar. This whole header is replaced by
-                        `layout/Topbar` shortly (#117 item 8). */}
-                    <ThemeMenu />
-                    {/* The panel's own language, which is **not** the content
-                        languages (TASKS.md #96): the list is the files in
-                        `lang/`, and a person's choice is theirs rather than
-                        the site's.
-
-                        Reloading is the point rather than a shortcut. The
-                        catalogue is injected into the document by the server,
-                        so a different language is a different document - and
-                        that is what keeps a new locale from needing a
-                        rebuild. */}
-                    {locales.length > 1 && (
-                        <select
-                            value={locale}
-                            aria-label={t('Panel language')}
-                            onChange={async (event) => {
-                                // Without the catch the rejection is silent:
-                                // no reload, and React puts the select back
-                                // to `locale`, so an expired session looks
-                                // like a language that simply will not change.
-                                setLocaleError(null);
-
-                                try {
-                                    await api.put('/user/locale', { locale: event.target.value });
-                                    window.location.reload();
-                                } catch (err) {
-                                    console.error(err);
-                                    setLocaleError(errorSummary(err, t('Could not change the language.'))[0]);
-                                }
-                            }}
-                            className="bg-gray-700 text-white text-sm rounded px-2 py-1 border border-gray-600"
-                        >
-                            {locales.map((code) => (
-                                <option key={code} value={code}>{code.toUpperCase()}</option>
-                            ))}
-                        </select>
-                    )}
-                    {localeError && (
-                        <span role="alert" className="text-xs text-red-300">{localeError}</span>
-                    )}
-                    {/* Settings and enquiries are core screens rather than
-                        content types, so they are reached from the chrome and
-                        not through the module list (TASKS.md #66, #67). */}
-                    <button
-                        onClick={() => setView({ type: view.type === 'settings' ? 'list' : 'settings' })}
-                        className={`text-sm px-3 py-1 rounded transition-colors ${view.type === 'settings'
-                            ? 'bg-white text-gray-900'
-                            : 'bg-gray-700 hover:bg-gray-600'}`}
-                    >
-                        {t('Settings')}
-                    </button>
-                    <button
-                        onClick={() => setView({ type: view.type === 'enquiries' ? 'list' : 'enquiries' })}
-                        className={`text-sm px-3 py-1 rounded transition-colors ${view.type === 'enquiries'
-                            ? 'bg-white text-gray-900'
-                            : 'bg-gray-700 hover:bg-gray-600'}`}
-                    >
-                        {t('Enquiries')}
-                    </button>
-                    <button onClick={handleLogout} className="text-sm bg-red-600 px-3 py-1 rounded">{t('Logout')}</button>
-                </div>
-            </header>
-
-            <main className="p-6">
-                {view.type === 'create' && (
-                    <ModuleBuilder
-                        onCreated={() => setView({ type: 'list' })}
-                        onCancel={() => setView({ type: 'list' })}
-                    />
-                )}
-                {view.type === 'translate' && (
-                    <ModuleTranslator
-                        module={view.data}
-                        onSaved={() => setView({ type: 'list' })}
-                        onCancel={() => setView({ type: 'list' })}
-                    />
-                )}
-                {view.type === 'entries' && (
-                    <EntriesManager module={view.data} onBack={() => setView({ type: 'list' })} />
-                )}
-                {view.type === 'enquiries' && (
-                    <EnquiriesManager onBack={() => setView({ type: 'list' })} />
-                )}
-                {view.type === 'settings' && (
-                    <SettingsManager onBack={() => setView({ type: 'list' })} />
-                )}
-                {view.type === 'list' && (
-                    <ModulesList
-                        onSelectModule={(mod) => setView({ type: 'entries', data: mod })}
-                        onCreateModule={() => setView({ type: 'create' })}
-                        onTranslateModule={(mod) => setView({ type: 'translate', data: mod })}
-                    />
-                )}
-            </main>
-        </div>
+        <Shell
+            user={user}
+            onLoggedOut={() => {
+                // The next person to sign in may not be the same one, and the
+                // rail is built from their modules.
+                forgetModules();
+                setUser(null);
+            }}
+        >
+            <Screen />
+        </Shell>
     );
 }
 
@@ -154,16 +179,16 @@ if (rootElement) {
     // save. Harmless in a production build, where the module runs once - and
     // exactly where it is not harmless is while working on the panel.
     rootElement._adminRoot ??= createRoot(rootElement);
-    // The provider wraps the mount rather than `App`'s return, because `App`
-    // leaves early while loading and again when nobody is signed in - so
-    // wrapping inside it would put the login screen outside the theme.
+
     // The boundary is **outside** the providers, so it still renders when one
     // of them is what threw. Inside, a provider failing to mount would take the
     // boundary down with it and produce the blank page it exists to prevent.
     rootElement._adminRoot.render(
         <ErrorBoundary>
             <ThemeProvider>
-                <App />
+                <RouterProvider>
+                    <App />
+                </RouterProvider>
             </ThemeProvider>
         </ErrorBoundary>
     );

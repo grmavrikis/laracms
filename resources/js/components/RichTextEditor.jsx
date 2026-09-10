@@ -30,25 +30,25 @@ const MenuBar = ({ editor }) => {
     // Helper for active button classes
     const btnClass = (isActive) =>
         `px-2 py-1 text-sm font-medium rounded border transition-colors ${isActive
-            ? 'bg-indigo-600 text-white border-indigo-600'
-            : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100'
+            ? 'bg-accent text-accent-fg border-accent'
+            : 'bg-surface text-fg border-line-strong hover:bg-surface-muted'
         }`;
 
     return (
-        <div className="flex flex-wrap gap-1 mb-2 p-2 border border-gray-300 rounded bg-gray-50">
+        <div className="flex flex-wrap gap-1 mb-2 p-2 border border-line-strong rounded bg-surface-muted">
             <button type="button" onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} className={btnClass(editorState.isHeading1)}>H1</button>
             <button type="button" onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} className={btnClass(editorState.isHeading2)}>H2</button>
             <button type="button" onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()} className={btnClass(editorState.isHeading3)}>H3</button>
             <button type="button" onClick={() => editor.chain().focus().setParagraph().run()} className={btnClass(editorState.isParagraph)}>P</button>
 
-            <div className="w-px bg-gray-300 mx-1"></div>
+            <div className="w-px bg-line-strong mx-1"></div>
 
             <button type="button" onClick={() => editor.chain().focus().toggleBold().run()} className={btnClass(editorState.isBold)}>B</button>
             <button type="button" onClick={() => editor.chain().focus().toggleItalic().run()} className={btnClass(editorState.isItalic)}>I</button>
             <button type="button" onClick={() => editor.chain().focus().toggleStrike().run()} className={btnClass(editorState.isStrike)}>S</button>
             <button type="button" onClick={() => editor.chain().focus().toggleHighlight().run()} className={btnClass(editorState.isHighlight)}>{t('Highlight')}</button>
 
-            <div className="w-px bg-gray-300 mx-1"></div>
+            <div className="w-px bg-line-strong mx-1"></div>
 
             <button type="button" onClick={() => editor.chain().focus().setTextAlign('left').run()} className={btnClass(editorState.isAlignLeft)}>{t('Left')}</button>
             <button type="button" onClick={() => editor.chain().focus().setTextAlign('center').run()} className={btnClass(editorState.isAlignCenter)}>{t('Center')}</button>
@@ -73,7 +73,7 @@ export default function RichTextEditor({ value, onChange }) {
         },
         editorProps: {
             attributes: {
-                class: 'prose max-w-none border border-gray-300 rounded p-4 min-h-[200px] bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500 tiptap-editor',
+                class: 'prose max-w-none border border-line-strong rounded p-4 min-h-[200px] bg-surface focus:outline-none focus:ring-1 focus:ring-accent tiptap-editor',
             },
         },
     });

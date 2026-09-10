@@ -30,11 +30,17 @@ export default function Login({ onLogin }) {
     };
 
     return (
-        <div className="flex items-center justify-center min-h-screen bg-gray-100">
-            <div className="bg-white p-8 rounded shadow-md w-96">
-                <h2 className="text-2xl font-bold mb-6 text-center">{t('Admin Login')}</h2>
+        // Semantic tokens rather than a fixed grey and a fixed white. Those
+        // were fine while every colour in the panel was hardcoded, but `body`
+        // now takes its text colour from `--ui-fg` - so under the dark theme
+        // this card was near-white text on a white card, which is how the
+        // sign-in screen ended up unreadable. The two-panel redesign is #117
+        // item 9; this is only the colours, so it is legible until then.
+        <div className="flex items-center justify-center min-h-screen bg-bg">
+            <div className="bg-surface p-8 rounded-xl border border-line shadow-sm w-96">
+                <h2 className="text-2xl font-bold mb-6 text-center text-fg">{t('Admin Login')}</h2>
                 {errors.length > 0 && (
-                    <div className="mb-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700 space-y-1">
+                    <div className="mb-4 rounded-lg border border-danger/30 bg-danger-soft p-3 text-sm text-danger-text space-y-1">
                         {errors.map((message, i) => <p key={i}>{message}</p>)}
                     </div>
                 )}
@@ -44,14 +50,17 @@ export default function Login({ onLogin }) {
                         announces "edit text, blank" and tapping the label does
                         not focus the field. */}
                     <div>
-                        <label htmlFor="login-email" className="block text-sm font-medium">{t('Email address')}</label>
-                        <input id="login-email" type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full border rounded px-3 py-2 mt-1" required />
+                        <label htmlFor="login-email" className="block text-sm font-medium text-fg">{t('Email address')}</label>
+                        <input id="login-email" type="email" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full rounded-lg border border-line bg-surface text-fg px-3 py-2 mt-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring-accent" required />
                     </div>
                     <div>
-                        <label htmlFor="login-password" className="block text-sm font-medium">{t('Password')}</label>
-                        <input id="login-password" type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full border rounded px-3 py-2 mt-1" required />
+                        <label htmlFor="login-password" className="block text-sm font-medium text-fg">{t('Password')}</label>
+                        <input id="login-password" type="password" autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} className="w-full rounded-lg border border-line bg-surface text-fg px-3 py-2 mt-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring-accent" required />
                     </div>
-                    <button type="submit" className="w-full bg-indigo-600 text-white py-2 rounded mt-4">{t('Login')}</button>
+                    {/* `autocomplete` on both, so a password manager can fill
+                        them. WCAG 2.2 asks for it, and a client who cannot use
+                        their manager is a client who picks a worse password. */}
+                    <button type="submit" className="w-full cursor-pointer bg-accent text-accent-fg font-semibold py-2 rounded-lg mt-4 transition-colors hover:bg-accent-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring-accent">{t('Login')}</button>
                 </form>
             </div>
         </div>

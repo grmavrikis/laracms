@@ -202,18 +202,18 @@ export default function EntryForm({ moduleSlug, schema, languages, onSaved, onCa
         }
 
         return (
-            <ul className="mt-1.5 space-y-0.5 text-xs text-red-600">
+            <ul className="mt-1.5 space-y-0.5 text-xs text-danger-text">
                 {messages.map((message, i) => <li key={i}>{message}</li>)}
             </ul>
         );
     };
 
-    const inputClasses = "block w-full rounded-md border-0 py-2 px-3 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm transition-all duration-200 outline-none bg-white";
+    const inputClasses = "block w-full rounded-md border-0 py-2 px-3 text-fg shadow-sm ring-1 ring-inset ring-line-strong placeholder:text-fg-subtle focus:ring-2 focus:ring-inset focus:ring-accent sm:text-sm transition-all duration-200 outline-none bg-surface";
 
     const renderInput = (field, value, onChange) => {
         if (isRichTextField(field)) {
             return (
-                <div className="mt-2 rounded-md shadow-sm ring-1 ring-inset ring-gray-300 focus-within:ring-2 focus-within:ring-inset focus-within:ring-indigo-600 transition-all duration-200 overflow-hidden bg-white">
+                <div className="mt-2 rounded-md shadow-sm ring-1 ring-inset ring-line-strong focus-within:ring-2 focus-within:ring-inset focus-within:ring-accent transition-all duration-200 overflow-hidden bg-surface">
                     <RichTextEditor
                         value={value}
                         onChange={(content) => onChange(content)}
@@ -240,9 +240,9 @@ export default function EntryForm({ moduleSlug, schema, languages, onSaved, onCa
                         type="checkbox"
                         checked={!!value}
                         onChange={(e) => onChange(e.target.checked)}
-                        className="h-5 w-5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-600 transition-all cursor-pointer"
+                        className="h-5 w-5 rounded border-line-strong text-accent-text focus:ring-accent transition-all cursor-pointer"
                     />
-                    <span className="ml-3 text-sm text-gray-700 cursor-default">{t('Enable this field')}</span>
+                    <span className="ml-3 text-sm text-fg cursor-default">{t('Enable this field')}</span>
                 </div>
             );
         }
@@ -304,10 +304,10 @@ export default function EntryForm({ moduleSlug, schema, languages, onSaved, onCa
                         type="file"
                         accept="image/*"
                         onChange={handleFileChange}
-                        className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-150 cursor-pointer transition-all"
+                        className="block w-full text-sm text-fg-muted file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-accent-soft file:text-accent-text hover:file:bg-accent-soft cursor-pointer transition-all"
                     />
                     {value && (
-                        <div className="relative w-32 h-32 rounded-lg border border-gray-200 overflow-hidden bg-gray-50 flex items-center justify-center shadow-sm">
+                        <div className="relative w-32 h-32 rounded-lg border border-line overflow-hidden bg-surface-muted flex items-center justify-center shadow-sm">
                             <img
                                 src={value}
                                 alt={t('Preview')}
@@ -317,7 +317,7 @@ export default function EntryForm({ moduleSlug, schema, languages, onSaved, onCa
                             <button
                                 type="button"
                                 onClick={() => onChange('')}
-                                className="absolute top-1 right-1 bg-red-600/80 hover:bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs transition-colors"
+                                className="absolute top-1 right-1 bg-danger/80 hover:bg-danger text-danger-fg rounded-full w-6 h-6 flex items-center justify-center text-xs transition-colors"
                                 title={t('Remove image')}
                             >
                                 ✕
@@ -342,10 +342,10 @@ export default function EntryForm({ moduleSlug, schema, languages, onSaved, onCa
     };
 
     return (
-        <form onSubmit={handleSubmit} className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm md:col-span-2">
+        <form onSubmit={handleSubmit} className="overflow-hidden rounded-xl border border-line bg-surface shadow-sm md:col-span-2">
             <div className="px-6 py-8">
                 {summary.length > 0 && (
-                    <div className="mb-8 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 space-y-1">
+                    <div className="mb-8 rounded-xl border border-danger/30 bg-danger-soft p-4 text-sm text-danger-text space-y-1">
                         {summary.map((message, i) => <div key={i}>{message}</div>)}
                     </div>
                 )}
@@ -353,7 +353,7 @@ export default function EntryForm({ moduleSlug, schema, languages, onSaved, onCa
                 <div className="grid max-w-2xl grid-cols-1 gap-x-6 gap-y-6 sm:grid-cols-6">
                     {staticFields.map((field) => (
                         <div key={field.name} className="sm:col-span-full">
-                            <label className="block text-sm font-semibold text-gray-900 capitalize">
+                            <label className="block text-sm font-semibold text-fg capitalize">
                                 {field.name}
                             </label>
                             {renderInput(field, staticValues[field.name], (v) => setStaticField(field.name, v))}
@@ -363,8 +363,8 @@ export default function EntryForm({ moduleSlug, schema, languages, onSaved, onCa
                 </div>
 
                 {translatableFields.length > 0 && (
-                    <div className="mt-10 pt-8 border-t border-gray-100">
-                        <div className="flex p-1 mb-8 space-x-1 bg-gray-100/80 rounded-lg w-max border border-gray-200/50">
+                    <div className="mt-10 pt-8 border-t border-line">
+                        <div className="flex p-1 mb-8 space-x-1 bg-surface-muted/80 rounded-lg w-max border border-line/50">
                             {languages.map((l) => {
                                 // A tab carries a dot when that translation
                                 // failed. Messages are filed under their own
@@ -379,15 +379,15 @@ export default function EntryForm({ moduleSlug, schema, languages, onSaved, onCa
                                         onClick={() => setActiveLangId(l.id)}
                                         title={failed ? t('This translation has errors') : undefined}
                                         className={`flex items-center gap-1.5 px-5 py-1.5 text-sm font-medium rounded-md transition-all duration-200 ${activeLangId === l.id
-                                            ? 'bg-white text-indigo-600 shadow-sm'
+                                            ? 'bg-surface text-accent-text shadow-sm'
                                             : failed
-                                                ? 'text-red-600 hover:bg-gray-200/50'
-                                                : 'text-gray-500 hover:text-gray-900 hover:bg-gray-200/50'
+                                                ? 'text-danger-text hover:bg-surface-muted/50'
+                                                : 'text-fg-muted hover:text-fg hover:bg-surface-muted/50'
                                             }`}
                                     >
                                         {getLangCode(l).toUpperCase()}
                                         {failed && (
-                                            <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-red-500" />
+                                            <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-danger" />
                                         )}
                                         {failed && <span className="sr-only">has errors</span>}
                                     </button>
@@ -398,9 +398,9 @@ export default function EntryForm({ moduleSlug, schema, languages, onSaved, onCa
                         <div className="grid max-w-2xl grid-cols-1 gap-x-6 gap-y-6 sm:grid-cols-6">
                             {translatableFields.map((field) => (
                                 <div key={field.name} className="sm:col-span-full">
-                                    <label className="flex items-center text-sm font-semibold text-gray-900 capitalize">
+                                    <label className="flex items-center text-sm font-semibold text-fg capitalize">
                                         {field.name}
-                                        <span className="ml-2 inline-flex items-center rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700">
+                                        <span className="ml-2 inline-flex items-center rounded-full bg-accent-soft px-2 py-0.5 text-xs font-medium text-accent-text">
                                             {getLangCode(languages.find(l => l.id === activeLangId))}
                                         </span>
                                     </label>
@@ -419,10 +419,10 @@ export default function EntryForm({ moduleSlug, schema, languages, onSaved, onCa
                     </div>
                 )}
 
-                <div className="mt-10 pt-8 border-t border-gray-100 space-y-6">
+                <div className="mt-10 pt-8 border-t border-line space-y-6">
                     <div>
-                        <h3 className="text-sm font-semibold text-gray-900">{t('Publication')}</h3>
-                        <p className="text-sm text-gray-500">
+                        <h3 className="text-sm font-semibold text-fg">{t('Publication')}</h3>
+                        <p className="text-sm text-fg-muted">
                             {t('A draft is saved but never shown on the site.')}
                         </p>
                     </div>
@@ -438,8 +438,8 @@ export default function EntryForm({ moduleSlug, schema, languages, onSaved, onCa
                                 onClick={() => setStatus(option.value)}
                                 aria-pressed={status === option.value}
                                 className={`rounded-lg px-4 py-2 text-sm font-semibold transition-all ${status === option.value
-                                    ? 'bg-indigo-600 text-white shadow-sm'
-                                    : 'bg-white text-gray-700 ring-1 ring-inset ring-gray-300 hover:bg-gray-50'
+                                    ? 'bg-accent text-accent-fg shadow-sm'
+                                    : 'bg-surface text-fg ring-1 ring-inset ring-line-strong hover:bg-surface-muted'
                                     }`}
                             >
                                 {option.label}
@@ -447,7 +447,7 @@ export default function EntryForm({ moduleSlug, schema, languages, onSaved, onCa
                         ))}
 
                         {initialData?.published_at && (
-                            <span className="ml-2 text-xs text-gray-500">
+                            <span className="ml-2 text-xs text-fg-muted">
                                 First published {new Date(initialData.published_at).toLocaleDateString()}
                             </span>
                         )}
@@ -456,8 +456,8 @@ export default function EntryForm({ moduleSlug, schema, languages, onSaved, onCa
                     {languages.length > 0 && (
                         <div className="space-y-2">
                             <div>
-                                <h3 className="text-sm font-semibold text-gray-900">{t('Address')}</h3>
-                                <p className="text-sm text-gray-500">
+                                <h3 className="text-sm font-semibold text-fg">{t('Address')}</h3>
+                                <p className="text-sm text-fg-muted">
                                     {t('The last part of the URL, per language. Leave a language empty and it has no page in it.')}
                                 </p>
                             </div>
@@ -467,7 +467,7 @@ export default function EntryForm({ moduleSlug, schema, languages, onSaved, onCa
 
                                 return (
                                     <div key={language.id} className="flex items-center gap-2">
-                                        <span className="w-8 shrink-0 text-xs font-semibold uppercase text-gray-500">
+                                        <span className="w-8 shrink-0 text-xs font-semibold uppercase text-fg-muted">
                                             {code}
                                         </span>
                                         <input
@@ -485,13 +485,13 @@ export default function EntryForm({ moduleSlug, schema, languages, onSaved, onCa
                 </div>
             </div>
 
-            <div className="flex items-center justify-end gap-x-4 border-t border-gray-100 bg-gray-50 px-6 py-4">
+            <div className="flex items-center justify-end gap-x-4 border-t border-line bg-surface-muted px-6 py-4">
                 {onCancel && (
                     <button
                         type="button"
                         onClick={onCancel}
                         disabled={submitting}
-                        className="rounded-md px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200 transition-colors focus:outline-none focus:ring-2 focus:ring-gray-300 disabled:opacity-50"
+                        className="rounded-md px-4 py-2 text-sm font-medium text-fg hover:bg-surface-muted transition-colors focus:outline-none focus:ring-2 focus:ring-line-strong disabled:opacity-50"
                     >
                         {t('Cancel')}
                     </button>
@@ -499,11 +499,11 @@ export default function EntryForm({ moduleSlug, schema, languages, onSaved, onCa
                 <button
                     type="submit"
                     disabled={submitting}
-                    className="inline-flex items-center justify-center rounded-md bg-indigo-600 px-6 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="inline-flex items-center justify-center rounded-md bg-accent px-6 py-2 text-sm font-semibold text-accent-fg shadow-sm hover:bg-accent-hover transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                     {submitting ? (
                         <>
-                            <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-accent-fg" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                             </svg>

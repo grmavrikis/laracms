@@ -77,25 +77,25 @@ export default function ModuleTranslator({ module, onSaved, onCancel }) {
     };
 
     return (
-        <form onSubmit={handleSubmit} className="max-w-4xl mx-auto space-y-8 p-6 bg-white rounded-xl border border-gray-200 shadow-sm">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-gray-200 pb-5 gap-4">
+        <form onSubmit={handleSubmit} className="max-w-4xl mx-auto space-y-8 p-6 bg-surface rounded-xl border border-line shadow-sm">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-line pb-5 gap-4">
                 <div>
-                    <h2 className="text-xl font-bold tracking-tight text-gray-900">{t('Edit this module')}</h2>
-                    <p className="text-sm text-gray-500">
+                    <h2 className="text-xl font-bold tracking-tight text-fg">{t('Edit this module')}</h2>
+                    <p className="text-sm text-fg-muted">
                         {t('Changing an address changes every page under it. The old one stops working.')}
                     </p>
                 </div>
                 <button
                     type="button"
                     onClick={onCancel}
-                    className="text-sm text-gray-600 hover:text-gray-900"
+                    className="text-sm text-fg-muted hover:text-fg"
                 >
                     {t('Back to modules')}
                 </button>
             </div>
 
             {errors.length > 0 && (
-                <div className="bg-red-50 border border-red-200 text-red-700 text-sm p-4 rounded-xl space-y-1">
+                <div className="bg-danger-soft border border-danger/30 text-danger-text text-sm p-4 rounded-xl space-y-1">
                     {errors.map((msg, i) => <div key={i}>{msg}</div>)}
                 </div>
             )}
@@ -113,18 +113,18 @@ export default function ModuleTranslator({ module, onSaved, onCancel }) {
                 onRemove={removeField}
             />
 
-            <div className="flex justify-end gap-3 border-t border-gray-200 pt-5">
+            <div className="flex justify-end gap-3 border-t border-line pt-5">
                 <button
                     type="button"
                     onClick={onCancel}
-                    className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                    className="rounded-lg border border-line-strong px-4 py-2 text-sm font-semibold text-fg hover:bg-surface-muted"
                 >
                     {t('Cancel')}
                 </button>
                 <button
                     type="submit"
                     disabled={submitting}
-                    className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 disabled:opacity-50"
+                    className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accent-fg shadow-sm hover:bg-accent-hover disabled:opacity-50"
                 >
                     {submitting ? t('Saving…') : t('Save module')}
                 </button>

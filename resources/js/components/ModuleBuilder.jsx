@@ -85,29 +85,29 @@ export default function ModuleBuilder({ onCreated, onCancel }) {
     };
 
     return (
-        <form onSubmit={handleSubmit} className="max-w-4xl mx-auto space-y-8 p-6 bg-white rounded-xl border border-gray-200 shadow-sm">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-gray-200 pb-5 gap-4">
+        <form onSubmit={handleSubmit} className="max-w-4xl mx-auto space-y-8 p-6 bg-surface rounded-xl border border-line shadow-sm">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-line pb-5 gap-4">
                 <div className="flex items-center space-x-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 ring-1 ring-inset ring-indigo-500/15 shadow-sm shrink-0">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent-soft text-accent-text ring-1 ring-inset ring-accent/15 shadow-sm shrink-0">
                         <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4.5v15m7.5-7.5h-15" />
                         </svg>
                     </div>
                     <div>
-                        <h2 className="text-xl font-bold tracking-tight text-gray-900">{t('New module')}</h2>
-                        <p className="text-sm text-gray-500">{t('Give it a name in each language, and the fields its entries hold.')}</p>
+                        <h2 className="text-xl font-bold tracking-tight text-fg">{t('New module')}</h2>
+                        <p className="text-sm text-fg-muted">{t('Give it a name in each language, and the fields its entries hold.')}</p>
                     </div>
                 </div>
             </div>
 
             {errors.length > 0 && (
-                <div className="bg-red-50 border border-red-200 text-red-700 text-sm p-4 rounded-xl space-y-1">
+                <div className="bg-danger-soft border border-danger/30 text-danger-text text-sm p-4 rounded-xl space-y-1">
                     {errors.map((msg, i) => <div key={i}>{msg}</div>)}
                 </div>
             )}
 
             {languagesError && (
-                <div className="bg-red-50 border border-red-200 text-red-700 text-sm p-4 rounded-xl">{languagesError}</div>
+                <div className="bg-danger-soft border border-danger/30 text-danger-text text-sm p-4 rounded-xl">{languagesError}</div>
             )}
 
             <ModuleTranslations
@@ -119,19 +119,19 @@ export default function ModuleBuilder({ onCreated, onCancel }) {
             {/* "About" is one entry; "Blog" is many (TASKS.md #60). Worded as
                 what the client will see rather than as a flag, because that is
                 the decision being made. */}
-            <div className="pt-4 border-t border-gray-200">
+            <div className="pt-4 border-t border-line">
                 <label className="flex items-start gap-3 cursor-pointer select-none">
                     <input
                         type="checkbox"
                         checked={isSingleton}
                         onChange={(e) => setIsSingleton(e.target.checked)}
-                        className="mt-0.5 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                        className="mt-0.5 h-4 w-4 rounded border-line-strong text-accent-text focus:ring-accent"
                     />
                     <span>
-                        <span className="block text-sm font-semibold text-gray-900">
+                        <span className="block text-sm font-semibold text-fg">
                             {t('This module is a single page')}
                         </span>
-                        <span className="block text-xs text-gray-500">
+                        <span className="block text-xs text-fg-muted">
                             {t('One entry rather than a list of them — About, Contact. Opens straight into its content, with no list to manage.')}
                         </span>
                     </span>
@@ -145,12 +145,12 @@ export default function ModuleBuilder({ onCreated, onCancel }) {
                 onRemove={removeField}
             />
 
-            <div className="flex items-center justify-end gap-3 pt-6 border-t border-gray-200">
+            <div className="flex items-center justify-end gap-3 pt-6 border-t border-line">
                 {onCancel && (
                     <button
                         type="button"
                         onClick={onCancel}
-                        className="inline-flex items-center justify-center rounded-lg bg-white px-4 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 transition-all"
+                        className="inline-flex items-center justify-center rounded-lg bg-surface px-4 py-2 text-sm font-semibold text-fg shadow-sm ring-1 ring-inset ring-line-strong hover:bg-surface-muted transition-all"
                     >
                         {t('Cancel')}
                     </button>
@@ -158,7 +158,7 @@ export default function ModuleBuilder({ onCreated, onCancel }) {
                 <button
                     type="submit"
                     disabled={submitting}
-                    className="inline-flex items-center justify-center rounded-lg bg-indigo-600 px-5 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:opacity-50 transition-all"
+                    className="inline-flex items-center justify-center rounded-lg bg-accent px-5 py-2 text-sm font-semibold text-accent-fg shadow-sm hover:bg-accent-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring-accent disabled:opacity-50 transition-all"
                 >
                     {submitting ? t('Saving…') : t('Create module')}
                 </button>

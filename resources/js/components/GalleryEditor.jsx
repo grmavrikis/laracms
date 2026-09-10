@@ -78,7 +78,7 @@ export default function GalleryEditor({ value, onChange, languages = [], onError
     };
 
     const buttonClass = 'inline-flex items-center justify-center rounded-md px-2 py-1 text-xs font-medium '
-        + 'text-gray-600 ring-1 ring-inset ring-gray-300 bg-white hover:bg-gray-50 '
+        + 'text-fg-muted ring-1 ring-inset ring-line-strong bg-surface hover:bg-surface-muted '
         + 'disabled:opacity-30 disabled:cursor-not-allowed transition-colors';
 
     return (
@@ -90,15 +90,15 @@ export default function GalleryEditor({ value, onChange, languages = [], onError
                 multiple
                 disabled={uploading}
                 onChange={handleFiles}
-                className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 cursor-pointer transition-all disabled:opacity-50"
+                className="block w-full text-sm text-fg-muted file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-accent-soft file:text-accent-text hover:file:bg-accent-soft cursor-pointer transition-all disabled:opacity-50"
             />
 
             {uploading && (
-                <p className="text-xs text-gray-500">{t('Uploading…')}</p>
+                <p className="text-xs text-fg-muted">{t('Uploading…')}</p>
             )}
 
             {items.length === 0 ? (
-                <p className="text-sm text-gray-400">{t('No images yet.')}</p>
+                <p className="text-sm text-fg-subtle">{t('No images yet.')}</p>
             ) : (
                 <ul className="space-y-3">
                     {items.map((item, index) => (
@@ -111,9 +111,9 @@ export default function GalleryEditor({ value, onChange, languages = [], onError
                             // under its own generated name, so two images in
                             // one gallery cannot share a URL.
                             key={item.url}
-                            className="flex gap-4 rounded-lg border border-gray-200 bg-gray-50/50 p-3"
+                            className="flex gap-4 rounded-lg border border-line bg-surface-muted/50 p-3"
                         >
-                            <div className="h-20 w-20 shrink-0 overflow-hidden rounded-md border border-gray-200 bg-white">
+                            <div className="h-20 w-20 shrink-0 overflow-hidden rounded-md border border-line bg-surface">
                                 <img
                                     src={item.url}
                                     alt=""
@@ -128,7 +128,7 @@ export default function GalleryEditor({ value, onChange, languages = [], onError
 
                                     return (
                                         <div key={language.id} className="flex items-center gap-2">
-                                            <span className="w-8 shrink-0 text-xs font-semibold uppercase text-gray-500">
+                                            <span className="w-8 shrink-0 text-xs font-semibold uppercase text-fg-muted">
                                                 {code}
                                             </span>
                                             <input
@@ -136,7 +136,7 @@ export default function GalleryEditor({ value, onChange, languages = [], onError
                                                 value={altFor(item, code)}
                                                 onChange={(e) => onChange(withAlt(items, index, code, e.target.value))}
                                                 placeholder={t('Alt text — what the photo shows')}
-                                                className="block w-full rounded-md border-0 py-1.5 px-3 text-sm text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 outline-none bg-white"
+                                                className="block w-full rounded-md border-0 py-1.5 px-3 text-sm text-fg shadow-sm ring-1 ring-inset ring-line-strong placeholder:text-fg-subtle focus:ring-2 focus:ring-inset focus:ring-accent outline-none bg-surface"
                                             />
                                         </div>
                                     );
@@ -165,7 +165,7 @@ export default function GalleryEditor({ value, onChange, languages = [], onError
                                 <button
                                     type="button"
                                     onClick={() => onChange(withoutItem(items, index))}
-                                    className={`${buttonClass} hover:text-red-600 hover:ring-red-300`}
+                                    className={`${buttonClass} hover:text-danger-text hover:ring-danger/40`}
                                     title={t('Remove')}
                                 >
                                     ✕

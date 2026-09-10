@@ -1205,7 +1205,54 @@ that is PHP.
   already exists and `users.theme` is where this belongs, but that is a
   migration.
 
-**Where it stands.** The ordered list is twenty items; five are done.
+#### The twenty items, in order
+
+Each stands alone and is verifiable on its own. **Items 1–7 change nothing a
+person can see** — they are the layer that makes 8–20 cheap. From item 8 onward
+every screen moves.
+
+| # | Item | Done when |
+|---|---|---|
+| 1 | Component test harness | ✅ a `Login` render test passes and the existing suite still does |
+| 2 | `lucide-react` | ✅ an icon renders and the `npm run build` delta is measured and written down |
+| 3 | The token layer + anti-flash script | ✅ flipping `data-theme` repaints, and a dark hard-reload shows no white flash |
+| 4 | `lib/theme.js`, `useTheme`, `ThemeMenu` | ✅ the accent survives a reload; read/apply/fallback covered |
+| 5 | `lib/router.js`, `routes.js`, `useRoute` | ✅ an entry address is pinned in both directions |
+| ~~6~~ | ~~`ui/` batch 1~~ — **folded into 8**, see below | |
+| ~~7~~ | ~~`ui/` batch 2~~ — **folded into 8**, see below | |
+| 8 | `Shell` / `Sidebar` / `Topbar`, wired to the router | ✅ every existing screen has a URL and a reload lands on it |
+| 9 | Login, two panels | a 401 still reads "Wrong email or password." under test |
+| 10 | `ModulesList` restyle | real modules render; a singleton links straight to its fields |
+| 11 | `EntriesTable` restyle | the reorder arrows and pagination still work **live** |
+| 12 | `EntriesManager` split into two screens | `/admin/content/rooms/12` loads the real entry after a cold reload |
+| 13 | `EntryForm` step 1 — `FieldInput` extracted | every field type still saves, against real data |
+| 14 | `EntryForm` step 2 — three blocks, two columns | the right column holds only status, date and slug, and a save round-trips |
+| 15 | Gallery + RichText restyle | an upload and a highlight are readable in **both** themes |
+| 16 | The four Module screens restyle | a rename still writes redirects (#69) |
+| 17 | Enquiries + Settings restyle | grouped settings save |
+| 18 | Dashboard + Analytics, static | both wear a visible marker and a TODO **naming** the endpoint they want |
+| 19 | Static sort / filter / bulk bar on the listing | same |
+| 20 | Catalogue + docs sweep | `php artisan test` green, and the three docs updated |
+
+Items 18 and 19 are the ones the rule at the top of this item governs: they are
+drawn with static data because the listing endpoint takes `?page` and nothing
+else, and making them real is PHP.
+
+> **Amendment, 2026-09-10: items 6 and 7 are folded into 8.** They asked for
+> thirteen `ui/` primitives, built and tested, **that no screen imported yet** —
+> which is designing for imagined needs. This repo has already answered that
+> question once, in Decisions (2026-09-05) about the generator: *"written
+> **before** two of them exist automates what was imagined rather than what
+> hurt. Write bookings and invoicing by hand first, then decide."* The same
+> shape.
+>
+> Instead: the Shell extracts only what it actually needs, and each screen after
+> it extracts what it lacks. A pattern's real shape is visible on its **second**
+> use, not before its first. The risk this accepts is drift between hand-rolled
+> components — mitigated because item 3's tokens already hold the line where
+> drift is most visible, which is colour.
+
+**Where it stands.** Six are done.
 
 - **1. Component test harness — DONE.** See #94, which this closed. It found two
   defects within ten minutes of existing, one of them a test file that no
@@ -1327,6 +1374,51 @@ that is PHP.
   `RouterProvider` is a provider from the start, for the reason `ThemeProvider`
   had to become one: the sidebar navigates and the content area renders the
   result, so per-component state would move the rail and nothing else.
+- **8. The Shell — DONE, and the first item anyone can see.** `layout/Shell`,
+  `Sidebar`, `Topbar`, with `app.jsx` no longer holding a `view` in state: the
+  route decides the screen. Every existing screen has an address, and typing
+  `/admin/content/rooms` lands on it.
+
+  **Sidebar items are anchors with real `href`s**, not buttons. Middle-click,
+  ctrl-click and "copy link address" all work on one and none work on the
+  other, and the click handler stands aside for every modifier so the browser
+  does its own thing. A module shows its **initial in a small square** rather
+  than an icon: six identical glyphs in a collapsed rail tell you nothing.
+
+  `lib/moduleStore.js` is `languageStore` **with invalidation**, and the
+  difference is the point. Languages change only when the agency runs an INSERT
+  by hand, so that store caches for the life of the page. Modules are created
+  and renamed *from the panel*, and since this item they are also the
+  navigation — so a create that left the rail stale would be a section the
+  client just made and cannot reach.
+
+  **A colour sweep came with it, and it was not optional.** 415 hardcoded
+  palette classes across thirteen components became semantic tokens. This is
+  not the restyle — no layout or markup changed — it is that the panel was
+  **unreadable in dark mode**: `text-gray-900` on a dark ground is black on
+  black, so the sign-in card was near-white text on white and the entries
+  heading was invisible. The defect arrived with item 3 and item 8 is merely
+  what put a person in front of it.
+
+  Three things the sweep turned up:
+
+  - `bg-indigo-150` **is not a Tailwind class**. It had never painted anything,
+    so that hover state has been dead since it was written.
+  - White on a filled button is wrong under the dark theme, where the accent is
+    a `400` and its foreground is near-black — so `text-white` became
+    `text-accent-fg`, which is the token that already knew.
+  - The sign-in form had no `autocomplete` on either field, so a password
+    manager could not fill it. WCAG 2.2 asks for it, and a client who cannot
+    use their manager picks a worse password.
+
+  Verified live in **both** themes: the rail stays dark in light mode, which is
+  the design being copied, and the accent is emerald-700 there and emerald-400
+  under dark.
+
+  Not yet real: `entryCreate` and `entryEdit` resolve to the entries screen,
+  because `EntriesManager` still owns create and edit as internal state.
+  Nothing in the panel produces those addresses, so they are unreachable except
+  by typing one. Item 12 splits that component and makes them true.
 
 ### 116. The panel's language decides which content language it opens on — DONE (CHANGELOG §32)
 

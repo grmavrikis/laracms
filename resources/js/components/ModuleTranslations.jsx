@@ -24,7 +24,7 @@ import { t } from '../lib/i18n';
 export default function ModuleTranslations({ languages, value, onChange }) {
     return (
         <div className="space-y-4">
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-fg-muted">
                 {t('A section needs a name in each language it should appear in. Leave a language blank and the section simply has no page in it.')}
             </p>
 
@@ -32,13 +32,13 @@ export default function ModuleTranslations({ languages, value, onChange }) {
                 const code = getLangCode(language);
 
                 return (
-                    <div key={language.id ?? code} className="grid grid-cols-1 sm:grid-cols-2 gap-4 rounded-xl border border-gray-200 p-4">
+                    <div key={language.id ?? code} className="grid grid-cols-1 sm:grid-cols-2 gap-4 rounded-xl border border-line p-4">
                         <div>
-                            <label className="flex items-center gap-2 text-sm font-semibold text-gray-900 mb-1.5">
-                                <span className="inline-flex h-5 min-w-8 items-center justify-center rounded bg-gray-100 px-1.5 text-xs font-bold uppercase text-gray-600">{code}</span>
+                            <label className="flex items-center gap-2 text-sm font-semibold text-fg mb-1.5">
+                                <span className="inline-flex h-5 min-w-8 items-center justify-center rounded bg-surface-muted px-1.5 text-xs font-bold uppercase text-fg-muted">{code}</span>
                                 {t('Module name')}
                                 {!language.is_active && (
-                                    <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-800">
+                                    <span className="rounded bg-warning-soft px-1.5 py-0.5 text-xs font-medium text-warning-text">
                                         {t('not published yet')}
                                     </span>
                                 )}
@@ -48,21 +48,21 @@ export default function ModuleTranslations({ languages, value, onChange }) {
                                 placeholder={t('e.g. Rooms')}
                                 value={value[code]?.name ?? ''}
                                 onChange={(e) => onChange(code, 'name', e.target.value)}
-                                className="w-full rounded-lg border border-gray-300 px-3.5 py-2 text-sm text-gray-900 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                                className="w-full rounded-lg border border-line-strong px-3.5 py-2 text-sm text-fg shadow-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20"
                             />
                         </div>
                         <div>
-                            <label className="block text-sm font-semibold text-gray-900 mb-1.5">
-                                {t('Address')} <span className="font-normal text-gray-500">{t('(optional)')}</span>
+                            <label className="block text-sm font-semibold text-fg mb-1.5">
+                                {t('Address')} <span className="font-normal text-fg-muted">{t('(optional)')}</span>
                             </label>
                             <input
                                 type="text"
                                 placeholder={t('generated from the name')}
                                 value={value[code]?.slug ?? ''}
                                 onChange={(e) => onChange(code, 'slug', e.target.value)}
-                                className="w-full rounded-lg border border-gray-300 px-3.5 py-2 text-sm font-mono text-gray-900 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                                className="w-full rounded-lg border border-line-strong px-3.5 py-2 text-sm font-mono text-fg shadow-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20"
                             />
-                            <p className="mt-1.5 text-xs text-gray-500">/{code}/{(value[code]?.slug ?? '') || t('generated from the name')}</p>
+                            <p className="mt-1.5 text-xs text-fg-muted">/{code}/{(value[code]?.slug ?? '') || t('generated from the name')}</p>
                         </div>
                     </div>
                 );
