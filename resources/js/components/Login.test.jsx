@@ -129,13 +129,18 @@ describe('Login', () => {
             .toHaveAttribute('title', 'Not available yet.');
     });
 
-    it('explains the reset flow rather than doing nothing when asked for it', async () => {
+    // An answer to a reasonable question, not a rejection - so `status` rather
+    // than `alert`, and the neutral surface rather than the danger one. In the
+    // refusal banner it read as "you did something wrong" to somebody already
+    // unsure whether they had mistyped their password.
+    it('explains the reset flow without dressing it as a failure', async () => {
         const user = userEvent.setup();
         render(<Login onLogin={() => {}} />);
 
         await user.click(screen.getByRole('button', { name: 'Forgot password?' }));
 
-        expect(await screen.findByRole('alert')).toHaveTextContent(/not set up yet/i);
+        expect(await screen.findByRole('status')).toHaveTextContent(/not set up yet/i);
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     });
 
     // The checkbox is a real control that remembers being ticked, so it does

@@ -26,8 +26,13 @@ import useRoute from './hooks/useRoute';
  * already work.
  */
 function ByModuleSlug({ slug, children }) {
-    const [module, setModule] = useState(null);
-    const [missing, setMissing] = useState(false);
+    // `null` while we do not know yet, which is a different thing from
+    // `missing`. Keyed on the slug so a second module cannot inherit the
+    // first's answer - without the reset, clicking Rooms then Facilities
+    // rendered Rooms' screen under the Facilities address until the lookup
+    // resolved, and `EntriesManager` fetched for the wrong module meanwhile.
+    const [state, setState] = useState({ slug: null, module: null, failed: false });
+    const [attempt, setAttempt] = useState(0);
 
     useEffect(() => {
         let current = true;
@@ -37,28 +42,57 @@ function ByModuleSlug({ slug, children }) {
                 .then((list) => {
                     if (!current) return;
 
-                    const found = list.find((row) => row.slug === slug) ?? null;
-
-                    setModule(found);
-                    setMissing(found === null);
+                    setState({
+                        slug,
+                        module: list.find((row) => row.slug === slug) ?? null,
+                        failed: false,
+                    });
                 })
-                .catch(() => current && setMissing(true));
+                // **Not `missing`.** A dropped request is not a deleted
+                // section, and telling somebody their Rooms are gone because
+                // the wifi blinked is the most alarming thing this panel could
+                // say to a person who has just spent an afternoon filling it.
+                .catch(() => current && setState({ slug, module: null, failed: true }));
         };
 
         find();
 
-        return onModulesChanged(find);
-    }, [slug]);
+        const stop = onModulesChanged(find);
 
-    if (missing) {
+        // Both, and the second is the point: returning only `stop` left
+        // `current` permanently true, so every guard above it was inert and a
+        // resolve after unmount still set state.
+        return () => {
+            current = false;
+            stop();
+        };
+    }, [slug, attempt]);
+
+    if (state.failed) {
+        return (
+            <div className="text-sm">
+                <p className="text-danger-text">{t('Could not load the modules.')}</p>
+                <button
+                    type="button"
+                    onClick={() => setAttempt((n) => n + 1)}
+                    className="mt-2 cursor-pointer font-medium text-accent-text underline-offset-2 hover:underline"
+                >
+                    {t('Try again')}
+                </button>
+            </div>
+        );
+    }
+
+    // Answered for *this* slug, and there was nothing.
+    if (state.slug === slug && state.module === null) {
         return <p className="text-sm text-fg-muted">{t('That section no longer exists.')}</p>;
     }
 
-    if (!module) {
+    if (state.slug !== slug || !state.module) {
         return <p className="text-sm text-fg-muted">{t('Loading…')}</p>;
     }
 
-    return children(module);
+    return children(state.module);
 }
 
 /**
@@ -71,70 +105,85 @@ function ByModuleSlug({ slug, children }) {
 function Placeholder({ title }) {
     return (
         <div className="rounded-xl border border-dashed border-line-strong p-12 text-center">
-            <h2 className="text-lg font-semibold text-fg">{title}</h2>
+            {/* `h1`, not `h2`: nothing in the Shell renders one - the Topbar has
+                no heading and the rail's brand is a span - so starting at level
+                two leaves the document with no top-level heading at all, and
+                "skip to the main heading" lands nowhere. */}
+            <h1 className="text-lg font-semibold text-fg">{title}</h1>
             <p className="mt-2 text-sm text-fg-muted">{t('This screen is not built yet.')}</p>
         </div>
     );
 }
 
+// `entryCreate` and `entryEdit` resolve here too. Nothing in the panel produces
+// those addresses yet - `EntriesManager` still owns create and edit as internal
+// state - so they are unreachable except by typing one. Item 12 splits that
+// component and makes them real.
+const entriesScreen = ({ params, navigate }) => (
+    <ByModuleSlug slug={params.module}>
+        {(module) => <EntriesManager module={module} onBack={() => navigate('modules')} />}
+    </ByModuleSlug>
+);
+
+/**
+ * Every route name, and what it renders.
+ *
+ * A lookup rather than a chain of `if`s that ended in a default. That default
+ * returned the dashboard placeholder, so a route added to `routes.js` without a
+ * screen here rendered something that looked deliberate and was wrong, with
+ * nothing in the console. Missing from this object is now a throw, which the
+ * error boundary turns into a message - loud is affordable since #117 item 8.
+ */
+const SCREENS = {
+    dashboard: () => <Placeholder title={t('Dashboard')} />,
+    analytics: () => <Placeholder title={t('Analytics')} />,
+
+    enquiries: ({ navigate }) => <EnquiriesManager onBack={() => navigate('dashboard')} />,
+    settings: ({ navigate }) => <SettingsManager onBack={() => navigate('dashboard')} />,
+
+    modules: ({ navigate }) => (
+        <ModulesList
+            onSelectModule={(mod) => navigate('entries', { module: mod.slug })}
+            onCreateModule={() => navigate('moduleCreate')}
+            onTranslateModule={(mod) => navigate('moduleEdit', { module: mod.slug })}
+        />
+    ),
+
+    moduleCreate: ({ navigate }) => (
+        <ModuleBuilder
+            // The rail lists the modules, so one that has just been created has
+            // to appear in it without a reload.
+            onCreated={() => { forgetModules(); navigate('modules'); }}
+            onCancel={() => navigate('modules')}
+        />
+    ),
+
+    moduleEdit: ({ params, navigate }) => (
+        <ByModuleSlug slug={params.module}>
+            {(module) => (
+                <ModuleTranslator
+                    module={module}
+                    onSaved={() => { forgetModules(); navigate('modules'); }}
+                    onCancel={() => navigate('modules')}
+                />
+            )}
+        </ByModuleSlug>
+    ),
+
+    entries: entriesScreen,
+    entryCreate: entriesScreen,
+    entryEdit: entriesScreen,
+};
+
 function Screen() {
     const [route, navigate] = useRoute();
-    const { name, params } = route;
+    const render = SCREENS[route.name];
 
-    if (name === 'dashboard') return <Placeholder title={t('Dashboard')} />;
-    if (name === 'analytics') return <Placeholder title={t('Analytics')} />;
-
-    if (name === 'enquiries') return <EnquiriesManager onBack={() => navigate('dashboard')} />;
-    if (name === 'settings') return <SettingsManager onBack={() => navigate('dashboard')} />;
-
-    if (name === 'modules') {
-        return (
-            <ModulesList
-                onSelectModule={(mod) => navigate('entries', { module: mod.slug })}
-                onCreateModule={() => navigate('moduleCreate')}
-                onTranslateModule={(mod) => navigate('moduleEdit', { module: mod.slug })}
-            />
-        );
+    if (!render) {
+        throw new Error(`No screen is mapped to the route "${route.name}".`);
     }
 
-    if (name === 'moduleCreate') {
-        return (
-            <ModuleBuilder
-                // The rail lists the modules, so one that has just been created
-                // has to appear in it without a reload.
-                onCreated={() => { forgetModules(); navigate('modules'); }}
-                onCancel={() => navigate('modules')}
-            />
-        );
-    }
-
-    if (name === 'moduleEdit') {
-        return (
-            <ByModuleSlug slug={params.module}>
-                {(module) => (
-                    <ModuleTranslator
-                        module={module}
-                        onSaved={() => { forgetModules(); navigate('modules'); }}
-                        onCancel={() => navigate('modules')}
-                    />
-                )}
-            </ByModuleSlug>
-        );
-    }
-
-    // `entryCreate` and `entryEdit` resolve here too. Nothing in the panel
-    // produces those addresses yet - `EntriesManager` still owns create and
-    // edit as internal state - so they are unreachable except by typing one.
-    // Item 12 splits that component and makes them real.
-    if (name === 'entries' || name === 'entryCreate' || name === 'entryEdit') {
-        return (
-            <ByModuleSlug slug={params.module}>
-                {(module) => <EntriesManager module={module} onBack={() => navigate('modules')} />}
-            </ByModuleSlug>
-        );
-    }
-
-    return <Placeholder title={t('Dashboard')} />;
+    return render({ params: route.params, navigate });
 }
 
 export default function App() {
@@ -180,6 +229,12 @@ if (rootElement) {
     // exactly where it is not harmless is while working on the panel.
     rootElement._adminRoot ??= createRoot(rootElement);
 
+    // The providers wrap the **mount** rather than `App`'s return, and that is
+    // load-bearing rather than tidy: `App` leaves early while loading and again
+    // when nobody is signed in, so wrapping inside it would put the sign-in
+    // screen outside the theme and outside the router. Moving them in looks
+    // neater and silently breaks that screen.
+    //
     // The boundary is **outside** the providers, so it still renders when one
     // of them is what threw. Inside, a provider failing to mount would take the
     // boundary down with it and produce the blank page it exists to prevent.

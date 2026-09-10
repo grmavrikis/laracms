@@ -1437,6 +1437,22 @@ else, and making them real is PHP.
   the design being copied, and the accent is emerald-700 there and emerald-400
   under dark.
 
+  **A review then found the rail had no breakpoint at all.** It was a flex
+  child fixed at 256px at every width, so on a 375px phone it left 119px for
+  the screen - every page in the panel unusable on a telephone, which is where
+  an accommodation owner checks an enquiry. Below `lg` it is now a drawer:
+  `fixed` and translated out of view, a hamburger in the Topbar, a backdrop, a
+  close button, Escape, and it shuts itself when the route changes so following
+  a link does not leave it hanging open. Verified at 375 and at 1280.
+
+  Two more from the same review. `ByModuleSlug` reported **a failed request as
+  "That section no longer exists."**, which tells a client their Rooms are gone
+  because the wifi blinked. And the rail's section headings were loose
+  paragraphs above unrelated lists, so the grouping a comment claimed was "real
+  to a screen reader" was visual only - they are `h2`s with `aria-labelledby`
+  now, which is what lets a reader tell the client's content from the agency's
+  tooling.
+
   Not yet real: `entryCreate` and `entryEdit` resolve to the entries screen,
   because `EntriesManager` still owns create and edit as internal state.
   Nothing in the panel produces those addresses, so they are unreachable except

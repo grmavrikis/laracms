@@ -20,11 +20,14 @@ export default function Login({ onLogin }) {
     // Drawn only - see the block beside the checkbox, and TASKS.md #118.
     const [rememberMe, setRememberMe] = useState(false);
     const [errors, setErrors] = useState([]);
+    // Informational, and deliberately not the same channel as a refusal.
+    const [notice, setNotice] = useState(null);
     const [submitting, setSubmitting] = useState(false);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         setErrors([]);
+        setNotice(null);
         setSubmitting(true);
 
         try {
@@ -110,6 +113,18 @@ export default function Login({ onLogin }) {
                             className="mt-6 space-y-1 rounded-lg border border-danger/30 bg-danger-soft p-3 text-sm text-danger-text"
                         >
                             {errors.map((message, i) => <p key={i}>{message}</p>)}
+                        </div>
+                    )}
+
+                    {notice && (
+                        // `status`, not `alert`: this is an answer to a
+                        // question, not a rejection, and it is painted in the
+                        // neutral surface rather than the danger one.
+                        <div
+                            role="status"
+                            className="mt-6 rounded-lg border border-line bg-surface-muted p-3 text-sm text-fg-muted"
+                        >
+                            {notice}
                         </div>
                     )}
 
@@ -204,7 +219,13 @@ export default function Login({ onLogin }) {
                             <button
                                 type="button"
                                 title={t('Not available yet.')}
-                                onClick={() => setErrors([t('Password reset is not set up yet. Ask your developer to sign you in.')])}
+                                // Its own state, not `errors`. Rendered through
+                                // the refusal banner this was red, alarming and
+                                // announced as an alert - so somebody already
+                                // unsure whether they mistyped their password
+                                // was shown what looks exactly like a rejection
+                                // for asking a reasonable question.
+                                onClick={() => { setErrors([]); setNotice(t('Password reset is not set up yet. Ask your developer to sign you in.')); }}
                                 className="cursor-pointer text-sm font-medium text-accent-text underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring-accent"
                             >
                                 {t('Forgot password?')}

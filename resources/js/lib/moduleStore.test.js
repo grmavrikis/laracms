@@ -5,12 +5,24 @@ import { loadModules, forgetModules, onModulesChanged } from './moduleStore';
 vi.mock('./api', () => ({ default: { get: vi.fn() } }));
 
 describe('moduleStore', () => {
+    // The listener set is module-level and outlives each test, so a
+    // subscription left behind is still called by the next test's
+    // `forgetModules()`. Harmless today only because the mocks are cleared
+    // straight afterwards - a test asserting "nothing was notified" would fail
+    // for a reason that has nothing to do with the code.
+    const subscriptions = [];
+    const subscribe = (listener) => {
+        subscriptions.push(onModulesChanged(listener));
+    };
+
     beforeEach(() => {
         forgetModules();
         vi.clearAllMocks();
     });
 
     afterEach(() => {
+        while (subscriptions.length > 0) subscriptions.pop()();
+
         forgetModules();
     });
 
@@ -58,8 +70,8 @@ describe('moduleStore', () => {
         const sidebar = vi.fn();
         const list = vi.fn();
 
-        onModulesChanged(sidebar);
-        onModulesChanged(list);
+        subscribe(sidebar);
+        subscribe(list);
 
         forgetModules();
 
@@ -84,7 +96,7 @@ describe('moduleStore', () => {
         let stopFirst;
 
         stopFirst = onModulesChanged(() => stopFirst());
-        onModulesChanged(second);
+        subscribe(second);
 
         expect(() => forgetModules()).not.toThrow();
         expect(second).toHaveBeenCalledTimes(1);

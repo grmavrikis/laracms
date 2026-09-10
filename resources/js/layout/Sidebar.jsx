@@ -7,6 +7,7 @@ import {
     Settings,
     PanelLeftClose,
     PanelLeftOpen,
+    X,
 } from 'lucide-react';
 import { t, locale } from '../lib/i18n';
 import { contentLangCode } from '../lib/languages';
@@ -15,6 +16,7 @@ import { loadModules, onModulesChanged } from '../lib/moduleStore';
 import { moduleNameIn } from '../lib/modules';
 import { hrefFor } from '../routes';
 import useRoute from '../hooks/useRoute';
+import useMediaQuery from '../hooks/useMediaQuery';
 import IconButton from '../ui/IconButton';
 
 const STORAGE_KEY = 'miniCms.sidebar';
@@ -97,25 +99,40 @@ function SidebarLink({ href, icon: Icon, letter, label, active, collapsed, onNav
     );
 }
 
-function Section({ title, collapsed, children }) {
+function Section({ id, title, collapsed, children }) {
     return (
         <div className="px-3 py-2">
-            {/* The heading is hidden when collapsed rather than removed: the
-                grouping is still real to a screen reader, which does not care
-                how wide the rail is. */}
-            <p className={`mb-1 px-3 text-[11px] font-semibold uppercase tracking-wider text-sidebar-fg-muted/70 ${
-                collapsed ? 'sr-only' : ''
-            }`}>
+            {/* `h2` + `aria-labelledby`, not a loose paragraph above a list.
+                It said in a comment that the grouping was "real to a screen
+                reader" and it was not: nothing associated the two, so the
+                whole rail read as one flat list of links with three stray
+                words in it - and a reader could not tell Rooms, which is the
+                client's content, from Modules, which is ours. Collapsed it was
+                worse, because the hidden heading was then the only marker and
+                it pointed at nothing. */}
+            <h2
+                id={id}
+                className={`mb-1 px-3 text-[11px] font-semibold uppercase tracking-wider text-sidebar-fg-muted/70 ${
+                    collapsed ? 'sr-only' : ''
+                }`}
+            >
                 {title}
-            </p>
-            <ul className="space-y-0.5">{children}</ul>
+            </h2>
+            <ul aria-labelledby={id} className="space-y-0.5">{children}</ul>
         </div>
     );
 }
 
-export default function Sidebar() {
+export default function Sidebar({ open = false, onClose }) {
     const [route, navigate] = useRoute();
     const [collapsed, setCollapsed] = useState(readCollapsed);
+
+    // Collapsing is a desktop idea. On a phone the rail is a drawer that is
+    // either shown or not, so "icons only" would be a second, narrower drawer
+    // for no reason - and the control that un-collapses it lives inside the
+    // thing it collapsed.
+    const isDesktop = useMediaQuery('(min-width: 1024px)');
+    const rail = collapsed && isDesktop;
     const [modules, setModules] = useState([]);
     const [languages, setLanguages] = useState([]);
     const [modulesFailed, setModulesFailed] = useState(false);
@@ -161,35 +178,49 @@ export default function Sidebar() {
 
     return (
         <aside
-            className={`flex h-screen shrink-0 flex-col border-r border-sidebar-line bg-sidebar transition-[width] duration-200 ${
-                collapsed ? 'w-[68px]' : 'w-64'
-            }`}
+            // Fixed and slid out of view below `lg`; an ordinary flex child
+            // above it. `lg:translate-x-0` unconditionally, so the drawer's
+            // closed position can never leak into the desktop layout.
+            className={`fixed inset-y-0 left-0 z-40 flex w-64 shrink-0 flex-col border-r border-sidebar-line bg-sidebar transition-transform duration-200 lg:static lg:translate-x-0 lg:transition-[width] ${
+                open ? 'translate-x-0' : '-translate-x-full'
+            } ${rail ? 'lg:w-[68px]' : 'lg:w-64'}`}
         >
             <div className={`flex h-14 shrink-0 items-center gap-2 border-b border-sidebar-line px-3 ${
-                collapsed ? 'justify-center' : ''
+                rail ? 'justify-center' : ''
             }`}>
-                {!collapsed && (
+                {!rail && (
                     <span className="flex-1 truncate px-2 font-semibold text-sidebar-fg">
                         {t('Admin Panel')}
                     </span>
                 )}
+
+                {/* Two different controls at two widths: a drawer closes, a
+                    rail collapses. Neither is meaningful at the other's size. */}
                 <IconButton
-                    icon={collapsed ? PanelLeftOpen : PanelLeftClose}
-                    label={collapsed ? t('Expand menu') : t('Collapse menu')}
+                    icon={X}
+                    label={t('Close menu')}
+                    tone="sidebar"
+                    onClick={onClose}
+                    className="lg:hidden"
+                />
+                <IconButton
+                    icon={rail ? PanelLeftOpen : PanelLeftClose}
+                    label={rail ? t('Expand menu') : t('Collapse menu')}
                     tone="sidebar"
                     onClick={toggle}
-                    aria-expanded={!collapsed}
+                    aria-expanded={!rail}
+                    className="hidden lg:inline-flex"
                 />
             </div>
 
             <nav aria-label={t('Sections')} className="flex-1 overflow-y-auto py-2">
-                <Section title={t('Overview')} collapsed={collapsed}>
+                <Section id="nav-overview" title={t('Overview')} collapsed={rail}>
                     <SidebarLink
                         href={hrefFor('dashboard')}
                         icon={LayoutDashboard}
                         label={t('Dashboard')}
                         active={isAt('dashboard')}
-                        collapsed={collapsed}
+                        collapsed={rail}
                         onNavigate={() => navigate('dashboard')}
                     />
                     <SidebarLink
@@ -197,13 +228,13 @@ export default function Sidebar() {
                         icon={ChartNoAxesColumn}
                         label={t('Analytics')}
                         active={isAt('analytics')}
-                        collapsed={collapsed}
+                        collapsed={rail}
                         onNavigate={() => navigate('analytics')}
                     />
                 </Section>
 
-                <Section title={t('Content')} collapsed={collapsed}>
-                    {modulesFailed && !collapsed && (
+                <Section id="nav-content" title={t('Content')} collapsed={rail}>
+                    {modulesFailed && !rail && (
                         <li className="px-3 py-2 text-xs text-danger-text">
                             {t('Could not load the modules.')}
                         </li>
@@ -220,7 +251,7 @@ export default function Sidebar() {
                                 active={isAt('entries', { module: module.slug })
                                     || isAt('entryEdit', { module: module.slug })
                                     || isAt('entryCreate', { module: module.slug })}
-                                collapsed={collapsed}
+                                collapsed={rail}
                                 onNavigate={() => navigate('entries', { module: module.slug })}
                             />
                         );
@@ -233,13 +264,13 @@ export default function Sidebar() {
                     offers "Modules". */}
                 <div className="mx-3 my-2 border-t border-sidebar-line" />
 
-                <Section title={t('Manage')} collapsed={collapsed}>
+                <Section id="nav-manage" title={t('Manage')} collapsed={rail}>
                     <SidebarLink
                         href={hrefFor('enquiries')}
                         icon={Inbox}
                         label={t('Enquiries')}
                         active={isAt('enquiries')}
-                        collapsed={collapsed}
+                        collapsed={rail}
                         onNavigate={() => navigate('enquiries')}
                     />
                     <SidebarLink
@@ -247,7 +278,7 @@ export default function Sidebar() {
                         icon={Boxes}
                         label={t('Modules')}
                         active={isAt('modules') || isAt('moduleCreate') || route.name === 'moduleEdit'}
-                        collapsed={collapsed}
+                        collapsed={rail}
                         onNavigate={() => navigate('modules')}
                     />
                     <SidebarLink
@@ -255,7 +286,7 @@ export default function Sidebar() {
                         icon={Settings}
                         label={t('Settings')}
                         active={isAt('settings')}
-                        collapsed={collapsed}
+                        collapsed={rail}
                         onNavigate={() => navigate('settings')}
                     />
                 </Section>

@@ -1,22 +1,50 @@
 import { useState } from 'react';
-import { LogOut } from 'lucide-react';
+import { LogOut, Menu } from 'lucide-react';
 import api from '../lib/api';
 import { t, locale, locales } from '../lib/i18n';
 import { errorSummary } from '../lib/apiErrors';
 import ThemeMenu from './ThemeMenu';
+import IconButton from '../ui/IconButton';
 
-export default function Topbar({ user, onLoggedOut }) {
+export default function Topbar({ user, onLoggedOut, onOpenMenu }) {
     const [localeError, setLocaleError] = useState(null);
+    const [error, setError] = useState(null);
+    const [leaving, setLeaving] = useState(false);
 
+    // Unguarded, this awaited the request and then called `onLoggedOut`. A
+    // failure - offline, an expired session answering 419 - rejected into
+    // nothing: no message, no sign-out, a button that looked broken. On a
+    // shared machine somebody would walk away believing it had worked.
     const handleLogout = async () => {
-        await api.post('/logout');
-        onLoggedOut();
+        setError(null);
+        setLeaving(true);
+
+        try {
+            await api.post('/logout');
+            onLoggedOut();
+        } catch (err) {
+            console.error(err);
+            setError(errorSummary(err, t('Could not sign you out.'))[0]);
+            setLeaving(false);
+        }
     };
 
     return (
-        <header className="flex h-14 shrink-0 items-center justify-end gap-2 border-b border-line bg-surface px-4">
-            {localeError && (
-                <span role="alert" className="text-xs text-danger-text">{localeError}</span>
+        <header className="flex h-14 shrink-0 items-center gap-2 border-b border-line bg-surface px-3 sm:px-4">
+            {/* Below `lg` the rail is a drawer and this is the only way in. */}
+            <IconButton
+                icon={Menu}
+                label={t('Open menu')}
+                onClick={onOpenMenu}
+                className="lg:hidden"
+            />
+
+            <div className="flex-1" />
+
+            {(localeError || error) && (
+                <span role="alert" className="hidden text-xs text-danger-text sm:inline">
+                    {localeError || error}
+                </span>
             )}
 
             {/* Moved here from the old chrome unchanged (#96). The panel's own
@@ -71,10 +99,11 @@ export default function Topbar({ user, onLoggedOut }) {
             <button
                 type="button"
                 onClick={handleLogout}
-                className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium text-fg-muted transition-colors hover:bg-danger-soft hover:text-danger-text focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring-accent"
+                disabled={leaving}
+                className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium text-fg-muted transition-colors hover:bg-danger-soft hover:text-danger-text focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring-accent disabled:cursor-not-allowed disabled:opacity-60"
             >
                 <LogOut className="h-4 w-4" aria-hidden="true" />
-                {t('Logout')}
+                <span className="hidden sm:inline">{t('Logout')}</span>
             </button>
         </header>
     );
