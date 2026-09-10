@@ -1244,7 +1244,7 @@ every screen moves.
 | ~~7~~ | ~~`ui/` batch 2~~ — **folded into 8**, see below | |
 | 8 | `Shell` / `Sidebar` / `Topbar`, wired to the router | ✅ every existing screen has a URL and a reload lands on it |
 | 9 | Login, two panels | ✅ a 401 still reads "Wrong email or password." under test |
-| 10 | `ModulesList` restyle | real modules render; a singleton links straight to its fields |
+| 10 | `ModulesList` restyle | ✅ real modules render; a singleton links straight to its fields |
 | 11 | `EntriesTable` restyle | the reorder arrows and pagination still work **live** |
 | 12 | `EntriesManager` split into two screens | `/admin/content/rooms/12` loads the real entry after a cold reload |
 | 13 | `EntryForm` step 1 — `FieldInput` extracted | every field type still saves, against real data |
@@ -1274,7 +1274,7 @@ else, and making them real is PHP.
 > components — mitigated because item 3's tokens already hold the line where
 > drift is most visible, which is colour.
 
-**Where it stands.** Seven are done.
+**Where it stands.** Eight are done.
 
 - **1. Component test harness — DONE.** See #94, which this closed. It found two
   defects within ten minutes of existing, one of them a test file that no
@@ -1484,6 +1484,39 @@ else, and making them real is PHP.
 
   Verified live, signed out and therefore in Greek — the reveal toggle flips
   the field between `password` and `text` and swaps its own label with it.
+- **10. The module list — DONE.** `ui/PageHeader` and `ui/Badge` came out of it,
+  both at a use that already existed: the header was **copied three times** in
+  this one file, once each for loading, error and ready, and a badge is drawn
+  for the singleton marker, for each missing language, and by `EntriesTable`
+  for draft and published, which item 11 folds in.
+
+  **It now reads the shared store instead of fetching for itself.** The rail is
+  built from the same list, so opening this screen asked for `/api/modules`
+  **twice**. Measured after: one request per page load, and Refresh drops the
+  shared copy so both the table and the rail move together — two subscribers,
+  one request.
+
+  **The screen finally shows which languages a section is missing.**
+  `ModuleController::index` has eager-loaded `slugs` since #114 with a comment
+  saying it is there so the panel can show exactly this without a request per
+  row, and nothing had ever read it. Since #114 that is not decoration: a
+  module untranslated into a language **has no address there**, is absent from
+  that menu and absent from the sitemap. The languages are **named, not
+  counted** — "2 missing" makes somebody open the module to find out which.
+
+  `missingTranslations` is pure and in `lib/modules.js`, and two of its seven
+  tests are about agreeing with the rest of the panel rather than about the
+  feature: it reads a code through `getLangCode` (`locale`, then `code`, then
+  `short_code`), and treats a row that says nothing about `is_active` as active,
+  which is what `languagesFrom` does. Two helpers disagreeing on either point is
+  how a module reads complete on one screen and incomplete on another.
+
+  **A singleton says so and its action reads *Open*, not *Entries*** — calling
+  it Entries promised a list that is never shown, because the panel opens
+  straight into the single entry.
+
+  At 375px the table drops the Slug and Languages columns and the slug moves
+  under the name rather than being lost, so the page never scrolls sideways.
 
 ### 116. The panel's language decides which content language it opens on — DONE (CHANGELOG §32)
 

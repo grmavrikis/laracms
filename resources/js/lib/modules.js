@@ -1,3 +1,5 @@
+import { getLangCode } from './languages';
+
 /**
  * Reading a Module in one language (TASKS.md #114, #116).
  *
@@ -31,3 +33,32 @@ export const moduleTranslation = (module, code) =>
  */
 export const moduleNameIn = (module, code) =>
     moduleTranslation(module, code)?.name ?? module?.name ?? null;
+
+/**
+ * The **active** languages this module has no page in.
+ *
+ * `GET /api/modules` carries every module's translations for exactly this -
+ * the comment on `ModuleController::index` says so - and until now nothing
+ * read them, so a section missing from German looked identical to one that was
+ * complete. Since #114 that is not cosmetic: a module untranslated into a
+ * language has no address there, is absent from that menu, and is absent from
+ * the sitemap. It is the one thing about a module worth seeing at a glance.
+ *
+ * Inactive languages are excluded. They are offered in the panel so a section
+ * can be translated *before* going live, which is not the same as owing a
+ * translation - listing them would mark every module incomplete for a language
+ * no visitor can reach.
+ */
+export const missingTranslations = (module, languages) =>
+    (languages ?? [])
+        // `!== false`, matching `languagesFrom` in `languages.js`: a row that
+        // says nothing about being active is treated as active there, and two
+        // helpers disagreeing about what "published" means is how a module
+        // shows as complete in one place and missing in another.
+        .filter((language) => language?.is_active !== false)
+        // Through `getLangCode`, which is the one answer to what a language is
+        // keyed by - `locale`, then `code`, then `short_code`. Reading `.code`
+        // directly would mark every module incomplete on a site whose rows use
+        // `locale`.
+        .map(getLangCode)
+        .filter((code) => code && !moduleTranslation(module, code));
