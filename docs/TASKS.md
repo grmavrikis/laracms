@@ -1245,7 +1245,7 @@ every screen moves.
 | 8 | `Shell` / `Sidebar` / `Topbar`, wired to the router | ✅ every existing screen has a URL and a reload lands on it |
 | 9 | Login, two panels | ✅ a 401 still reads "Wrong email or password." under test |
 | 10 | `ModulesList` restyle | ✅ real modules render; a singleton links straight to its fields |
-| 11 | `EntriesTable` restyle | the reorder arrows and pagination still work **live** |
+| 11 | `EntriesTable` restyle | ✅ the reorder arrows and pagination still work **live** |
 | 12 | `EntriesManager` split into two screens | `/admin/content/rooms/12` loads the real entry after a cold reload |
 | 13 | `EntryForm` step 1 — `FieldInput` extracted | every field type still saves, against real data |
 | 14 | `EntryForm` step 2 — three blocks, two columns | the right column holds only status, date and slug, and a save round-trips |
@@ -1274,7 +1274,7 @@ else, and making them real is PHP.
 > components — mitigated because item 3's tokens already hold the line where
 > drift is most visible, which is colour.
 
-**Where it stands.** Eight are done.
+**Where it stands.** Nine are done.
 
 - **1. Component test harness — DONE.** See #94, which this closed. It found two
   defects within ten minutes of existing, one of them a test file that no
@@ -1517,6 +1517,35 @@ else, and making them real is PHP.
 
   At 375px the table drops the Slug and Languages columns and the slug moves
   under the name rather than being lost, so the page never scrolls sideways.
+- **11. The entries table — DONE.** `Badge` replaced three hand-rolled pills
+  (status, and the boolean cell's Yes/No), the reorder arrows became
+  `IconButton` with real chevrons, and each schema field's cell moved into a
+  `Cell` component so the row is readable.
+
+  **Three defects came out of it that were not about styling:**
+
+  - **`Yes` and `No` were English literals outside `t()`.** No test demanded
+    them - `CatalogueCoversTheCodeTest` only sees `t('…')` - so every boolean
+    column read English on a Greek panel.
+  - **`toLocaleDateString()` with no argument asks the *browser*'s language.**
+    A Greek owner on an English Windows read `9/10/2026` and could not tell
+    September from October. `lib/format.js` now reads the panel's own locale;
+    `EntryForm`'s *First published* had the same bug **and** was an untranslated
+    literal, and is fixed with it.
+  - **The Edit button was `opacity-0 group-hover:opacity-100`.** A touch screen
+    has no hover, so on a phone or a tablet the only way to open an entry was
+    invisible.
+
+  The wrapper's negative margins are gone too: they existed to escape the old
+  page padding and now fought the Shell's, so a table wide enough to need
+  scrolling took the whole page sideways instead of scrolling in its own box.
+
+  **Verified live against 18 real entries.** Seventeen were created through the
+  API and deleted afterwards, per CLAUDE.md. Pagination read *Showing 1–15 of
+  18* and *Page 2 of 2*; a move on the first row of page 2 swapped it with the
+  last row of page 1 and the server's own order confirmed the write - which is
+  #75's fix still holding, since the arrows work on the module's order rather
+  than the page's.
 
 ### 116. The panel's language decides which content language it opens on — DONE (CHANGELOG §32)
 

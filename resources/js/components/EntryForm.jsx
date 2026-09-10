@@ -9,6 +9,7 @@ import { validationErrors, errorSummary, messagesForField, messagesNotForFields,
 import { getLangCode, contentLangCode } from '../lib/languages';
 import { STATUS_DRAFT, STATUS_PUBLISHED, slugsToMap, entryPayload } from '../lib/entries';
 import { t, locale } from '../lib/i18n';
+import { formatDate } from '../lib/format';
 
 const coerce = (type, raw) => {
     if (type === 'integer') return raw === '' || raw === null ? null : Number(raw);
@@ -448,7 +449,12 @@ export default function EntryForm({ moduleSlug, schema, languages, onSaved, onCa
 
                         {initialData?.published_at && (
                             <span className="ml-2 text-xs text-fg-muted">
-                                First published {new Date(initialData.published_at).toLocaleDateString()}
+                                {/* Both halves were wrong: the label was a bare
+                                    English string outside `t()`, so no test
+                                    demanded it and a Greek reader saw English,
+                                    and the date asked the browser rather than
+                                    the panel for its language. */}
+                                {t('First published :date', { date: formatDate(initialData.published_at) })}
                             </span>
                         )}
                     </div>
