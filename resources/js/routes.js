@@ -14,13 +14,23 @@
  * the public side's non-optional language prefix - one page, one address, no
  * ambiguity - paid for with a longer URL.
  */
+import { buildPath } from './lib/router';
+
 export const ROUTES = [
     { name: 'dashboard', path: '/' },
     { name: 'analytics', path: '/analytics' },
 
     // Content: what the client works in every day.
+    //
+    // **`:entry` is constrained to digits**, and that is not tidiness. Order
+    // alone would make `/content/rooms/new` mean "create" for ever, so an entry
+    // whose identifier was the word `new` could never be opened - and entries
+    // already carry per-language slugs, which are words. The constraint says
+    // what is actually true, that the panel addresses an entry by its numeric
+    // id, and it lets the two patterns be told apart by shape rather than by
+    // which was declared first.
     { name: 'entryCreate', path: '/content/:module/new' },
-    { name: 'entryEdit', path: '/content/:module/:entry' },
+    { name: 'entryEdit', path: '/content/:module/:entry(\\d+)' },
     { name: 'entries', path: '/content/:module' },
 
     // The agency's own screens.
@@ -35,10 +45,34 @@ export const ROUTES = [
 export const PATTERNS = Object.fromEntries(ROUTES.map((route) => [route.name, route.path]));
 
 /**
+ * An address for a named route.
+ *
+ * Lives here rather than beside the hook because it needs no React: a sidebar
+ * config array, a test or a redirect can ask for a link without importing a
+ * provider and its effects. `navigate` calls it too, so the lookup and its
+ * refusal exist once.
+ *
+ * Sidebar items should be anchors rather than buttons - middle-click,
+ * ctrl-click and "copy link address" all work on one and none of them work on
+ * the other.
+ */
+export const hrefFor = (name, params = {}) => {
+    const pattern = PATTERNS[name];
+
+    // Named rather than free-form, so no call site retypes a pattern and a
+    // renamed route fails loudly here instead of becoming a dead link.
+    if (!pattern) {
+        throw new Error(`hrefFor: there is no route named "${name}".`);
+    }
+
+    return buildPath(pattern, params);
+};
+
+/**
  * Where an unknown address goes.
  *
  * The dashboard rather than a "not found" screen: every address the panel
  * itself produces is built from `PATTERNS`, so a miss is a stale bookmark or a
  * hand-typed URL, and the useful answer to both is the way in.
  */
-export const FALLBACK = { name: 'dashboard', params: {} };
+export const FALLBACK = Object.freeze({ name: 'dashboard', params: Object.freeze({}) });

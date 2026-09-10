@@ -4,7 +4,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { act } from 'react';
 import userEvent from '@testing-library/user-event';
-import { RouterProvider, hrefFor } from './useRoute';
+import { RouterProvider } from './useRoute';
 import useRoute from './useRoute';
 
 function Probe() {
@@ -17,6 +17,7 @@ function Probe() {
             <button type="button" onClick={() => navigate('entries', { module: 'rooms' })}>go to rooms</button>
             <button type="button" onClick={() => navigate('entryEdit', { module: 'rooms', entry: '12' })}>edit 12</button>
             <button type="button" onClick={() => navigate('settings')}>go to settings</button>
+            <button type="button" onClick={() => navigate('settings', {}, { replace: true })}>replace with settings</button>
             {/* Caught here rather than left to propagate: React does not
                 handle a throw from an event handler, so it escapes as an
                 uncaught exception that the click promise never sees. */}
@@ -83,16 +84,50 @@ describe('useRoute', () => {
 
         expect(screen.getByTestId('route').textContent).toBe('settings');
 
-        // A real `history.back()`. jsdom fires popstate for it and has already
-        // moved `location.pathname` by the time the listener runs - it just
-        // does so on a later task, hence the wait.
+        // A real `history.back()`. jsdom fires popstate on a later task, so the
+        // test waits for **that event** rather than for a fixed number of
+        // milliseconds - a sleep long enough today is a flake on a loaded
+        // machine, and this suite has already seen setup swing from 14s to
+        // over 300s.
         await act(async () => {
+            const popped = new Promise((resolve) => {
+                window.addEventListener('popstate', resolve, { once: true });
+            });
+
             window.history.back();
-            await new Promise((resolve) => setTimeout(resolve, 50));
+
+            await popped;
         });
 
         expect(screen.getByTestId('route').textContent).toBe('entries');
         expect(window.location.pathname).toBe('/admin/content/rooms');
+    });
+
+    // `replace` decides whether a navigation is somewhere Back returns to, and
+    // getting it wrong raises no error at all - just a Back button that needs
+    // pressing twice. Item 8 needs it for a singleton opening straight into its
+    // entry, which pushed would trap the reader bouncing against itself.
+    it('can navigate without leaving a history entry behind', async () => {
+        const user = userEvent.setup();
+        renderAt('/admin');
+
+        await user.click(screen.getByRole('button', { name: 'go to rooms' }));
+        await user.click(screen.getByRole('button', { name: 'replace with settings' }));
+
+        expect(window.location.pathname).toBe('/admin/settings');
+
+        await act(async () => {
+            const popped = new Promise((resolve) => {
+                window.addEventListener('popstate', resolve, { once: true });
+            });
+
+            window.history.back();
+
+            await popped;
+        });
+
+        // Back skips the replaced address entirely and lands before it.
+        expect(window.location.pathname).toBe('/admin');
     });
 
     // Two consumers, one address. Held per component, a click in the sidebar
@@ -141,15 +176,3 @@ describe('useRoute', () => {
     });
 });
 
-describe('hrefFor', () => {
-    // Sidebar items are anchors, not buttons: middle-click, ctrl-click and
-    // "copy link address" all work on one and none work on the other.
-    it('gives a real address for a named route', () => {
-        expect(hrefFor('entries', { module: 'rooms' })).toBe('/admin/content/rooms');
-        expect(hrefFor('dashboard')).toBe('/admin');
-    });
-
-    it('refuses a route that does not exist', () => {
-        expect(() => hrefFor('nowhere')).toThrow(/nowhere/);
-    });
-});

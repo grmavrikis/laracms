@@ -63,6 +63,40 @@ describe('matchPath', () => {
     it('does not let a parameter match an empty segment', () => {
         expect(matchPath('/content/:module', '/content/')).toBeNull();
     });
+
+    // The frozen result matters because it is handed to every consumer of the
+    // route: one of them writing a default into it would change what the next
+    // reader sees, on a later and unrelated navigation.
+    it('hands back parameters nothing can mutate', () => {
+        const params = matchPath('/content/:module', '/content/rooms');
+
+        expect(Object.isFrozen(params)).toBe(true);
+        expect(() => { params.module = 'other'; }).toThrow();
+    });
+});
+
+describe('a constrained parameter', () => {
+    it('matches only what the constraint allows', () => {
+        expect(matchPath('/content/:module/:entry(\\d+)', '/content/rooms/12'))
+            .toEqual({ module: 'rooms', entry: '12' });
+        expect(matchPath('/content/:module/:entry(\\d+)', '/content/rooms/new')).toBeNull();
+    });
+
+    // Anchored, or `\d+` would match the digits at the front of `12abc` and let
+    // the rest through - which is how a constraint turns into no constraint.
+    it('must match the whole segment', () => {
+        expect(matchPath('/x/:id(\\d+)', '/x/12abc')).toBeNull();
+        expect(matchPath('/x/:id(\\d+)', '/x/abc12')).toBeNull();
+    });
+
+    it('refuses to build an address the same constraint would reject', () => {
+        expect(() => buildPath('/x/:id(\\d+)', { id: 'new' })).toThrow(/not a valid :id/);
+        expect(buildPath('/x/:id(\\d+)', { id: 12 })).toBe('/admin/x/12');
+    });
+
+    it('leaves an unconstrained parameter taking anything', () => {
+        expect(matchPath('/x/:id', '/x/anything-at-all')).toEqual({ id: 'anything-at-all' });
+    });
 });
 
 describe('buildPath', () => {

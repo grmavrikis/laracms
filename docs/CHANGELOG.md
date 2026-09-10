@@ -4231,3 +4231,160 @@ ten probe rows and the limiter were cleared afterwards.
 
 **#96 is closed.** 515 PHP tests, 214 JS tests, build clean.
 
+
+## 37. The panel gets a foundation (#117, items 1-5)
+
+The panel was called *«πάρα πολύ απλοϊκό»* by the owner and it was: a
+`bg-gray-800` bar, `indigo-600` scattered through thirteen files, plain white
+tables, a single-column form, ten hand-written SVGs and no design tokens at all.
+The argument for fixing it before outreach is in TASKS.md's Amendment and is
+commercial rather than visual — the client lives in this screen for three years
+and we see it once, and `BUSINESS.md` §5 puts the ceiling of the whole business
+at support minutes.
+
+This section is the five items that build nothing visible. They are here because
+each one is a decision that would otherwise be re-opened.
+
+### A test harness, and what it found in ten minutes
+
+`@testing-library/react` over jsdom closed **#94**, whose argument was six
+defects in a row in component wiring, found by reading rather than by tests. It
+earned itself immediately, twice:
+
+- **`vitest.config.js` matched `*.test.js` only.** The first component test was
+  collected by nothing and reported by nothing — the run stayed green at 214 and
+  the file may as well not have existed. **A test that never runs is worse than
+  no test, because the count still goes up.**
+- **`Login.jsx` had no `for`/`id` on either label**, so neither input had an
+  accessible name: a screen reader announced "edit text, blank" and tapping a
+  label did not focus the field. Found by `getByLabelText` refusing to resolve.
+
+**`node` is the default environment and jsdom is opted into per file.** The
+first attempt made everything jsdom, which was measured at **77.82s of setup for
+422ms of tests** across the thirteen pure-helper files — and `setup.js` touching
+`window` unguarded meant `--environment=node` failed outright, so there was no
+way back. `public-forms.test.js` had been using `// @vitest-environment jsdom`
+all along; the convention existed and had been broken rather than invented.
+
+> **Never call `t()` inside a test file.** `CatalogueCoversTheCodeTest` skips
+> `*.test.js` and, by `str_ends_with`, does **not** skip `*.test.jsx` — so a
+> `t('…')` there is demanded of `lang/en.json` as though the panel used it. The
+> setup file leaves the catalogue empty on purpose, so `t()` answers its own key
+> and a test asserts the English it can read in the source.
+
+### Colour is three tiers and two axes
+
+`data-theme` and `data-accent` on `<html>`, independent. Six accents times two
+themes as one list would be twelve blocks that drift; as two attributes it is
+eight. **The sidebar keeps its own tokens and stays dark in both**, because the
+design being copied puts a dark rail against a light page.
+
+**`--accent-solid` is declared per palette rather than derived, and that is the
+finding.** A fixed ramp step does not survive contact with hue: `emerald-600` on
+white measures **3.4:1** and fails WCAG AA for normal text, while `violet-600`
+measures 5.9:1 and passes. Each palette names the darkest step it needs — 700
+for emerald, teal and amber; 600 for blue, violet and rose. Dark has no such
+problem and maps uniformly, putting near-black on a `400`.
+
+Two rules that are not style, both of which fail silently rather than loudly:
+
+- **Every `--ui-*` is defined on plain `:root`** and the dark block only
+  re-points it. Tailwind compiles `bg-accent/50` to `color-mix(…)`, and a
+  variable existing only under `[data-theme='dark']` resolves to nothing in
+  light mode — the modifier goes transparent, not broken.
+- **`@theme inline`, not `@theme`.** Without `inline` Tailwind copies the
+  declarations into its own `:root` and freezes each to the value it held there,
+  so `bg-surface` would keep light mode's white after the attribute flipped.
+  Verified in the built CSS, which emits `--color-accent:var(--ui-accent)`.
+
+The anti-flash script is in `admin.blade.php` **before** `@vite` and is a
+classic script while the bundle is `type="module"` and therefore deferred, so
+the attributes are on `<html>` during parsing. It has to be Blade: React runs a
+frame after paint, and a theme read there is the white flash it exists to
+prevent.
+
+**The swatches are in the stylesheet, not in JavaScript.** The picker shows all
+six palettes at once, so a swatch cannot be `var(--accent-solid)` — it would
+paint six circles the colour already chosen. That second copy started as twelve
+hexes in `ThemeMenu.jsx`, where nothing could see them drift, and they were
+already wrong: they showed step 500 while the panel painted 600 or 700. They are
+now `--swatch-*` in `app.css`, and `theme.css.test.js` reads that file and
+asserts each equals the step its palette really paints with.
+
+### Storing a preference is not the same as having one
+
+The switcher's first version wrote the resolved preference on mount, so **merely
+opening the panel recorded `prefers-color-scheme` as though it had been
+chosen** — and since a stored value outranks the media query, the panel then
+stopped following the machine permanently. Verified live: clearing both keys and
+reloading once brought `miniCms.theme: "dark"` back with no interaction.
+
+Storing now happens from the **patch**, not the merged state, which also fixes
+the quieter half: choosing only an accent used to freeze the theme beside it.
+
+`ThemeProvider` and `RouterProvider` are providers rather than plain hooks for
+the same reason, learned once and applied twice. Held per component, a second
+switcher — the narrow-viewport copy a sidebar usually needs — would own its own
+state, so choosing Dark in one left the other's tick stale and its next click
+spread `{...current, ...patch}` over the change the first had made.
+
+### A hand-written router, and a prefix that is a decision
+
+Ten routes, no nesting, no loaders. `react-router` is ~20 kB on a bundle already
+at 686 kB for a `matchPath` that fits on a page — and a pure matcher runs in
+`environment: 'node'`, which is where this project's confidence lives.
+
+**Content sits under `/content/:module`.** A module slug has exactly the shape
+of the panel's own words, so a client section slugged `settings` or `analytics`
+would shadow that screen and become unreachable. Craft and Directus both prefix
+content for this reason; it is the same instinct as the public side's
+non-optional language prefix — one page, one address, no ambiguity, paid for
+with a longer URL.
+
+**The table is an array because order disambiguates**, as `routes/web.php`
+already declares `/admin` above `/{language}`. `routes.test.js` checks that
+*generally*: any route of literal segments that some earlier pattern already
+matches is reported unreachable **by name**. Enumerating today's pairs would
+pass while saying nothing about the pair somebody adds next.
+
+Order alone was not enough one level down. `/content/:module/new` would have
+made an entry identified as the word `new` permanently uneditable, and entries
+carry per-language slugs, which are words — so `:entry` is **constrained to
+digits**, stating the real invariant instead of relying on declaration order.
+Constraints are anchored, or `\d+` would match the front of `12abc` and let the
+rest through, which is how a constraint becomes no constraint.
+
+Three more the tests pin:
+
+- `decodeURIComponent` **throws** on a malformed escape, and `%E0%A4%A` from a
+  truncated address supplies one. Thrown from the matcher it comes out of
+  render, so a mistyped URL blanked the panel rather than simply not being a
+  route.
+- `buildPath` refuses a parameter it was not given, and refuses a value its own
+  constraint would reject — either would otherwise be a link that looks right
+  and leads nowhere.
+- An address nothing matches is **rewritten** with `replaceState`. Rendering the
+  dashboard under `/admin/nonsense` would leave the URL describing a screen that
+  is not on show, and bookmarking it would repeat the miss for ever.
+
+### An error boundary, because the throws are deliberate
+
+The panel had none, and three reviews in a row found a different way to reach a
+white document: an `ACCENT_LABEL` lookup for a palette with no label, a hook
+used outside its provider, a link built for a route that does not exist. Each
+was correctly *loud* — and loud in React means the whole tree unmounts.
+
+`ErrorBoundary` wraps the mount **outside the providers**, so it still renders
+when one of them is what threw, and shows the error's own message with a reload
+button. The stack goes to the console. Guarding each call site individually was
+the wrong altitude; this is the general answer, and it makes the next deliberate
+throw affordable.
+
+### What is not done
+
+Items 6–20: the `ui/` primitives, the Shell and sidebar, the two-column form,
+and the static Dashboard and Analytics screens. **The router is not wired in
+yet** — the bundle is unchanged because nothing imports it — and the panel still
+looks exactly as it did. Only `body` and the theme menu read the new tokens.
+
+515 PHP tests, 322 JS tests, build clean.

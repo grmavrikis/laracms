@@ -1,8 +1,28 @@
 import { describe, it, expect } from 'vitest';
-import { ROUTES, PATTERNS, FALLBACK } from './routes';
+import { ROUTES, PATTERNS, FALLBACK, hrefFor } from './routes';
 import { matchPath, matchRoute, buildPath } from './lib/router';
 
 const isLiteral = (path) => !path.split('/').some((segment) => segment.startsWith(':'));
+
+/**
+ * A value for every parameter a pattern names, derived from the pattern itself.
+ *
+ * A single shared object would break opaquely the day a route introduced a
+ * parameter nobody added to it: `buildPath` would throw "needs a value for
+ * :language" from inside the test, which reads as a bug in `buildPath` rather
+ * than as "add a sample".
+ */
+const sampleFor = (path) => Object.fromEntries(
+    path.split('/')
+        .filter((segment) => segment.startsWith(':'))
+        .map((segment) => {
+            const [, name, constraint] = /^:([A-Za-z_]\w*)(?:\((.+)\))?$/.exec(segment);
+
+            // The value has to satisfy the segment's own constraint, or the
+            // round trip would fail for a reason that is not about routing.
+            return [name, constraint === '\\d+' ? '12' : name];
+        })
+);
 
 describe('the panel’s route table', () => {
     it('names every screen once', () => {
@@ -42,16 +62,55 @@ describe('the panel’s route table', () => {
     });
 
     it('resolves what it builds, for every route', () => {
-        // One value per parameter name the table uses.
-        const sample = { module: 'rooms', entry: '12' };
-
         for (const route of ROUTES) {
-            const address = buildPath(route.path, sample);
+            const address = buildPath(route.path, sampleFor(route.path));
             const resolved = matchRoute(ROUTES, address);
 
             expect(resolved, `${route.name} did not resolve from ${address}`).not.toBeNull();
             expect(resolved.name, `${address} resolved to ${resolved.name}`).toBe(route.name);
         }
+    });
+
+    // Order alone would leave an entry identified as the word `new`
+    // permanently unreachable, and entries carry per-language slugs, which are
+    // words. The constraint states the real invariant instead: the panel
+    // addresses an entry by its numeric id.
+    it('tells create from edit by shape, not only by declaration order', () => {
+        expect(matchRoute(ROUTES, '/admin/content/rooms/new').name).toBe('entryCreate');
+        expect(matchRoute(ROUTES, '/admin/content/rooms/12')).toEqual({
+            name: 'entryEdit',
+            params: { module: 'rooms', entry: '12' },
+        });
+
+        // Anything that is not an id and is not `new` is simply not a route,
+        // rather than quietly opening the create form.
+        expect(matchRoute(ROUTES, '/admin/content/rooms/balcony-suite')).toBeNull();
+        expect(matchRoute(ROUTES, '/admin/content/rooms/12abc')).toBeNull();
+    });
+
+    it('refuses to build an edit address for something that is not an id', () => {
+        expect(() => hrefFor('entryEdit', { module: 'rooms', entry: 'new' }))
+            .toThrow(/not a valid :entry/);
+    });
+
+    describe('hrefFor', () => {
+        it('gives a real address for a named route', () => {
+            expect(hrefFor('entries', { module: 'rooms' })).toBe('/admin/content/rooms');
+            expect(hrefFor('dashboard')).toBe('/admin');
+        });
+
+        it('refuses a route that does not exist', () => {
+            expect(() => hrefFor('nowhere')).toThrow(/nowhere/);
+        });
+    });
+
+    // Handed to every consumer of an unmatched address, so one of them writing
+    // a default into `route.params` would rewrite what the next reader sees -
+    // and the symptom would surface on a later, unrelated navigation.
+    it('hands out a fallback nothing can mutate', () => {
+        expect(Object.isFrozen(FALLBACK)).toBe(true);
+        expect(Object.isFrozen(FALLBACK.params)).toBe(true);
+        expect(() => { FALLBACK.params.module = 'rooms'; }).toThrow();
     });
 
     it('sends the panel’s own address to the dashboard', () => {

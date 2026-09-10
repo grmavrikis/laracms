@@ -1019,6 +1019,67 @@ refused password is refused in the language of the form.
 > were found by grepping for `$fail(` rather than for quoted sentences, since
 > they build their message by interpolation. See TASKS.md #112.
 
+## 5f. The panel has addresses (TASKS.md #117)
+
+Until #117 the panel held its position in `useState` inside `App` and had no URL
+at all, so every reload landed on the module list — and the browser's Back
+button left the application rather than going back a screen.
+
+```
+/admin                            the dashboard
+/admin/analytics
+/admin/content/{module}           a module's entries
+/admin/content/{module}/new
+/admin/content/{module}/{id}      one entry, id being digits
+/admin/enquiries
+/admin/modules                    the module list, and /new, /{module} under it
+/admin/settings
+```
+
+**Nothing on the server changed.** `routes/web.php` has always answered
+`/admin/{any?}` with `->where('any', '.*')`, so the address was serveable from
+the day the panel was built; only the client never read it.
+
+**Content is prefixed and the prefix is load-bearing.** A module slug has
+exactly the shape of the panel's own words, so a section slugged `settings`
+would otherwise shadow that screen and become unreachable, with no pattern able
+to separate them. The same reasoning as §5a's non-optional language prefix.
+
+**The route table is an array and order decides**, exactly as `/admin` is
+declared above `/{language}`: the first pattern that matches wins, so a literal
+must sit above the parameter that would swallow it. `routes.test.js` enforces
+that generally — it reports, by name, any route of literal segments that an
+earlier pattern already matches.
+
+**A segment may carry a constraint**, written `:entry(\d+)`, and `:entry` uses
+one. Order alone would make `/content/rooms/new` mean *create* for ever, so an
+entry identified as the word `new` could never be opened — and entries carry
+per-language slugs, which are words. The constraint states what is actually
+true: the panel addresses an entry by its numeric id. Constraints are anchored,
+or `\d+` would match the front of `12abc`.
+
+Three refusals, each of which was a way to reach a blank page:
+
+- `decodeURIComponent` throws on a malformed escape, so `matchPath` catches and
+  answers "not a route" instead of letting it out of render.
+- `buildPath` refuses a missing parameter, and a value its own constraint would
+  reject, rather than emitting an address nothing resolves.
+- An address nothing matches is rewritten with `replaceState`, so the URL never
+  describes a screen that is not on show. `replaceState` and not a push, so Back
+  still leaves the panel rather than returning to an address that does not work.
+
+`RouterProvider` holds the address, for the reason `ThemeProvider` holds the
+theme: the sidebar navigates and the content area renders the result, so
+per-component state would move the rail and nothing else. `hrefFor` lives in
+`routes.js` rather than beside the hook, because it needs no React — sidebar
+items are anchors, and middle-click and "copy link address" only work on those.
+
+**`ErrorBoundary` wraps the mount, outside the providers.** The panel makes
+several deliberate throws — a hook used outside its provider, a link asked for a
+route that does not exist — and in React an uncaught render throw unmounts the
+whole tree, so each one was a white document with no message. The boundary is
+outside the providers so it still renders when one of *them* is what threw.
+
 ## 5c. Site settings (TASKS.md #67)
 
 One row, one screen, `SiteSettings`. It holds two kinds of value and that is

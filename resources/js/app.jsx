@@ -12,6 +12,7 @@ import ModuleTranslator from './components/ModuleTranslator';
 import EnquiriesManager from './components/EnquiriesManager';
 import SettingsManager from './components/SettingsManager';
 import ThemeMenu from './layout/ThemeMenu';
+import ErrorBoundary from './components/ErrorBoundary';
 import { ThemeProvider } from './hooks/useTheme';
 
 export default function App() {
@@ -156,9 +157,14 @@ if (rootElement) {
     // The provider wraps the mount rather than `App`'s return, because `App`
     // leaves early while loading and again when nobody is signed in - so
     // wrapping inside it would put the login screen outside the theme.
+    // The boundary is **outside** the providers, so it still renders when one
+    // of them is what threw. Inside, a provider failing to mount would take the
+    // boundary down with it and produce the blank page it exists to prevent.
     rootElement._adminRoot.render(
-        <ThemeProvider>
-            <App />
-        </ThemeProvider>
+        <ErrorBoundary>
+            <ThemeProvider>
+                <App />
+            </ThemeProvider>
+        </ErrorBoundary>
     );
 }

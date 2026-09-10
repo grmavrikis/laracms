@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
-import { ROUTES, PATTERNS, FALLBACK } from '../routes';
-import { matchRoute, buildPath, BASE } from '../lib/router';
+import { ROUTES, FALLBACK, hrefFor } from '../routes';
+import { matchRoute, BASE } from '../lib/router';
 
 const RouteContext = createContext(null);
 
@@ -47,17 +47,12 @@ export function RouterProvider({ children }) {
         setAddress(BASE);
     }, [resolved]);
 
+    // `replace` for a navigation that should not be somewhere Back returns to:
+    // a singleton module opening straight into its one entry, or a save that
+    // returns to the listing. Pushed instead, those trap the reader bouncing
+    // between the form and itself.
     const navigate = useCallback((name, params = {}, { replace = false } = {}) => {
-        const pattern = PATTERNS[name];
-
-        // Named rather than free-form, so no call site retypes a pattern and a
-        // renamed route is a loud failure here instead of a dead link
-        // somewhere in the panel.
-        if (!pattern) {
-            throw new Error(`navigate: there is no route named "${name}".`);
-        }
-
-        const to = buildPath(pattern, params);
+        const to = hrefFor(name, params);
 
         window.history[replace ? 'replaceState' : 'pushState']({}, '', to);
         setAddress(to);
@@ -77,19 +72,3 @@ export default function useRoute() {
 
     return value;
 }
-
-/**
- * An address for a named route, for an `href` that is a real link.
- *
- * Sidebar items should be anchors rather than buttons: middle-click, ctrl-click
- * and "copy link address" all work on one and none of them work on the other.
- */
-export const hrefFor = (name, params = {}) => {
-    const pattern = PATTERNS[name];
-
-    if (!pattern) {
-        throw new Error(`hrefFor: there is no route named "${name}".`);
-    }
-
-    return buildPath(pattern, params);
-};
