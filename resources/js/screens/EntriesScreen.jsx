@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Plus, ArrowLeft, Boxes } from 'lucide-react';
 import api from '../lib/api';
 import EntriesTable from '../components/EntriesTable';
@@ -6,7 +6,7 @@ import { paginationFrom, rowsFrom, isPastLastPage } from '../lib/pagination';
 import { t, locale } from '../lib/i18n';
 import { contentLangCode } from '../lib/languages';
 import { loadLanguages } from '../lib/languageStore';
-import { moduleNameIn } from '../lib/modules';
+import { moduleNameForReader } from '../lib/modules';
 import { createLatestWriteQueue } from '../lib/latestWriteQueue';
 import useRoute from '../hooks/useRoute';
 import PageHeader from '../ui/PageHeader';
@@ -66,13 +66,31 @@ export default function EntriesScreen({ module }) {
     // A page below one is a typed address, not a state this screen can reach.
     const page = Math.max(1, Number.parseInt(route.query.page ?? '1', 10) || 1);
 
-    const goToPage = (next) => navigate('entries', { module: module.slug }, {
+    // `useCallback` and listed in the effect's dependencies rather than closed
+    // over silently: it is correct today only because it reads nothing that
+    // changes, which stops being true the first time a filter is added.
+    const goToPage = useCallback((next) => navigate('entries', { module: module.slug }, {
         // `next > 1` so page one is the plain address: two URLs for the same
         // fifteen rows is what `buildPath` drops empty query values to avoid.
         query: next > 1 ? { page: next } : null,
         // Paging is not a place to return to - Back should leave the listing,
         // not walk through every page somebody clicked past.
         replace: true,
+    }), [navigate, module.slug]);
+
+    /**
+     * The address of one entry, carrying the page it was opened from.
+     *
+     * Without this the page was in the URL of the listing and nowhere else, so
+     * the form had no idea where the reader came from and saving always
+     * returned them to page one - the very regression putting the page in the
+     * address was supposed to end. On a module of forty rooms, correcting the
+     * last one threw the owner back to the top after every save.
+     */
+    const entryHref = (entry) => ({
+        name: 'entryEdit',
+        params: { module: module.slug, entry: entry.id },
+        options: { query: page > 1 ? { page } : null },
     });
 
     // "About" is one entry, not a list of one (TASKS.md #60). The panel opens
@@ -80,7 +98,7 @@ export default function EntriesScreen({ module }) {
     // an "add" button that must not be pressed.
     const singleton = Boolean(module.is_singleton);
 
-    const moduleName = moduleNameIn(module, viewLangCode);
+    const moduleName = moduleNameForReader(module, languages, locale);
 
     useEffect(() => {
         loadLanguages()
@@ -140,7 +158,7 @@ export default function EntriesScreen({ module }) {
             .finally(() => current && setLoading(false));
 
         return () => { current = false; };
-    }, [module.slug, refreshKey, page]);
+    }, [module.slug, refreshKey, page, goToPage]);
 
     // The order of the whole module, which the table reorders against.
     //
@@ -149,6 +167,11 @@ export default function EntriesScreen({ module }) {
     // everything above (TASKS.md #75). Refetched alongside the listing, since a
     // create or a delete changes it. One `select id`.
     useEffect(() => {
+        // A singleton holds one entry by definition and shows no arrows, so
+        // its order is a request whose answer can never be used - and three of
+        // the demo's six modules are singletons.
+        if (singleton) return undefined;
+
         let current = true;
 
         api.get(`/modules/${module.slug}/entries/order`)
@@ -174,7 +197,7 @@ export default function EntriesScreen({ module }) {
             });
 
         return () => { current = false; };
-    }, [module.slug, refreshKey]);
+    }, [module.slug, refreshKey, singleton]);
 
     // A singleton has nothing to list, so as soon as the listing says whether
     // its entry exists we go to that entry - or to a blank form for the first
@@ -228,8 +251,29 @@ export default function EntriesScreen({ module }) {
 
     // A singleton is on its way elsewhere; showing its empty table first is a
     // flash of a screen that is not meant to exist.
+    //
+    // **But not when the trip cannot happen.** The redirect effect bails on an
+    // error, so returning the loading line unconditionally left a failed
+    // singleton saying "Loading…" for ever with its own message rendered below
+    // an early return and unreachable. Every singleton in the demo - About,
+    // Contact, Photos - had that path.
     if (singleton) {
-        return <p className="text-sm text-fg-muted">{t('Loading…')}</p>;
+        if (!error && !languagesError) {
+            return <p className="text-sm text-fg-muted">{t('Loading…')}</p>;
+        }
+
+        return (
+            <div className="space-y-4">
+                <p role="alert" className="text-sm text-danger-text">{error || languagesError}</p>
+                <button
+                    type="button"
+                    onClick={() => setRefreshKey((n) => n + 1)}
+                    className="cursor-pointer text-sm font-medium text-accent-text underline-offset-2 hover:underline"
+                >
+                    {t('Try again')}
+                </button>
+            </div>
+        );
     }
 
     return (
@@ -262,9 +306,14 @@ export default function EntriesScreen({ module }) {
                 )}
             />
 
-            {[languagesError, error, orderError].filter(Boolean).map((message) => (
-                <p key={message} role="alert" className="text-sm text-danger-text">{message}</p>
-            ))}
+            {/* Keyed by which failure it is rather than by its own text: two
+                sources holding the same string collided on the key and React
+                rendered one of them. */}
+            {Object.entries({ languages: languagesError, entries: error, order: orderError })
+                .filter(([, message]) => message)
+                .map(([source, message]) => (
+                    <p key={source} role="alert" className="text-sm text-danger-text">{message}</p>
+                ))}
 
             {!reorderable && (
                 <p className="text-sm text-fg-muted">
@@ -279,7 +328,11 @@ export default function EntriesScreen({ module }) {
                     schema={module.schema ?? []}
                     entries={entries}
                     orderIds={orderIds}
-                    onEdit={(entry) => navigate('entryEdit', { module: module.slug, entry: entry.id })}
+                    onEdit={(entry) => {
+                        const to = entryHref(entry);
+
+                        navigate(to.name, to.params, to.options);
+                    }}
                     onReorder={handleReorder}
                     languages={languages}
                     currentLangCode={viewLangCode}

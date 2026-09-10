@@ -1581,6 +1581,18 @@ else, and making them real is PHP.
   know where it landed. All three entry endpoints already answer with the row
   read back from the database (ARCHITECTURE §5), so it is the whole entry.
 
+  **A review then found the page fix was half-done, and both screens untested.**
+  The page went into the listing's address and nowhere else, so opening an entry
+  lost it and saving still returned the reader to page one - the regression this
+  item claimed to have ended. It now travels into the entry's address and back
+  out. And a singleton whose listing failed showed *Loading…* for ever, its own
+  message sitting below an early return and unreachable.
+
+  Both were wiring defects, which is what #94 said the harness was for and what
+  the first pass had not used: **the two screens now carry sixteen tests**, and
+  removing either fix fails them. The mount guard - the one that stops a blank
+  form being saved over a real entry - is pinned by four.
+
 ### 116. The panel's language decides which content language it opens on — DONE (CHANGELOG §32)
 
 Raised by the owner on 2026-09-07: the panel had el/en, the site had el/en/fr,

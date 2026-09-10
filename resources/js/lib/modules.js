@@ -1,4 +1,4 @@
-import { getLangCode } from './languages';
+import { getLangCode, contentLangCode } from './languages';
 
 /**
  * Reading a Module in one language (TASKS.md #114, #116).
@@ -33,6 +33,21 @@ export const moduleTranslation = (module, code) =>
  */
 export const moduleNameIn = (module, code) =>
     moduleTranslation(module, code)?.name ?? module?.name ?? null;
+
+/**
+ * What to call a module on a screen, given the languages the site has.
+ *
+ * The pair `moduleNameIn(module, contentLangCode(languages, locale))` had
+ * reappeared in two screens - which is the duplication this file was created to
+ * end one level down. Its own docblock records why that matters: the heading of
+ * the entries screen went on showing the panel's own name through the whole of
+ * #116, and was caught by opening the panel rather than by the suite.
+ *
+ * Tolerates `languages` being null, which is what both screens hold until the
+ * request answers.
+ */
+export const moduleNameForReader = (module, languages, locale) =>
+    moduleNameIn(module, contentLangCode(languages ?? [], locale));
 
 /**
  * The **active** languages this module has no page in.

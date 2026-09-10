@@ -3,9 +3,8 @@ import { Pencil, Plus } from 'lucide-react';
 import api from '../lib/api';
 import EntryForm from '../components/EntryForm';
 import { t, locale } from '../lib/i18n';
-import { contentLangCode } from '../lib/languages';
 import { loadLanguages } from '../lib/languageStore';
-import { moduleNameIn } from '../lib/modules';
+import { moduleNameForReader } from '../lib/modules';
 import useRoute from '../hooks/useRoute';
 import PageHeader from '../ui/PageHeader';
 import Badge from '../ui/Badge';
@@ -21,11 +20,18 @@ import Badge from '../ui/Badge';
  * whatever was there. A deep link is exactly the case that would do it.
  */
 export default function EntryEditScreen({ module, entryId }) {
-    const [, navigate] = useRoute();
+    const [route, navigate] = useRoute();
 
     const [entry, setEntry] = useState(null);
     const [languages, setLanguages] = useState(null);
-    const [error, setError] = useState(null);
+
+    // Two failures rather than one. They were sharing a variable, and the entry
+    // effect cleared it on every run - so re-reading an entry discarded a
+    // languages error that was still true, leaving the loading guard for ever.
+    // Exactly the shape the old `EntriesManager` carried a comment about.
+    const [languagesError, setLanguagesError] = useState(null);
+    const [entryError, setEntryError] = useState(null);
+    const error = entryError || languagesError;
 
     const creating = entryId === null || entryId === undefined;
 
@@ -37,7 +43,7 @@ export default function EntryEditScreen({ module, entryId }) {
             .catch((err) => {
                 console.error(err);
 
-                if (current) setError(t('Could not load the languages.'));
+                if (current) setLanguagesError(t('Could not load the languages.'));
             });
 
         return () => { current = false; };
@@ -52,20 +58,30 @@ export default function EntryEditScreen({ module, entryId }) {
 
         let current = true;
 
-        setError(null);
+        setEntryError(null);
 
         api.get(`/modules/${module.slug}/entries/${entryId}`)
             .then(({ data }) => current && setEntry(data))
             .catch((err) => {
                 console.error(err);
 
-                if (current) setError(t('Could not open that entry.'));
+                if (current) setEntryError(t('Could not open that entry.'));
             });
 
         return () => { current = false; };
     }, [module.slug, entryId, creating]);
 
-    const backToList = () => navigate('entries', { module: module.slug });
+    /**
+     * Back to the listing, on the page it was opened from.
+     *
+     * The page rides along in the query string of this screen's own address,
+     * because the form is otherwise the one place that does not know where the
+     * reader came from - and returning always landed on page one, which is the
+     * regression putting the page in the address was meant to end.
+     */
+    const backToList = () => navigate('entries', { module: module.slug }, {
+        query: route.query.page ? { page: route.query.page } : null,
+    });
 
     const handleSaved = (saved) => {
         // A singleton has no list behind the form, so closing it cannot mean
@@ -76,7 +92,10 @@ export default function EntryEditScreen({ module, entryId }) {
         if (creating && saved?.id) {
             // Now that it exists it has an address of its own. `replace`, or
             // Back returns to a create form for an entry that has been created.
-            navigate('entryEdit', { module: module.slug, entry: saved.id }, { replace: true });
+            navigate('entryEdit', { module: module.slug, entry: saved.id }, {
+                replace: true,
+                query: route.query.page ? { page: route.query.page } : null,
+            });
 
             return;
         }
@@ -100,7 +119,7 @@ export default function EntryEditScreen({ module, entryId }) {
         backToList();
     };
 
-    const moduleName = moduleNameIn(module, contentLangCode(languages ?? [], locale));
+    const moduleName = moduleNameForReader(module, languages, locale);
 
     const header = (
         <PageHeader

@@ -1074,6 +1074,15 @@ per-component state would move the rail and nothing else. `hrefFor` lives in
 `routes.js` rather than beside the hook, because it needs no React — sidebar
 items are anchors, and middle-click and "copy link address" only work on those.
 
+**A listing carries its page in the address**, as `?page=2`. It was component
+state until the form became a screen of its own - at which point it died every
+time the form replaced the listing, so editing an entry from page two and
+saving returned the reader to page one. Page one is the plain path, because
+`buildPath` drops an empty query value and the same fifteen rows must not have
+two URLs; a page past the end clamps, and the address follows it back. The page
+travels **into** an entry's address as well, or the form would be the one screen
+that does not know where its reader came from.
+
 **`ErrorBoundary` wraps the mount, outside the providers.** The panel makes
 several deliberate throws — a hook used outside its provider, a link asked for a
 route that does not exist — and in React an uncaught render throw unmounts the
@@ -1339,7 +1348,7 @@ the diff first).
 ## 8. Frontend
 
 `app.jsx` (root, no router — local state `view = {type, data}`) →
-`Login` / `ModulesList` / `ModuleBuilder` / `EntriesManager`
+`Login` / `ModulesList` / `ModuleBuilder` / `EntriesScreen`
 (→ `EntriesTable`, `EntryForm` → `RichTextEditor`). `lib/api.js` = axios
 instance with `baseURL: /api, withCredentials: true`. Frontend
 restrictions (e.g. hidden buttons) are **not** a security control —

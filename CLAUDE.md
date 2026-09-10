@@ -111,7 +111,8 @@ The `lib/` helpers are pure functions and carry the interesting decisions:
 
 Components, in order of how much they will surprise you:
 `EntryForm.jsx` (largest — dynamic fields, translations, error display),
-`EntriesManager.jsx` (fetching, pagination, language state),
+`screens/EntriesScreen.jsx` (fetching, pagination, the order queue),
+`screens/EntryEditScreen.jsx` (the guard that must not mount the form early),
 `ModuleBuilder.jsx`, `EntriesTable.jsx`, `GalleryEditor.jsx` (several images
 on one entry, alt text per language), `RichTextEditor.jsx` (Tiptap),
 `Login.jsx`, `app.jsx`.
@@ -197,7 +198,7 @@ purpose, so `t()` answers its own key — assert the raw English instead.
 
 ```bash
 php artisan test                    # 515 tests
-npm test                            # 361 tests
+npm test                            # 377 tests
 npm run build
 php artisan schema:sync-field-types # after changing field type constants
 php artisan pages:warm              # bake the public site to files (#97) - THE DEPLOY STEP
@@ -268,7 +269,7 @@ Started from a repo that would not boot (eight files of merge conflicts).
 Worked through a prioritised list; every item is either done or recorded in
 `CHANGELOG.md` with its reasoning.
 
-- **515 PHP tests, 361 JS tests**, all passing. Build clean.
+- **515 PHP tests, 377 JS tests**, all passing. Build clean.
 - **The project has a commercial goal as of 2026-08-30**, and it now decides
   what gets worked on. A multilingual CMS that feeds client sites, owned
   outright, for a one-person web agency: **one installation per client site**,
@@ -434,7 +435,7 @@ a `required` rule that demanded every active language (CHANGELOG §22).
 
 **What still needs a person** is anything in a component rather than in a pure
 helper. `TASKS.md` #94 records why: six defects in a row have been in the
-wiring of `EntriesManager`, `EntryForm` and `EntriesTable` while the helpers
+wiring of the entries screens, `EntryForm` and `EntriesTable` while the helpers
 underneath them were well covered, and one was an assignment to a `const` that
 the build and 155 passing tests both walked past. There is no component-test
 harness. Ask the user to click, or expect surprises there first.
