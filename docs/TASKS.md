@@ -1162,6 +1162,28 @@ Three things to know before touching it:
   explicit invalidation. A file has none, so anything that changes a page has
   to say so — which is why `Language` is observed now and never was.
 
+### 118. Sign-in: remember me, and a password reset
+
+Both are **drawn on the login screen and not wired** (#117 item 9). They are
+referenced from a comment beside them in `Login.jsx`, and each says
+*"Not available yet."* in its `title` — because a control that looks ready and
+does nothing is a support call on the one screen where a person is already
+unsure whether they typed their password wrong.
+
+Neither is UI work. **Remember me** wants a `remember` parameter on
+`POST /api/login` and `Auth::attempt($credentials, $remember)`, which changes
+how long a session survives — worth thinking about beside the login rate limit
+(CHANGELOG §13) rather than bolting on. **Password reset** is a whole flow:
+routes, a signed token, expiry, a mail template, and its own throttle, on an
+application whose only mail today is the enquiry notification (#66).
+
+Until then a client who loses their password asks the agency, which is one
+support call against the ceiling in `BUSINESS.md` §5 — so this is worth doing,
+just not by faking it.
+
+> The reset is the more valuable half. Remember me saves a login a week;
+> a reset saves a telephone call at an hour when nobody wants one.
+
 ### 117. The panel redesign — IN PROGRESS (2026-09-10)
 
 See the Amendment above for **why**, which is a business argument rather than a
@@ -1221,7 +1243,7 @@ every screen moves.
 | ~~6~~ | ~~`ui/` batch 1~~ — **folded into 8**, see below | |
 | ~~7~~ | ~~`ui/` batch 2~~ — **folded into 8**, see below | |
 | 8 | `Shell` / `Sidebar` / `Topbar`, wired to the router | ✅ every existing screen has a URL and a reload lands on it |
-| 9 | Login, two panels | a 401 still reads "Wrong email or password." under test |
+| 9 | Login, two panels | ✅ a 401 still reads "Wrong email or password." under test |
 | 10 | `ModulesList` restyle | real modules render; a singleton links straight to its fields |
 | 11 | `EntriesTable` restyle | the reorder arrows and pagination still work **live** |
 | 12 | `EntriesManager` split into two screens | `/admin/content/rooms/12` loads the real entry after a cold reload |
@@ -1252,7 +1274,7 @@ else, and making them real is PHP.
 > components — mitigated because item 3's tokens already hold the line where
 > drift is most visible, which is colour.
 
-**Where it stands.** Six are done.
+**Where it stands.** Seven are done.
 
 - **1. Component test harness — DONE.** See #94, which this closed. It found two
   defects within ten minutes of existing, one of them a test file that no
@@ -1419,6 +1441,33 @@ else, and making them real is PHP.
   because `EntriesManager` still owns create and edit as internal state.
   Nothing in the panel produces those addresses, so they are unreachable except
   by typing one. Item 12 splits that component and makes them true.
+- **9. The sign-in screen — DONE.** Two panels: a brand half carrying the
+  product's own line, and the form. The brand half is **hidden below `lg`
+  rather than stacked** — on a phone it would push the form below the fold, and
+  the form is the only thing anybody came here for. Its two accent washes are
+  drawn from `--ui-accent`, so choosing a different accent changes this screen
+  too.
+
+  **A reveal toggle on the password**, which is not decoration: a person who
+  cannot see what they typed retypes it, and on a form whose only refusal is
+  *"wrong email or password"* that is the difference between one attempt and
+  five — which the login limiter counts (CHANGELOG §13). It carries
+  `tabIndex={-1}`, so Tab from the password reaches *Login* rather than a
+  control that only changes how the text looks.
+
+  **`Remember me` and `Forgot password` are drawn and not wired**, at the
+  owner's instruction, with a comment beside them in the source and
+  **#118** carrying the PHP both need. Each says *"Not available yet."* in its
+  `title`, and asking for a reset explains what to do instead of doing nothing.
+  A test pins that `signIn` is still called with two arguments — when #118
+  lands, that assertion is what has to change, which is the point of writing it.
+
+  The refusal banner gained `role="alert"`: it appears *after* the form was
+  sent, by which time a screen reader has moved on, so it has to announce
+  itself rather than only be drawn.
+
+  Verified live, signed out and therefore in Greek — the reveal toggle flips
+  the field between `password` and `text` and swaps its own label with it.
 
 ### 116. The panel's language decides which content language it opens on — DONE (CHANGELOG §32)
 
