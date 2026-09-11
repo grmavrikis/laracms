@@ -170,6 +170,73 @@ describe('Dashboard, when nothing loads', () => {
         expect(screen.queryByRole('region', { name: /Sample data/ })).not.toBeInTheDocument();
     });
 
+    /**
+     * **A failure is not an empty site**, and the screen said it was: the catch
+     * set an error, `finally` cleared `loading`, and the empty defaults then
+     * rendered *No sections yet* beside the alert. An owner whose network
+     * blipped was told their content was gone.
+     *
+     * `ByModuleSlug` fixed exactly this once already, where a network failure
+     * read *That section no longer exists*.
+     */
+    it('never says the site is empty when it simply could not be read', async () => {
+        get.mockRejectedValue(new Error('Network Error'));
+        draw();
+        await screen.findByRole('alert');
+
+        expect(screen.queryByText('No sections yet.')).not.toBeInTheDocument();
+        expect(screen.queryByText('No enquiries yet')).not.toBeInTheDocument();
+    });
+
+    it('offers a way to try again rather than a dead screen', async () => {
+        const user = userEvent.setup();
+        get.mockRejectedValue(new Error('Network Error'));
+        draw();
+        await screen.findByRole('alert');
+
+        get.mockImplementation((url) => {
+            if (url === '/languages') return Promise.resolve({ data: LANGUAGES });
+            if (url === '/modules') return Promise.resolve({ data: MODULES });
+            return Promise.resolve({ data: INBOX });
+        });
+
+        await user.click(screen.getByRole('button', { name: 'Try again' }));
+
+        expect(await screen.findByRole('link', { name: /Rooms/ })).toBeInTheDocument();
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    });
+
+    /**
+     * Three independent requests, not one all-or-nothing result. `Promise.all`
+     * rejected as a unit, so an inbox that was merely unreachable discarded the
+     * sections that had already arrived - the same reasoning `GalleryEditor`
+     * records for using `allSettled` over `all`.
+     */
+    it('keeps what did load when only one request fails', async () => {
+        get.mockImplementation((url) => {
+            if (url === '/languages') return Promise.resolve({ data: LANGUAGES });
+            if (url === '/modules') return Promise.resolve({ data: MODULES });
+            return Promise.reject(new Error('Network Error'));
+        });
+        draw();
+
+        expect(await screen.findByRole('link', { name: /Rooms/ })).toBeInTheDocument();
+        expect(screen.getByRole('alert')).toBeInTheDocument();
+        expect(screen.queryByText('No enquiries yet')).not.toBeInTheDocument();
+    });
+
+    it('still counts the sections when only the inbox is unreachable', async () => {
+        get.mockImplementation((url) => {
+            if (url === '/languages') return Promise.resolve({ data: LANGUAGES });
+            if (url === '/modules') return Promise.resolve({ data: MODULES });
+            return Promise.reject(new Error('Network Error'));
+        });
+        draw();
+        await screen.findByRole('link', { name: /Rooms/ });
+
+        expect(within(screen.getByRole('link', { name: /Modules/ })).getByText('2')).toBeInTheDocument();
+    });
+
     it('says so when the site has no sections yet', async () => {
         get.mockImplementation((url) => {
             if (url === '/languages') return Promise.resolve({ data: LANGUAGES });

@@ -15,6 +15,7 @@ import { loadLanguages } from '../lib/languageStore';
 import { loadModules, onModulesChanged } from '../lib/moduleStore';
 import { moduleNameIn } from '../lib/modules';
 import { hrefFor } from '../routes';
+import Link from '../ui/Link';
 import useRoute from '../hooks/useRoute';
 import useMediaQuery from '../hooks/useMediaQuery';
 import IconButton from '../ui/IconButton';
@@ -53,20 +54,9 @@ const writeCollapsed = (collapsed) => {
 function SidebarLink({ href, icon: Icon, letter, label, active, collapsed, onNavigate }) {
     return (
         <li>
-            <a
+            <Link
                 href={href}
-                onClick={(event) => {
-                    if (
-                        event.defaultPrevented
-                        || event.button !== 0
-                        || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey
-                    ) {
-                        return;
-                    }
-
-                    event.preventDefault();
-                    onNavigate();
-                }}
+                onNavigate={onNavigate}
                 // `page` rather than `true`: this is the address on show, which
                 // is what a screen reader announces as the current location.
                 aria-current={active ? 'page' : undefined}
@@ -94,7 +84,7 @@ function SidebarLink({ href, icon: Icon, letter, label, active, collapsed, onNav
                     )}
 
                 {!collapsed && <span className="truncate">{label}</span>}
-            </a>
+            </Link>
         </li>
     );
 }

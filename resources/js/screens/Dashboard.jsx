@@ -12,6 +12,7 @@ import { hrefFor } from '../routes';
 import PageHeader from '../ui/PageHeader';
 import Alert from '../ui/Alert';
 import Preview from '../ui/Preview';
+import Link from '../ui/Link';
 
 /**
  * The screen the panel opens on (#117 item 18).
@@ -46,25 +47,18 @@ const Stat = ({ icon: Icon, label, value, href, onNavigate }) => {
 
     const className = 'flex items-center gap-3 rounded-xl border border-line bg-surface p-4 transition-colors';
 
-    if (!href) {
-        return <div className={className}>{body}</div>;
-    }
-
     return (
-        <a
+        <Link
             href={href}
-            onClick={(e) => {
-                // Left click only, and never when a modifier is held: the whole
-                // reason these are anchors is that middle-click and "open in
-                // new tab" should keep working.
-                if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
-                e.preventDefault();
-                onNavigate?.();
-            }}
+            onNavigate={onNavigate}
+            // The number and the label are separate blocks, so the name is
+            // stated rather than left to how an engine joins them: read from
+            // the DOM they run together as "6Modules".
+            aria-label={`${value} ${label}`}
             className={`${className} cursor-pointer hover:border-line-strong hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring-accent`}
         >
             {body}
-        </a>
+        </Link>
     );
 };
 
@@ -75,30 +69,71 @@ export default function Dashboard({ navigate }) {
     const [enquiryCount, setEnquiryCount] = useState(0);
     const [loading, setLoading] = useState(true);
     const [errors, setErrors] = useState([]);
+    const [attempt, setAttempt] = useState(0);
+
+    /**
+     * **Which halves failed, kept apart from which are empty.**
+     *
+     * A screen holding only `loading`, `errors` and the data cannot tell "the
+     * site has no sections" from "the sections could not be read", and this one
+     * drew the first for the second: an owner whose network blipped was told
+     * their content was gone. `ByModuleSlug` fixed the same confusion once,
+     * where a failed fetch read *That section no longer exists*.
+     */
+    const [failed, setFailed] = useState({ modules: false, enquiries: false });
 
     useEffect(() => {
         let current = true;
 
-        Promise.all([loadModules(), loadLanguages(), api.get('/enquiries', { params: { page: 1 } })])
+        setLoading(true);
+        setErrors([]);
+
+        // `allSettled`, not `all`: these are three independent requests and
+        // `all` rejects as a unit, so an unreachable inbox discarded the
+        // sections that had already arrived. Same reasoning `GalleryEditor`
+        // records for keeping the uploads that succeeded.
+        Promise.allSettled([loadModules(), loadLanguages(), api.get('/enquiries', { params: { page: 1 } })])
             .then(([mods, langs, inbox]) => {
                 if (!current) return;
 
-                setModules(mods);
-                setLanguages(langs);
-                setEnquiries(rowsFrom(inbox.data).slice(0, 3));
-                setEnquiryCount(paginationFrom(inbox.data)?.total ?? rowsFrom(inbox.data).length);
-            })
-            .catch((err) => {
-                if (!current) return;
-                console.error(err);
-                setErrors(errorSummary(err, t('Could not load the dashboard.')));
+                if (mods.status === 'fulfilled') setModules(mods.value);
+                if (langs.status === 'fulfilled') setLanguages(langs.value);
+
+                if (inbox.status === 'fulfilled') {
+                    const rows = rowsFrom(inbox.value.data);
+
+                    setEnquiries(rows.slice(0, 3));
+                    setEnquiryCount(paginationFrom(inbox.value.data)?.total ?? rows.length);
+                }
+
+                // The module list decides the screen; the languages only decide
+                // which name a section shows, so a failure there is not worth a
+                // banner of its own.
+                setFailed({
+                    modules: mods.status === 'rejected',
+                    enquiries: inbox.status === 'rejected',
+                });
+
+                const refused = [mods, langs, inbox].find((r) => r.status === 'rejected');
+
+                if (refused) {
+                    console.error(refused.reason);
+                    setErrors(errorSummary(refused.reason, t('Could not load the dashboard.')));
+                }
             })
             .finally(() => current && setLoading(false));
 
         return () => { current = false; };
-    }, []);
+    }, [attempt]);
 
     const go = (name, params) => () => navigate?.(name, params);
+
+    /** Said where the data would have been, rather than as an empty list. */
+    const Unreadable = () => (
+        <p className="rounded-xl border border-dashed border-danger/40 p-6 text-center text-sm text-fg-muted">
+            {t('This could not be read just now.')}
+        </p>
+    );
 
     return (
         <div className="space-y-6">
@@ -108,7 +143,17 @@ export default function Dashboard({ navigate }) {
                 description={t('Where your site stands today.')}
             />
 
-            <Alert messages={errors} />
+            <Alert messages={errors}>
+                {errors.length > 0 && (
+                    <button
+                        type="button"
+                        onClick={() => setAttempt((n) => n + 1)}
+                        className="mt-2 cursor-pointer font-medium underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring-accent"
+                    >
+                        {t('Try again')}
+                    </button>
+                )}
+            </Alert>
 
             {loading ? (
                 <p className="py-12 text-center text-sm text-fg-muted">{t('Loading…')}</p>
@@ -143,7 +188,9 @@ export default function Dashboard({ navigate }) {
                     <section className="space-y-3">
                         <h2 className="text-base font-semibold text-fg">{t('Your sections')}</h2>
 
-                        {modules.length === 0 ? (
+                        {failed.modules ? (
+                            <Unreadable />
+                        ) : modules.length === 0 ? (
                             <p className="rounded-xl border border-dashed border-line-strong p-6 text-center text-sm text-fg-muted">
                                 {t('No sections yet.')}
                             </p>
@@ -152,13 +199,9 @@ export default function Dashboard({ navigate }) {
                                 <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                                     {modules.map((module, index) => (
                                         <li key={module.id ?? module.slug}>
-                                            <a
+                                            <Link
                                                 href={hrefFor('entries', { module: module.slug })}
-                                                onClick={(e) => {
-                                                    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
-                                                    e.preventDefault();
-                                                    navigate?.('entries', { module: module.slug });
-                                                }}
+                                                onNavigate={() => navigate?.('entries', { module: module.slug })}
                                                 className="flex items-center justify-between gap-3 rounded-lg border border-line bg-surface p-3 transition-colors hover:border-line-strong hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring-accent"
                                             >
                                                 <span className="flex min-w-0 items-center gap-2">
@@ -177,7 +220,7 @@ export default function Dashboard({ navigate }) {
                                                     </span>
                                                     <ArrowRight className="h-4 w-4" aria-hidden="true" />
                                                 </span>
-                                            </a>
+                                            </Link>
                                         </li>
                                     ))}
                                 </ul>
@@ -188,7 +231,9 @@ export default function Dashboard({ navigate }) {
                     <section className="space-y-3">
                         <h2 className="text-base font-semibold text-fg">{t('Latest enquiries')}</h2>
 
-                        {enquiries.length === 0 ? (
+                        {failed.enquiries ? (
+                            <Unreadable />
+                        ) : enquiries.length === 0 ? (
                             <p className="rounded-xl border border-dashed border-line-strong p-6 text-center text-sm text-fg-muted">
                                 {t('No enquiries yet')}
                             </p>

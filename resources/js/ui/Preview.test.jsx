@@ -46,3 +46,44 @@ describe('Preview', () => {
         expect(screen.getByText(/Entry counts need an endpoint/)).toBeInTheDocument();
     });
 });
+
+/**
+ * The note is the *specific* half of the warning: the default says a block is
+ * invented, a note says **which** part of the screen is. Announcing the default
+ * over a caller's note does not merely lose detail - on the dashboard it
+ * reverses the meaning, telling a reader the whole region is examples when only
+ * the counts are.
+ */
+describe('Preview, what it announces', () => {
+    it('announces the note it was given, not the default', () => {
+        render(
+            <Preview note="The counts below are examples. Everything else is your own.">
+                <p>3</p>
+            </Preview>
+        );
+
+        const name = screen.getByRole('region').getAttribute('aria-label');
+
+        expect(name).toContain('Sample data');
+        expect(name).toContain('The counts below are examples');
+        expect(name).not.toContain('not from your site');
+    });
+
+    it('falls back to the default when no note is given', () => {
+        render(<Preview><p>3</p></Preview>);
+
+        expect(screen.getByRole('region').getAttribute('aria-label'))
+            .toContain('not from your site');
+    });
+
+    // The visible sentence and the announced one must not drift apart, which is
+    // the whole defect: one said "only the counts", the other "everything".
+    it('says the same thing to both readers', () => {
+        render(<Preview note="Only the counts are invented."><p>3</p></Preview>);
+
+        const region = screen.getByRole('region');
+
+        expect(region.getAttribute('aria-label')).toContain('Only the counts are invented.');
+        expect(region).toHaveTextContent('Only the counts are invented.');
+    });
+});

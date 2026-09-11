@@ -1932,6 +1932,36 @@ saying exactly that and naming this item.
 
   23 tests, and all ten fixes mutation-tested.
 
+  **A review over item 18 found nine, and the first was live.** The Dashboard
+  drew a failed load as an empty site: the catch set an error, `finally` cleared
+  `loading`, and the empty defaults then rendered *No sections yet* beside the
+  alert - an owner whose network blipped was told their content was gone. That
+  is `ByModuleSlug`'s defect again, where a failed fetch once read *That section
+  no longer exists*.
+
+  The fix is three things, not one. A `failed` state kept **apart from**
+  emptiness, so the screen can tell "there are none" from "these could not be
+  read". `Promise.allSettled` instead of `all`, because three independent
+  requests were collapsing into one all-or-nothing result and an unreachable
+  inbox discarded the sections that had already arrived - the reasoning
+  `GalleryEditor` already records for keeping the uploads that succeeded. And a
+  *Try again*, because a screen that can fail needs a way out of the failure.
+
+  Also fixed: `ui/Preview` announced the default sentence over a caller's note,
+  which on the Dashboard **reversed the meaning** - the visible text said only
+  the counts are examples while the region announced that everything was;
+  `ui/Link` is extracted at the click guard's third copy, the two newest of
+  which had dropped `SidebarLink`'s `defaultPrevented` check; the stat cards
+  state their accessible name rather than leaving *6Modules* to be joined by
+  whatever the engine does; Analytics stopped inventing an enquiry count that
+  contradicted the real one on the dashboard; and `preview-markers.test.js` got
+  a name that matches what it checks.
+
+  **One finding is recorded and not fixed**, because it cannot be: the item's
+  thirteen Dashboard tests were written after the screen and passed on the first
+  run, against CLAUDE.md's first rule. That is how the misleading test name got
+  in. Every fix in this round was written test-first and confirmed red.
+
 ### 119. The entry form offers a language the site has switched off — P2
 
 Found live on 2026-09-11 while verifying #117 item 14. French is

@@ -39,7 +39,12 @@ import Preview from '../ui/Preview';
 const SUMMARY = [
     { key: 'visitors', label: () => t('Visitors'), value: '1,284', change: '+12%' },
     { key: 'views', label: () => t('Page views'), value: '4,019', change: '+8%' },
-    { key: 'enquiries', label: () => t('Enquiries'), value: '37', change: '+24%' },
+    // Deliberately **not** an enquiry count. The dashboard shows the site's
+    // real one, and two screens a click apart reporting different totals for
+    // the same named thing makes a reader work out which is which - the marker
+    // says a figure is a sample, it does not say which real figure it collides
+    // with.
+    { key: 'duration', label: () => t('Time on page'), value: '1m 48s', change: '+11s' },
     { key: 'rate', label: () => t('Enquiry rate'), value: '2.9%', change: '+0.4pp' },
 ];
 

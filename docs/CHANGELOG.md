@@ -4830,3 +4830,79 @@ The `Placeholder` component is deleted and *This screen is not built yet* is
 dropped from both catalogues.
 
 515 PHP tests, 631 JS tests, build clean.
+
+## 42. A failure is not an empty site (#117, item 18's review)
+
+Nine findings over the two new screens. The first was live and is the one worth
+keeping.
+
+### The Dashboard drew a failed load as an empty site
+
+`catch` set an error, `finally` cleared `loading`, and the empty defaults then
+rendered *No sections yet* and *No enquiries yet* beside the alert. An owner
+whose network blipped for a second was told their site had no content.
+
+This is `ByModuleSlug`'s defect, which once reported a failed fetch as *That
+section no longer exists*. A screen holding only `loading`, `errors` and the
+data **cannot express the difference** between "there are none" and "these could
+not be read", so it picks one, and the one it picks is a lie half the time.
+
+The fix is three separate things:
+
+- a `failed` state, kept apart from emptiness, so each half of the screen can
+  say which of the two it means;
+- **`Promise.allSettled` instead of `all`** — three independent requests were
+  collapsing into one all-or-nothing result, so an unreachable inbox discarded
+  the sections that had already arrived. `GalleryEditor` records the same
+  reasoning for keeping the uploads that succeed when one is refused;
+- a *Try again*, because a screen that can fail needs a way out of the failure
+  rather than a reload.
+
+Verified live by pointing only `/api/enquiries` at a dead port: all six sections
+stayed on screen, neither empty message appeared, the inbox said it could not be
+read where its rows would have been, and *Try again* restored everything.
+
+### A marker that announced the opposite of what it showed
+
+`ui/Preview` built its `aria-label` from the default sentence while rendering
+`note ?? default` as text. With a note passed, the two disagreed — and on the
+Dashboard they disagreed in the worst direction: the visible line said *only the
+counts below are examples*, the region announced *these figures are examples*.
+The reader who most depends on the marker was told the whole block was invented.
+
+One `sentence` const now feeds both. The general form is worth stating: **an
+accessible name computed separately from the visible text is a second copy, and
+two copies of a sentence drift.**
+
+### The third copy of a guard, minus a check
+
+`ui/Link` is extracted at the click guard's third hand-written copy.
+`SidebarLink` had it; `Dashboard` wrote it out twice more, both times **without**
+the `event.defaultPrevented` check — so a click a parent had already handled was
+honoured in the rail and navigated anyway on the dashboard. That is what a third
+copy of a non-obvious rule costs: not duplication, drift.
+
+### The rest
+
+The stat cards state an `aria-label` rather than leaving *6Modules* to whatever
+an engine does when joining two block elements. Analytics stopped inventing an
+enquiry count that contradicted the real one the Dashboard shows a click away —
+the marker says a figure is a sample, it does not say which real figure it
+collides with. `Stat`'s unreachable no-`href` branch is gone. And
+`preview-markers.test.js`'s `never draws a figure outside it` was renamed: it
+counted tag balance and never looked at placement, which the Dashboard
+deliberately varies.
+
+### One finding recorded and not fixed
+
+Item 18's thirteen Dashboard tests were written **after** the screen and passed
+on their first run, against CLAUDE.md's first rule. It cannot be undone, and it
+is how the misleading test name got in — a test shaped to the code asserts what
+the code happens to do.
+
+Every fix in this round was written test-first and confirmed red: the four new
+Dashboard cases, the three `Preview` cases and the eight `ui/Link` cases all
+failed before the change, and the `defaultPrevented` guard was mutation-checked
+after it.
+
+515 PHP tests, 646 JS tests, build clean.

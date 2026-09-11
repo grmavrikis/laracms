@@ -41,13 +41,23 @@ describe('the screens drawn from invented figures', () => {
         expect(todos.join('\n')).toMatch(TODO_NAMING_AN_ENDPOINT);
     });
 
-    // The marker is the only thing standing between an invented number and a
-    // decision made on it, so a screen may not quietly stop using it.
-    it.each(SCREENS)('%s never draws a figure outside it', (_name, path) => {
+    /**
+     * **What this checks and what it does not.** It reads that every `<Preview>`
+     * is a wrapper rather than a self-closing tag, which is the shape that can
+     * actually contain anything - a marker that wraps nothing marks nothing.
+     *
+     * It does **not** check that no invented figure is drawn outside one, and
+     * cannot: the Dashboard draws real figures outside its marker on purpose.
+     * Placement is checked where the screen is rendered -
+     * `Dashboard.test.jsx` → *keeps the entry counts inside the marker*. This
+     * name said otherwise and a reader would have trusted it.
+     */
+    it.each(SCREENS)('%s wraps its marker round something', (_name, path) => {
         const code = source(path);
         const opens = (code.match(/<Preview[\s>]/g) ?? []).length;
         const closes = (code.match(/<\/Preview>/g) ?? []).length;
 
-        expect(opens, 'every Preview must be a wrapper, not self-closing').toBe(closes);
+        expect(opens, 'a self-closing Preview marks nothing').toBe(closes);
+        expect(opens).toBeGreaterThan(0);
     });
 });
