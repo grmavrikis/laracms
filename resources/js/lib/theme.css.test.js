@@ -126,3 +126,68 @@ describe('the rich-text editor follows the theme', () => {
         expect(value, `--tw-prose-${name} names a colour instead of a token`).toMatch(/^var\(--ui-[\w-]+\)$/);
     });
 });
+
+/**
+ * The tokens are measured, not eyeballed.
+ *
+ * Item 3 already settled this once, for `--accent-solid`: a fixed ramp step was
+ * correct on half the palettes and silently failed WCAG AA on the rest, and the
+ * answer was to measure rather than to trust the ramp. The same applies to the
+ * grays, and it was not being checked - **`--ui-fg-muted` measured 4.35:1 on
+ * `--ui-surface-muted` in light**, which is the pair every card's secondary
+ * line and every small-caps label actually sits on. Found by measuring the live
+ * panel; nothing in the suite could see it.
+ *
+ * The thresholds are WCAG's, by what each tier is for:
+ *
+ * - `fg` and `fg-muted` carry sentences and labels, so **4.5:1**.
+ * - `fg-subtle` is the hint tier - placeholders, an em dash for an empty cell -
+ *   and is held to the **3:1** that applies to non-text, which is what stops it
+ *   drifting lighter while leaving it distinguishable from `fg-muted`.
+ */
+const HEX = /^#([0-9a-f]{6})$/i;
+
+const luminance = (hex) => {
+    const channels = [1, 3, 5].map((at) => parseInt(hex.slice(at, at + 2), 16) / 255);
+    const linear = channels.map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+
+    return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2];
+};
+
+const contrast = (a, b) => {
+    const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+
+    return (hi + 0.05) / (lo + 0.05);
+};
+
+describe('the grays are readable on the surfaces they sit on', () => {
+    const SURFACES = ['bg', 'surface', 'surface-muted'];
+    const cases = [];
+
+    for (const [theme, body] of [['light', lightRoot], ['dark', darkRoot]]) {
+        for (const surface of SURFACES) {
+            for (const [ink, floor] of [['fg', 4.5], ['fg-muted', 4.5], ['fg-subtle', 3]]) {
+                cases.push([theme, ink, surface, floor, body]);
+            }
+        }
+    }
+
+    it.each(cases)('%s: %s on %s clears %s:1', (_theme, ink, surface, floor, body) => {
+        const inkHex = declaration(body, `ui-${ink}`);
+        const surfaceHex = declaration(body, `ui-${surface}`);
+
+        // Every one of these is a literal in both blocks; a `var()` here would
+        // mean a token moved and this test needs to learn how to follow it.
+        expect(inkHex, `--ui-${ink}`).toMatch(HEX);
+        expect(surfaceHex, `--ui-${surface}`).toMatch(HEX);
+
+        expect(contrast(inkHex, surfaceHex)).toBeGreaterThanOrEqual(floor);
+    });
+
+    // The rail keeps its own tokens in both themes, so it needs its own check -
+    // nothing above would notice it.
+    it.each([['sidebar-fg', 4.5], ['sidebar-fg-muted', 4.5]])('the rail reads: %s clears %s:1', (ink, floor) => {
+        expect(contrast(declaration(lightRoot, `ui-${ink}`), declaration(lightRoot, 'ui-sidebar-bg')))
+            .toBeGreaterThanOrEqual(floor);
+    });
+});

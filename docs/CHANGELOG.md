@@ -4388,3 +4388,217 @@ yet** — the bundle is unchanged because nothing imports it — and the panel s
 looks exactly as it did. Only `body` and the theme menu read the new tokens.
 
 515 PHP tests, 322 JS tests, build clean.
+
+## 38. The editors, and what measuring the grays turned up (#117, items 13-15)
+
+Items 13 to 15 took the entry form apart and put it back. The first two split a
+530-line component into a field renderer and three blocks; the third restyled
+the two editors those blocks mount. Between them they produced sixty-three
+tests, a review round that found a defect in every component that lacked one,
+and one finding that had been shipping since dark mode existed.
+
+### `prose` paints its own colours, and they are not the panel's
+
+The rich-text editor wears `prose` for its type scale and list markers. The
+plugin sets `--tw-prose-body` and its siblings to fixed grays, so the words a
+client had typed measured **8.4:1 on the light surface and 2.01:1 on the dark
+one**. Item 3 tokenised the surface behind the editor and nothing tokenised the
+text on it, and nothing failed - a green suite, a clean build, and the one place
+in the panel where switching theme made the *content* unreadable rather than the
+chrome.
+
+Twelve `--tw-prose-*` variables now resolve to `--ui-*`, which means the editor
+follows both axes for free - the same trick `@theme inline` plays for utilities.
+The declarations are unlayered so they outrank the plugin's own `.prose` block
+at equal specificity.
+
+**The list is the server's, not a guess.** `RichTextDocument::NODES` and
+`::MARKS` decide what a document may contain, so anything outside them would be
+paint for markup that cannot survive a save. That is also why `--tw-prose-kbd`
+and the table borders are absent: the editor cannot produce them and the
+allowlist would strip them if it could.
+
+### Then the same question, asked of the grays
+
+If the editor's text was never measured, what else was not. Two of the three
+gray tiers failed in light mode:
+
+| pair | was | now |
+|---|---|---|
+| `fg-muted` on `surface-muted` | 4.35:1 | 6.92:1 |
+| `fg-subtle` on `surface` | 2.56:1 | 4.83:1 |
+
+The first is the pair under every card's secondary line and every small-caps
+label in the panel. Light's two tiers moved one step darker - slate-500/400 to
+slate-600/500 - and dark was already clear and is untouched. **That asymmetry is
+the finding**: a light surface needs darker ink than a dark surface needs
+lighter ink, so a palette that mirrors itself across the two themes is wrong in
+one of them.
+
+`theme.css.test.js` measures every combination now: 4.5:1 for `fg` and
+`fg-muted`, which carry sentences and labels, and 3:1 for `fg-subtle`, which is
+the hint tier - placeholders, an em dash for an empty cell - held to the non-text
+threshold so it cannot drift lighter while staying distinguishable from
+`fg-muted`. The sidebar keeps its own tokens in both themes and gets its own
+check, because nothing else would see it.
+
+This is item 3's rule arriving a second time. That item declared
+`--accent-solid` per palette rather than deriving it from a fixed ramp step,
+because `emerald-600` on white measures 3.4:1 and `violet-600` measures 5.9:1 -
+a rule that was right for half the palettes and silently unreadable for the
+rest. **Measure, do not eyeball**, and now a test does it.
+
+### Two contrast readings that were wrong, and why
+
+Both are worth keeping, because both looked authoritative.
+
+The first was taken immediately after flipping `data-theme`, with
+`transition-colors` still in flight: it reported a toolbar icon at 2.34:1, a
+colour the panel never rests on. The second came from a hand-rolled parser that
+took the three numbers out of `oklab(0.968 -0.003 -0.006 / 0.5)` and treated them
+as RGB, reporting a label at 2.77:1 that actually measures 7.24:1.
+
+The numbers in this section are painted to a canvas and read back as pixels,
+composited through each element's own transparency, after the transition has
+settled. **A contrast number not measured on settled, composited pixels is a
+guess.**
+
+### What the review round found, and what it says about tests
+
+Item 14 extracted four components and gave one of them a test. A review found
+ten defects in the other three, and the three that mattered were all the same
+kind of thing - markup that claims an association it does not have:
+
+- **`TranslatableFields` rendered with no resolved language.** `FieldErrors`
+  reads a null `langCode` as *not translatable, show everything*, so a form
+  whose active id matched no row put every language's complaints under every
+  box. That is the defect §36 describes, reached by a different door; the
+  component refuses to render now and says so.
+- **`FieldLabel` aimed `for` at rich text and gallery.** Neither is a labelable
+  element, so the association resolved to nothing: no accessible name, a dead
+  click, and markup asserting otherwise. Both are named through
+  `aria-labelledby` on a `role="group"`.
+- **The boolean field carried two labels** for one checkbox, which every reader
+  announces differently.
+
+The same shape appears in item 15's own work: the gallery's language code was a
+`span` beside an input, and the toolbar's active state was a background colour
+with nothing in the accessibility tree. Eight identical alt boxes, and nothing
+said which photograph any of them belonged to.
+
+**This is TASKS #94's prediction, three review rounds running.** The lesson is
+not "write more tests" in general - the pure helpers under these components were
+always well covered. It is that *wiring* is where this project's defects live,
+and wiring is exactly what a helper test cannot see. Every fix in this section
+was mutation-tested afterwards: each break fails the test that covers it and
+nothing else.
+
+### Verified
+
+Live against MySQL, on a probe module carrying all eight field types and a real
+upload through the real endpoint, in both themes and two accents. Every `for`
+resolves, every composite control is named, no control has two labels, and a
+save that failed on Greek while English was open switched to Greek, marked that
+tab in words as well as colour, and filed the one message under the Greek box
+alone. The probe module, its entry and both uploaded files were removed
+afterwards.
+
+515 PHP tests, 486 JS tests, build clean.
+
+## 39. A label hidden by a breakpoint is not a label (#117, item 16)
+
+The four Module screens - `ModuleBuilder`, `ModuleFields`, `ModuleTranslations`
+and `ModuleTranslator` - had no tests between them and the worst labelling in
+the panel. The restyle is the smaller half of this section; what the screens
+were actually doing is the rest.
+
+### Every label in the field editor was `sm:hidden`
+
+Three controls per field row - name, type, validation - each with a label
+carrying `sm:hidden`. Above 640px the labels were not rendered at all, and there
+were no column headings either, so a desktop reader saw three unnamed boxes in a
+row. Below 640px they did render, and carried no `htmlFor`; the inputs carried
+no `id`. They named nothing at any width. The select's options box had no label
+in the markup at all, and the two controls that *were* named were named `Lang`
+and `Req`.
+
+`ModuleTranslations` had the same shape one screen along: two boxes per
+language, their labels associated with nothing, the language code beside them a
+`span`. On the create screen with four languages and one field row that is
+eleven controls a reader could not name.
+
+**This is the third screen in a row with the same defect**, after the entry
+form's composite controls (§38) and the gallery's alt boxes, which is why it is
+worth stating as a rule rather than fixing three times:
+
+> A `span` beside an input is not a label. A label with no `htmlFor` is not a
+> label. A label hidden by a breakpoint is not a label on the half of the
+> screens where it is hidden.
+
+Each field row is a `role="group"` named by its position now, each language a
+group named by its code, every control has a real label, and the flags are
+written out as *Translatable* and *Required*.
+
+### A tooltip on a disabled control cannot be reached
+
+#115 refuses to rename, retype, translate or remove a field that already has
+entries written against it, because all four reshape values in `entries.data`
+and nothing migrates them. The screen disabled those four controls and put the
+reason in a `title` attribute **on the disabled controls themselves**.
+
+A disabled control takes no focus and fires no pointer events. The explanation
+was therefore unreachable by keyboard and by mouse alike: what the person
+actually got was four grayed-out boxes and no reason. It is text on the page
+now, with the gallery's *one set of images for every language* beside it.
+
+The general form of this is worth keeping: **an explanation attached to the
+thing it explains is unreachable exactly when that thing is disabled**, which is
+the only time the explanation is needed.
+
+### `ui/Alert`, extracted on its sixth copy
+
+The same danger banner was written out by hand in `EntryForm`, `ModuleBuilder`
+twice, `ModuleTranslator`, `ModulesList`, `SettingsManager`, `EnquiriesManager`
+and `EntryEditScreen`.
+
+**Only the first of them announced itself.** A banner that appears after a
+failed save is the one thing on a screen that has to interrupt - it arrives
+after the press, often below the fold, and without a live role the person is
+left looking at a form that did nothing. That is why `role` lives in the
+component and not in a class string: a copied class string copies the colours
+and loses the behaviour, which is precisely what happened five times.
+
+`alert` is assertive and cuts across whatever is being read, so anything that is
+not a failure gets `status` instead.
+
+### One mutation did not bite
+
+Every fix in this section was mutation-tested. Eleven of twelve broke exactly
+the test that covered them. The twelfth did not: removing `defaultLangCode` from
+`ModuleBuilder`'s name-building - so it took whatever language came first
+instead of the default - left all eleven tests passing.
+
+The test typed Greek first, so the fallback happened to produce the same answer.
+Typing English first makes the two paths distinguishable, and the mutation then
+fails. **A mutation check that finds nothing proves the code; one that finds a
+survivor proves the test**, and the second is the more useful result.
+
+### Verified
+
+The item's criterion is that a rename still writes redirects (#69), and that was
+checked through the restyled screen rather than through the API: a probe module
+with a published entry, renamed in the browser, after which the `redirects`
+table held exactly the two rows it should -
+
+```
+301  /en/old          ->  /en/brand-new
+301  /en/old/a-page   ->  /en/brand-new/a-page
+```
+
+- the old addresses answered 301 over real HTTP and the new ones 200. On the
+create screen the browser then reported zero unnamed controls and zero labels
+pointing at an id nothing renders, in both themes; the lowest contrast anywhere
+on the screen measures 6.14:1. The module, its entry and both redirect rows were
+removed afterwards.
+
+515 PHP tests, 544 JS tests, build clean.

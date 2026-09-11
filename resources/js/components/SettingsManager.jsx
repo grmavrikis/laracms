@@ -4,6 +4,7 @@ import { errorSummary, validationErrors } from '../lib/apiErrors';
 import { getLangCode } from '../lib/languages';
 import { loadLanguages } from '../lib/languageStore';
 import { t } from '../lib/i18n';
+import { FILE_CLASSES } from '../ui/FileInput';
 
 /**
  * What the site says about itself (TASKS.md #67).
@@ -142,7 +143,7 @@ export default function SettingsManager({ onBack }) {
                                 setErrors(errorSummary(err, t('Could not upload the image.')));
                             }
                         }}
-                        className="block w-full text-sm text-fg-muted file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-accent-soft file:text-accent-text hover:file:bg-accent-soft cursor-pointer"
+                        className={FILE_CLASSES}
                     />
                     {value && (
                         <div className="flex items-center gap-3">

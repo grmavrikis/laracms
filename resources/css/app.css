@@ -144,8 +144,13 @@
     --ui-border: #e2e8f0;
     --ui-border-strong: #cbd5e1;
     --ui-fg: #0f172a;
-    --ui-fg-muted: #64748b;
-    --ui-fg-subtle: #94a3b8;
+    /* One step darker than dark mode's pair, and that asymmetry is the point:
+       a light surface needs darker ink than a dark surface needs lighter ink.
+       At slate-500/400 this tier measured **4.35:1** on `--ui-surface-muted`
+       and 2.5:1 for subtle - under AA for every card's secondary line and every
+       small-caps label in the panel. `theme.css.test.js` measures both now. */
+    --ui-fg-muted: #475569;
+    --ui-fg-subtle: #64748b;
 
     --ui-accent: var(--accent-solid);
     --ui-accent-hover: var(--accent-800);

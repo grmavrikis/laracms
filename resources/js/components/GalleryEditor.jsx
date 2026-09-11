@@ -107,7 +107,7 @@ export default function GalleryEditor({ value, onChange, languages = [], onError
             )}
 
             {items.length === 0 ? (
-                <p className="flex items-center gap-2 rounded-lg border border-dashed border-line-strong px-3 py-4 text-sm text-fg-subtle">
+                <p className="flex items-center gap-2 rounded-lg border border-dashed border-line-strong px-3 py-4 text-sm text-fg-muted">
                     <ImageOff className="h-4 w-4" aria-hidden="true" />
                     {t('No images yet.')}
                 </p>

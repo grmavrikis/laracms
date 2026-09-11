@@ -14,7 +14,14 @@
  */
 import { INPUT_LABEL_CLASSES } from './Input';
 
-const FILE_CLASSES =
+/**
+ * The picker's own styling, for the two callers that are already labelled from
+ * outside: `FieldInput`, where `FieldLabel` renders the schema field's name
+ * above it, and `SettingsManager`, which draws its own. They take the string
+ * rather than the component so they do not end up with two labels on one
+ * control - the defect #117's review round found in the boolean field.
+ */
+export const FILE_CLASSES =
     'block w-full cursor-pointer text-sm text-fg-muted '
     + 'file:mr-4 file:cursor-pointer file:rounded-md file:border-0 file:bg-accent-soft '
     + 'file:px-4 file:py-2 file:text-sm file:font-semibold file:text-accent-soft-fg '

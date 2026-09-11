@@ -7,6 +7,7 @@ import { t } from '../../lib/i18n';
 import RichTextEditor from '../RichTextEditor';
 import GalleryEditor from '../GalleryEditor';
 import { Input, Select } from '../../ui/Input';
+import { FILE_CLASSES } from '../../ui/FileInput';
 
 /**
  * Whether this field's control is something a `<label for>` can point at.
@@ -145,7 +146,7 @@ export default function FieldInput({ field, value, onChange, languages = [], onE
                     type="file"
                     accept="image/*"
                     onChange={handleFileChange}
-                    className="block w-full cursor-pointer text-sm text-fg-muted file:mr-4 file:cursor-pointer file:rounded-md file:border-0 file:bg-accent-soft file:px-4 file:py-2 file:text-sm file:font-semibold file:text-accent-soft-fg"
+                    className={FILE_CLASSES}
                 />
                 {value && (
                     <div className="relative flex h-32 w-32 items-center justify-center overflow-hidden rounded-lg border border-line bg-surface-muted">

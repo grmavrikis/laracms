@@ -107,7 +107,7 @@ export default function ModulesList({ onSelectModule, onCreateModule, onTranslat
         return (
             <div className="space-y-6">
                 {header}
-                <div className="rounded-xl border border-danger/30 bg-danger-soft p-4 text-sm text-danger-text">
+                <Alert>
                     <p>{error}</p>
                     <button
                         type="button"
@@ -116,7 +116,7 @@ export default function ModulesList({ onSelectModule, onCreateModule, onTranslat
                     >
                         {t('Try again')}
                     </button>
-                </div>
+                </Alert>
             </div>
         );
     }

@@ -8,6 +8,9 @@ import { isGalleryField } from '../lib/gallery';
 import { emptyField, fieldsFromSchema, nextFieldId, applyFieldChange, schemaPayload } from '../lib/moduleFields';
 import ModuleTranslations, { translationsPayload, translationsFrom } from './ModuleTranslations';
 import ModuleFields from './ModuleFields';
+import Alert from '../ui/Alert';
+import PageHeader from '../ui/PageHeader';
+import { Loader2, Pencil } from 'lucide-react';
 
 /**
  * Rename a section, per language (TASKS.md #114).
@@ -77,28 +80,17 @@ export default function ModuleTranslator({ module, onSaved, onCancel }) {
     };
 
     return (
-        <form onSubmit={handleSubmit} className="max-w-4xl mx-auto space-y-8 p-6 bg-surface rounded-xl border border-line shadow-sm">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-line pb-5 gap-4">
-                <div>
-                    <h2 className="text-xl font-bold tracking-tight text-fg">{t('Edit this module')}</h2>
-                    <p className="text-sm text-fg-muted">
-                        {t('Changing an address changes every page under it. The old one stops working.')}
-                    </p>
-                </div>
-                <button
-                    type="button"
-                    onClick={onCancel}
-                    className="text-sm text-fg-muted hover:text-fg"
-                >
-                    {t('Back to modules')}
-                </button>
-            </div>
+        <form onSubmit={handleSubmit} className="mx-auto max-w-4xl space-y-8 rounded-xl border border-line bg-surface p-6">
+            {/* The warning is the point of the screen, not decoration: #69
+                writes the 301s for a rename, but only the person pressing save
+                knows whether they meant to move every page under it. */}
+            <PageHeader
+                icon={Pencil}
+                title={t('Edit this module')}
+                description={t('Changing an address changes every page under it. The old one stops working.')}
+            />
 
-            {errors.length > 0 && (
-                <div className="bg-danger-soft border border-danger/30 text-danger-text text-sm p-4 rounded-xl space-y-1">
-                    {errors.map((msg, i) => <div key={i}>{msg}</div>)}
-                </div>
-            )}
+            <Alert messages={errors} />
 
             <ModuleTranslations
                 languages={languages}
@@ -113,19 +105,20 @@ export default function ModuleTranslator({ module, onSaved, onCancel }) {
                 onRemove={removeField}
             />
 
-            <div className="flex justify-end gap-3 border-t border-line pt-5">
+            <div className="flex items-center justify-end gap-3 border-t border-line pt-5">
                 <button
                     type="button"
                     onClick={onCancel}
-                    className="rounded-lg border border-line-strong px-4 py-2 text-sm font-semibold text-fg hover:bg-surface-muted"
+                    className="cursor-pointer rounded-lg px-4 py-2 text-sm font-medium text-fg transition-colors hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring-accent"
                 >
                     {t('Cancel')}
                 </button>
                 <button
                     type="submit"
                     disabled={submitting}
-                    className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accent-fg shadow-sm hover:bg-accent-hover disabled:opacity-50"
+                    className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg bg-accent px-5 py-2 text-sm font-semibold text-accent-fg transition-colors hover:bg-accent-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring-accent disabled:cursor-not-allowed disabled:opacity-50"
                 >
+                    {submitting && <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />}
                     {submitting ? t('Saving…') : t('Save module')}
                 </button>
             </div>

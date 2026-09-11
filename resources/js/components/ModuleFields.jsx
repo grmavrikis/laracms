@@ -1,14 +1,28 @@
-// resources/js/components/ModuleFields.jsx
+import { Plus, Trash2, Lock, Images } from 'lucide-react';
 import fieldTypes from '../lib/fieldTypes.json';
 import { isGalleryField } from '../lib/gallery';
 import { t } from '../lib/i18n';
+import { Input, Select, INPUT_LABEL_CLASSES } from '../ui/Input';
+import IconButton from '../ui/IconButton';
 
 // Which types exist is the backend's decision, so the values come from the
 // generated file rather than being listed again here.
-const FIELD_TYPES = fieldTypes.supported.map((value) => ({
-    value,
-    label: value.charAt(0).toUpperCase() + value.slice(1),
+//
+// The callback parameter is `type`, not `t`: it used to shadow the translate
+// function for the length of the map, so a `t('…')` added inside this
+// expression would have called an option object.
+const FIELD_TYPES = fieldTypes.supported.map((type) => ({
+    value: type,
+    label: type.charAt(0).toUpperCase() + type.slice(1),
 }));
+
+/** Why a row is fixed, as text on the page rather than only a tooltip. */
+const Note = ({ icon: Icon, children }) => (
+    <p className="flex items-start gap-1.5 text-xs text-fg-muted">
+        <Icon className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+        {children}
+    </p>
+);
 
 /**
  * The fields a module's entries hold (TASKS.md #115).
@@ -27,132 +41,172 @@ const FIELD_TYPES = fieldTypes.supported.map((value) => ({
  * neither corrected nor removed. Whether a row may change depends on whether
  * it was in the database when this opened, which is a property of the row.
  *
+ * **Every control is labelled and every row is named by its position**
+ * (#117 item 16). The labels were all `sm:hidden`, so above 640px there was no
+ * label at all - four unnamed boxes side by side with no column headings
+ * either - and on a telephone, where they did render, they carried no `htmlFor`
+ * and the inputs no `id`, so they named nothing there either. `Lang` and `Req`
+ * are written out for the same reason: an abbreviation is not a name.
+ *
  * @param {Array<object>} fields   rows from `lib/moduleFields`, each with `_id` and `locked`
  * @param {Function} onChange      `(id, key, value) => void`
  * @param {Function} onAdd
  * @param {Function} onRemove      `(id) => void`
  */
 export default function ModuleFields({ fields, onChange, onAdd, onRemove }) {
-    const locked = (field) => !!field.locked;
     const lockedReason = t('Entries have already been written against this field. Renaming, retyping or removing it needs a migration.');
+    const galleryReason = t('A gallery is one set of images for every language; only the alt text is translated.');
 
     return (
-            <div className="space-y-4 pt-4 border-t border-line">
-                <div className="flex justify-between items-center">
-                    <div>
-                        <h3 className="text-base font-semibold text-fg">{t('Fields')}</h3>
-                        <p className="text-sm text-fg-muted">{t('What each entry in this module holds.')}</p>
-                    </div>
-                    <button
-                        type="button"
-                        onClick={onAdd}
-                        className="inline-flex items-center justify-center rounded-lg bg-fg px-3.5 py-2 text-sm font-semibold text-bg shadow-sm hover:bg-fg/90 transition-all"
-                    >
-                        + {t('Add field')}
-                    </button>
+        <div className="space-y-4 border-t border-line pt-6">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                    <h3 className="text-base font-semibold text-fg">{t('Fields')}</h3>
+                    <p className="text-sm text-fg-muted">{t('What each entry in this module holds.')}</p>
                 </div>
+                <button
+                    type="button"
+                    onClick={onAdd}
+                    className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg bg-fg px-3.5 py-2 text-sm font-semibold text-bg transition-colors hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring-accent"
+                >
+                    <Plus className="h-4 w-4" aria-hidden="true" />
+                    {t('Add field')}
+                </button>
+            </div>
 
-                <div className="space-y-3">
-                    {fields.map((field) => (
-                        <div key={field._id} className="bg-surface-muted/50 border border-line rounded-xl p-4 space-y-3 transition-all hover:border-line-strong">
-                            <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center">
-                                <div className="sm:col-span-3">
-                                    <label className="block text-xs font-medium text-fg-muted mb-1 sm:hidden">{t('Field name')}</label>
-                                    <input
+            <div className="space-y-3">
+                {fields.map((field, index) => {
+                    const position = index + 1;
+                    const locked = !!field.locked;
+                    const gallery = isGalleryField(field);
+                    const id = (part) => `field-row-${field._id}-${part}`;
+
+                    return (
+                        <div
+                            key={field._id}
+                            role="group"
+                            aria-label={t('Field :position', { position })}
+                            className="space-y-3 rounded-xl border border-line bg-surface-muted/50 p-4 transition-colors hover:border-line-strong"
+                        >
+                            <div className="grid grid-cols-1 gap-3 sm:grid-cols-12">
+                                <div className="sm:col-span-4">
+                                    <label htmlFor={id('name')} className={INPUT_LABEL_CLASSES}>
+                                        {t('Field name')}
+                                    </label>
+                                    <Input
+                                        id={id('name')}
                                         type="text"
                                         placeholder={t('field_name')}
                                         value={field.name}
                                         onChange={(e) => onChange(field._id, 'name', e.target.value)}
-                                        disabled={locked(field)}
-                                        title={locked(field) ? lockedReason : undefined}
-                                        className="w-full rounded-lg border border-line-strong bg-surface px-3 py-1.5 text-sm text-fg shadow-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 font-mono text-xs disabled:bg-surface-muted disabled:text-fg-muted"
+                                        disabled={locked}
+                                        className="py-1.5 font-mono text-xs"
                                         required
                                     />
                                 </div>
+
                                 <div className="sm:col-span-3">
-                                    <label className="block text-xs font-medium text-fg-muted mb-1 sm:hidden">{t('Type')}</label>
-                                    <select
+                                    <label htmlFor={id('type')} className={INPUT_LABEL_CLASSES}>
+                                        {t('Type')}
+                                    </label>
+                                    <Select
+                                        id={id('type')}
                                         value={field.type}
                                         onChange={(e) => onChange(field._id, 'type', e.target.value)}
-                                        disabled={locked(field)}
-                                        title={locked(field) ? lockedReason : undefined}
-                                        className="w-full rounded-lg border border-line-strong bg-surface px-3 py-1.5 text-sm text-fg shadow-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 disabled:bg-surface-muted disabled:text-fg-muted"
+                                        disabled={locked}
+                                        className="py-1.5 text-sm"
                                     >
-                                        {FIELD_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-                                    </select>
+                                        {FIELD_TYPES.map((type) => (
+                                            <option key={type.value} value={type.value}>{type.label}</option>
+                                        ))}
+                                    </Select>
                                 </div>
-                                <div className="sm:col-span-4">
-                                    <label className="block text-xs font-medium text-fg-muted mb-1 sm:hidden">{t('Validation')}</label>
-                                    <input
+
+                                <div className="sm:col-span-5">
+                                    <label htmlFor={id('validation')} className={INPUT_LABEL_CLASSES}>
+                                        {t('Validation')}
+                                    </label>
+                                    <Input
+                                        id={id('validation')}
                                         type="text"
-                                        placeholder="required|max:60"
+                                        placeholder="max:60"
                                         value={field.validation}
                                         onChange={(e) => onChange(field._id, 'validation', e.target.value)}
-                                        className="w-full rounded-lg border border-line-strong bg-surface px-3 py-1.5 text-sm text-fg shadow-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 font-mono text-xs"
+                                        className="py-1.5 font-mono text-xs"
                                     />
-                                </div>
-                                <div className="sm:col-span-1 flex items-center justify-center sm:justify-start pt-2 sm:pt-0 gap-3">
-                                    <label
-                                        className={`flex items-center gap-1.5 text-sm select-none ${isGalleryField(field) || locked(field)
-                                            ? 'text-fg-subtle cursor-not-allowed'
-                                            : 'text-fg cursor-pointer'
-                                            }`}
-                                        title={locked(field)
-                                            ? lockedReason
-                                            : isGalleryField(field)
-                                                ? t('A gallery is one set of images for every language; only the alt text is translated.')
-                                                : undefined}
-                                    >
-                                        <input
-                                            type="checkbox"
-                                            checked={field.translatable}
-                                            disabled={isGalleryField(field) || locked(field)}
-                                            onChange={(e) => onChange(field._id, 'translatable', e.target.checked)}
-                                            className="h-4 w-4 rounded border-line-strong text-accent-text focus:ring-accent disabled:opacity-40"
-                                        />
-                                        <span className="text-xs font-medium">{t('Lang')}</span>
-                                    </label>
-                                    {/* Beats asking someone to type "required" into the
-                                        validation box, which no field ever did. */}
-                                    <label className="flex items-center gap-1.5 text-sm text-fg cursor-pointer select-none">
-                                        <input
-                                            type="checkbox"
-                                            checked={field.required}
-                                            onChange={(e) => onChange(field._id, 'required', e.target.checked)}
-                                            className="h-4 w-4 rounded border-line-strong text-accent-text focus:ring-accent"
-                                        />
-                                        <span className="text-xs font-medium">{t('Req')}</span>
-                                    </label>
-                                </div>
-                                <div className="sm:col-span-1 flex justify-end">
-                                    <button
-                                        type="button"
-                                        onClick={() => onRemove(field._id)}
-                                        disabled={fields.length === 1 || locked(field)}
-                                        className="inline-flex items-center justify-center p-2 text-fg-subtle hover:text-danger-text rounded-lg transition-colors disabled:opacity-30 disabled:hover:text-fg-subtle"
-                                        title={t('Remove field')}
-                                    >
-                                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                        </svg>
-                                    </button>
                                 </div>
                             </div>
 
-                            {field.type === 'select' && (
-                                <div className="pt-2">
+                            <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-line pt-3">
+                                <label
+                                    htmlFor={id('translatable')}
+                                    className={`flex select-none items-center gap-2 text-sm ${
+                                        gallery || locked ? 'cursor-not-allowed text-fg-muted' : 'cursor-pointer text-fg'
+                                    }`}
+                                >
                                     <input
+                                        id={id('translatable')}
+                                        type="checkbox"
+                                        checked={field.translatable}
+                                        disabled={gallery || locked}
+                                        onChange={(e) => onChange(field._id, 'translatable', e.target.checked)}
+                                        className="h-4 w-4 cursor-pointer rounded border-line-strong text-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring-accent disabled:cursor-not-allowed disabled:opacity-40"
+                                    />
+                                    {t('Translatable')}
+                                </label>
+
+                                {/* Beats asking someone to type "required" into the
+                                    validation box, which no field ever did. */}
+                                <label
+                                    htmlFor={id('required')}
+                                    className="flex cursor-pointer select-none items-center gap-2 text-sm text-fg"
+                                >
+                                    <input
+                                        id={id('required')}
+                                        type="checkbox"
+                                        checked={field.required}
+                                        onChange={(e) => onChange(field._id, 'required', e.target.checked)}
+                                        className="h-4 w-4 cursor-pointer rounded border-line-strong text-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring-accent"
+                                    />
+                                    {t('Required')}
+                                </label>
+
+                                <IconButton
+                                    icon={Trash2}
+                                    label={t('Remove field :position', { position })}
+                                    onClick={() => onRemove(field._id)}
+                                    disabled={fields.length === 1 || locked}
+                                    className="ml-auto h-8 w-8 hover:bg-danger-soft hover:text-danger-text disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-fg-muted"
+                                />
+                            </div>
+
+                            {field.type === 'select' && (
+                                <div>
+                                    <label htmlFor={id('options')} className={INPUT_LABEL_CLASSES}>
+                                        {t('Options')}
+                                    </label>
+                                    <Input
+                                        id={id('options')}
                                         type="text"
                                         placeholder={t('Comma separated options (e.g. Option 1, Option 2, Option 3)')}
                                         value={field.options || ''}
                                         onChange={(e) => onChange(field._id, 'options', e.target.value)}
-                                        className="w-full rounded-lg border border-accent/30 bg-accent-soft/30 px-3 py-1.5 text-sm text-fg shadow-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20"
+                                        className="py-1.5 text-sm"
                                     />
                                 </div>
                             )}
+
+                            {/* On the page, not in a `title`. A disabled control
+                                takes no focus and fires no pointer events, so a
+                                tooltip on one is reachable by neither keyboard
+                                nor hover - the person saw grayed-out boxes and
+                                nothing saying why. */}
+                            {locked && <Note icon={Lock}>{lockedReason}</Note>}
+                            {gallery && !locked && <Note icon={Images}>{galleryReason}</Note>}
                         </div>
-                    ))}
-                </div>
+                    );
+                })}
             </div>
+        </div>
     );
 }

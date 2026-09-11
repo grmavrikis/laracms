@@ -6,6 +6,9 @@ import { defaultLangCode } from '../lib/languages';
 import { loadLanguages } from '../lib/languageStore';
 import ModuleTranslations, { translationsPayload } from './ModuleTranslations';
 import ModuleFields from './ModuleFields';
+import Alert from '../ui/Alert';
+import PageHeader from '../ui/PageHeader';
+import { Loader2, FolderPlus } from 'lucide-react';
 import { isGalleryField } from '../lib/gallery';
 import { emptyField, nextFieldId, applyFieldChange, schemaPayload } from '../lib/moduleFields';
 import { t } from '../lib/i18n';
@@ -85,30 +88,15 @@ export default function ModuleBuilder({ onCreated, onCancel }) {
     };
 
     return (
-        <form onSubmit={handleSubmit} className="max-w-4xl mx-auto space-y-8 p-6 bg-surface rounded-xl border border-line shadow-sm">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-line pb-5 gap-4">
-                <div className="flex items-center space-x-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent-soft text-accent-text ring-1 ring-inset ring-accent/15 shadow-sm shrink-0">
-                        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4.5v15m7.5-7.5h-15" />
-                        </svg>
-                    </div>
-                    <div>
-                        <h2 className="text-xl font-bold tracking-tight text-fg">{t('New module')}</h2>
-                        <p className="text-sm text-fg-muted">{t('Give it a name in each language, and the fields its entries hold.')}</p>
-                    </div>
-                </div>
-            </div>
+        <form onSubmit={handleSubmit} className="mx-auto max-w-4xl space-y-8 rounded-xl border border-line bg-surface p-6">
+            <PageHeader
+                icon={FolderPlus}
+                title={t('New module')}
+                description={t('Give it a name in each language, and the fields its entries hold.')}
+            />
 
-            {errors.length > 0 && (
-                <div className="bg-danger-soft border border-danger/30 text-danger-text text-sm p-4 rounded-xl space-y-1">
-                    {errors.map((msg, i) => <div key={i}>{msg}</div>)}
-                </div>
-            )}
-
-            {languagesError && (
-                <div className="bg-danger-soft border border-danger/30 text-danger-text text-sm p-4 rounded-xl">{languagesError}</div>
-            )}
+            <Alert messages={errors} />
+            <Alert messages={languagesError} />
 
             <ModuleTranslations
                 languages={languages}
@@ -119,13 +107,14 @@ export default function ModuleBuilder({ onCreated, onCancel }) {
             {/* "About" is one entry; "Blog" is many (TASKS.md #60). Worded as
                 what the client will see rather than as a flag, because that is
                 the decision being made. */}
-            <div className="pt-4 border-t border-line">
-                <label className="flex items-start gap-3 cursor-pointer select-none">
+            <div className="border-t border-line pt-4">
+                <label htmlFor="module-singleton" className="flex cursor-pointer select-none items-start gap-3">
                     <input
+                        id="module-singleton"
                         type="checkbox"
                         checked={isSingleton}
                         onChange={(e) => setIsSingleton(e.target.checked)}
-                        className="mt-0.5 h-4 w-4 rounded border-line-strong text-accent-text focus:ring-accent"
+                        className="mt-0.5 h-4 w-4 cursor-pointer rounded border-line-strong text-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring-accent"
                     />
                     <span>
                         <span className="block text-sm font-semibold text-fg">
@@ -145,12 +134,12 @@ export default function ModuleBuilder({ onCreated, onCancel }) {
                 onRemove={removeField}
             />
 
-            <div className="flex items-center justify-end gap-3 pt-6 border-t border-line">
+            <div className="flex items-center justify-end gap-3 border-t border-line pt-6">
                 {onCancel && (
                     <button
                         type="button"
                         onClick={onCancel}
-                        className="inline-flex items-center justify-center rounded-lg bg-surface px-4 py-2 text-sm font-semibold text-fg shadow-sm ring-1 ring-inset ring-line-strong hover:bg-surface-muted transition-all"
+                        className="cursor-pointer rounded-lg px-4 py-2 text-sm font-medium text-fg transition-colors hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring-accent"
                     >
                         {t('Cancel')}
                     </button>
@@ -158,8 +147,9 @@ export default function ModuleBuilder({ onCreated, onCancel }) {
                 <button
                     type="submit"
                     disabled={submitting}
-                    className="inline-flex items-center justify-center rounded-lg bg-accent px-5 py-2 text-sm font-semibold text-accent-fg shadow-sm hover:bg-accent-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring-accent disabled:opacity-50 transition-all"
+                    className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg bg-accent px-5 py-2 text-sm font-semibold text-accent-fg transition-colors hover:bg-accent-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring-accent disabled:cursor-not-allowed disabled:opacity-50"
                 >
+                    {submitting && <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />}
                     {submitting ? t('Saving…') : t('Create module')}
                 </button>
             </div>

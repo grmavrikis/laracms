@@ -1,6 +1,7 @@
-// resources/js/components/ModuleTranslations.jsx
 import { getLangCode } from '../lib/languages';
 import { t } from '../lib/i18n';
+import { Input } from '../ui/Input';
+import Badge from '../ui/Badge';
 
 /**
  * A module's name and address in every language (TASKS.md #114).
@@ -17,6 +18,11 @@ import { t } from '../lib/i18n';
  * from **that language's own name**. It transliterates rather than translates,
  * which is why the name is typed per language rather than once.
  *
+ * **Each language is a named group and both its boxes are labelled**
+ * (#117 item 16). Four languages is eight identical boxes, and the code beside
+ * them was a `span` - which associates with nothing, so a reader arriving at
+ * one was told neither which language it was nor which of the two.
+ *
  * @param {Array<object>} languages every language, published or not
  * @param {object} value            `{ [code]: { name, slug } }`
  * @param {Function} onChange       `(code, key, value) => void`
@@ -30,39 +36,63 @@ export default function ModuleTranslations({ languages, value, onChange }) {
 
             {languages.map((language) => {
                 const code = getLangCode(language);
+                const id = (part) => `module-${code}-${part}`;
+                const slug = value[code]?.slug ?? '';
 
                 return (
-                    <div key={language.id ?? code} className="grid grid-cols-1 sm:grid-cols-2 gap-4 rounded-xl border border-line p-4">
-                        <div>
-                            <label className="flex items-center gap-2 text-sm font-semibold text-fg mb-1.5">
-                                <span className="inline-flex h-5 min-w-8 items-center justify-center rounded bg-surface-muted px-1.5 text-xs font-bold uppercase text-fg-muted">{code}</span>
-                                {t('Module name')}
-                                {!language.is_active && (
-                                    <span className="rounded bg-warning-soft px-1.5 py-0.5 text-xs font-medium text-warning-text">
-                                        {t('not published yet')}
-                                    </span>
-                                )}
-                            </label>
-                            <input
-                                type="text"
-                                placeholder={t('e.g. Rooms')}
-                                value={value[code]?.name ?? ''}
-                                onChange={(e) => onChange(code, 'name', e.target.value)}
-                                className="w-full rounded-lg border border-line-strong px-3.5 py-2 text-sm text-fg shadow-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20"
-                            />
+                    <div
+                        key={language.id ?? code}
+                        role="group"
+                        aria-label={code.toUpperCase()}
+                        className="space-y-3 rounded-xl border border-line p-4 transition-colors hover:border-line-strong"
+                    >
+                        {/* The language names the group, so it is said once
+                            here rather than inside both labels - where it would
+                            have become part of each box's accessible name.
+                            Every language is offered, published or not, so the
+                            client can translate ahead of a launch (#114), which
+                            makes saying which ones are not live this screen's
+                            job. */}
+                        <div className="flex items-center gap-2">
+                            <Badge tone="neutral">{code}</Badge>
+                            {!language.is_active && (
+                                <Badge tone="warning">{t('not published yet')}</Badge>
+                            )}
                         </div>
-                        <div>
-                            <label className="block text-sm font-semibold text-fg mb-1.5">
-                                {t('Address')} <span className="font-normal text-fg-muted">{t('(optional)')}</span>
-                            </label>
-                            <input
-                                type="text"
-                                placeholder={t('generated from the name')}
-                                value={value[code]?.slug ?? ''}
-                                onChange={(e) => onChange(code, 'slug', e.target.value)}
-                                className="w-full rounded-lg border border-line-strong px-3.5 py-2 text-sm font-mono text-fg shadow-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20"
-                            />
-                            <p className="mt-1.5 text-xs text-fg-muted">/{code}/{(value[code]?.slug ?? '') || t('generated from the name')}</p>
+
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                            <div>
+                                <label htmlFor={id('name')} className="mb-1.5 block text-sm font-semibold text-fg">
+                                    {t('Module name')}
+                                </label>
+                                <Input
+                                    id={id('name')}
+                                    type="text"
+                                    placeholder={t('e.g. Rooms')}
+                                    value={value[code]?.name ?? ''}
+                                    onChange={(e) => onChange(code, 'name', e.target.value)}
+                                />
+                            </div>
+
+                            <div>
+                                <label htmlFor={id('slug')} className="mb-1.5 block text-sm font-semibold text-fg">
+                                    {t('Address')}{' '}
+                                    <span className="font-normal text-fg-muted">{t('(optional)')}</span>
+                                </label>
+                                <Input
+                                    id={id('slug')}
+                                    type="text"
+                                    placeholder={t('generated from the name')}
+                                    value={slug}
+                                    onChange={(e) => onChange(code, 'slug', e.target.value)}
+                                    className="font-mono text-sm"
+                                />
+                                {/* What the visitor will actually see, rather than
+                                    asking somebody to imagine it. */}
+                                <p className="mt-1.5 font-mono text-xs text-fg-muted">
+                                    {`/${code}/${slug || t('generated from the name')}`}
+                                </p>
+                            </div>
                         </div>
                     </div>
                 );
@@ -82,9 +112,9 @@ export default function ModuleTranslations({ languages, value, onChange }) {
 export const translationsPayload = (value) =>
     Object.fromEntries(
         Object.entries(value)
-            .map(([code, t]) => [code, { name: (t?.name ?? '').trim(), slug: (t?.slug ?? '').trim() }])
-            .filter(([, t]) => t.name !== '')
-            .map(([code, t]) => [code, t.slug === '' ? { name: t.name } : t])
+            .map(([code, entry]) => [code, { name: (entry?.name ?? '').trim(), slug: (entry?.slug ?? '').trim() }])
+            .filter(([, entry]) => entry.name !== '')
+            .map(([code, entry]) => [code, entry.slug === '' ? { name: entry.name } : entry])
     );
 
 /** What the API hands back, turned into what the form holds. */

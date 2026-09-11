@@ -1249,8 +1249,8 @@ every screen moves.
 | 12 | `EntriesManager` split into two screens | ✅ `/admin/content/rooms/12` loads the real entry after a cold reload |
 | 13 | `EntryForm` step 1 — `FieldInput` extracted | ✅ every field type still saves, against real data |
 | 14 | `EntryForm` step 2 — three blocks, two columns | ✅ the right column holds only status, date and slug, and a save round-trips |
-| 15 | Gallery + RichText restyle | an upload and a highlight are readable in **both** themes |
-| 16 | The four Module screens restyle | a rename still writes redirects (#69) |
+| 15 | Gallery + RichText restyle | ✅ an upload and a highlight are readable in **both** themes |
+| 16 | The four Module screens restyle | ✅ a rename still writes redirects (#69) |
 | 17 | Enquiries + Settings restyle | grouped settings save |
 | 18 | Dashboard + Analytics, static | both wear a visible marker and a TODO **naming** the endpoint they want |
 | 19 | Static sort / filter / bulk bar on the listing | same |
@@ -1274,7 +1274,7 @@ else, and making them real is PHP.
 > components — mitigated because item 3's tokens already hold the line where
 > drift is most visible, which is colour.
 
-**Where it stands.** Twelve are done.
+**Where it stands.** Fourteen are done.
 
 - **1. Component test harness — DONE.** See #94, which this closed. It found two
   defects within ten minutes of existing, one of them a test file that no
@@ -1680,6 +1680,129 @@ else, and making them real is PHP.
   Greek**, marked that tab in words as well as in colour, and filed the one
   message under the Greek box alone. Error text measures 6.2:1 light and 9.9:1
   dark. The probe was deleted afterwards.
+
+- **15. Gallery and rich text — DONE.** The criterion was *readable in both
+  themes*, and measuring found the panel's worst contrast failure so far.
+
+  **`prose` brings its own palette and it is not the panel's.** The editor wears
+  `prose` for its type scale and list markers, and the plugin paints
+  `--tw-prose-body` a fixed gray - so the words a client had typed measured
+  **8.4:1 on the light surface and 2.01:1 on the dark one**. The surface was
+  tokenised in item 3 and the text was not, and nothing failed: the one place in
+  the panel where switching theme made the *content* unreadable. Twelve
+  `--tw-prose-*` variables now point at `--ui-*`, and the list is the
+  **server's** - `RichTextDocument::NODES` and `::MARKS` decide what can be
+  stored, so a colour outside it would be paint for markup that cannot survive a
+  save.
+
+  **Then the same question was asked of the gray tiers, and two of them failed.**
+  `--ui-fg-muted` measured **4.35:1** on `--ui-surface-muted` in light - the pair
+  under every card's secondary line and every small-caps label - and
+  `--ui-fg-subtle` measured 2.5:1. Light's pair moved one step darker
+  (slate-500/400 → slate-600/500), which is the asymmetry light mode needs: a
+  light surface wants darker ink than a dark surface wants lighter ink. Dark was
+  already fine and is untouched. **`theme.css.test.js` measures all of it now**,
+  at 4.5:1 for the two tiers that carry sentences and 3:1 for the hint tier -
+  the same *measure, do not eyeball* rule item 3 settled for `--accent-solid`.
+
+  The toolbar is twelve `lucide` icons instead of `H1 B I S` and four translated
+  words, and each carries `aria-pressed`: whether the selection is bold was
+  information a sighted reader had and nobody else, the same defect the language
+  tabs had. `role="toolbar"` names the set.
+
+  **The gallery's alt boxes are labelled** - what the owner asked for by name.
+  Two photographs in four languages is eight identical boxes, and the language
+  code was a `span` beside an input, which associates with nothing. Each image is
+  a `role="group"` named by position; each box carries a real `label`; and the
+  three controls read *Move image 2 up* rather than *Move up*, because a column
+  of identical buttons says nothing about which row you are standing in.
+
+  `ui/FileInput` collects the `file:` class string, which existed in **three**
+  copies and had already drifted - two painted the button `accent-text`, the
+  colour for text on the *page*, where one used `accent-soft-fg`, the one that
+  belongs on `accent-soft`. `INPUT_LABEL_CLASSES` did the same for the small-caps
+  label.
+
+  **Measured live**, on a real upload through the real endpoint, in both themes
+  and two accents:
+
+  | | light | dark |
+  |---|---|---|
+  | rich-text body | 17.85 | **15.37** (was 2.01) |
+  | highlighted text | 15.45 | 4.58 |
+  | toolbar control, on | 5.48 | 9.79 |
+  | toolbar control, off | 6.92 | 5.71 |
+  | gallery language label | 7.24 | 6.14 |
+
+  Two readings had to be taken twice, and both lessons are worth keeping: the
+  first was caught mid-`transition-colors` and reported a colour the panel never
+  rests on, and the second came from a hand-rolled parser reading the three
+  numbers out of `oklab(…)` as if they were RGB. The figures above are painted
+  to a canvas and read back as pixels, composited through the row's own
+  transparency. **A contrast number that was not measured on settled, composited
+  pixels is a guess.**
+
+  30 tests: the two editors had none between them. Every fix was mutation-tested.
+
+- **16. The four Module screens — DONE.** `ModuleBuilder`, `ModuleFields`,
+  `ModuleTranslations` and `ModuleTranslator`, which between them had **no
+  tests at all** and the worst labelling in the panel.
+
+  **Every label in `ModuleFields` was `sm:hidden`.** Above 640px there was no
+  label at all - field name, type and validation sat as three unnamed boxes in a
+  row with no column headings either - and on a telephone, where they did
+  render, they carried no `htmlFor` and the inputs no `id`, so they named
+  nothing there either. The select's options box had no label at any width. The
+  only two controls that *were* named were named `Lang` and `Req`, which is an
+  abbreviation rather than a name. Same shape in `ModuleTranslations`: two boxes
+  per language, their labels associated with nothing, the code beside them a
+  `span`. Four languages and one field row is eleven controls, and a reader
+  could name none of them.
+
+  Each field row is now a `role="group"` named by position and each language a
+  group named by its code; every control has a real label; and the flags are
+  written out. This is the third screen in a row where the fix was the same one,
+  which is why it is worth naming as a pattern rather than three bugs:
+  **a `span` beside an input is not a label, and a label hidden by a breakpoint
+  is not one either.**
+
+  **The locked reason was in a `title` on a disabled control**, which is
+  unreachable by design: a disabled control takes no focus and fires no pointer
+  events, so neither keyboard nor hover could get at it. #115's whole
+  explanation of why four boxes are grayed out was invisible. It is text on the
+  page now, with the gallery's reason beside it.
+
+  **`ui/Alert` was extracted on its sixth copy**, which is five too late - and
+  only the first of those six announced itself. A banner that appears after a
+  failed save is the one thing on a screen that has to interrupt: it arrives
+  after the press, often below the fold, and without a live role the person is
+  left on a form that did nothing. `role` lives in the component rather than in
+  a class string for exactly that reason, and it is `status` rather than `alert`
+  for anything that is not a failure.
+
+  Also: `FIELD_TYPES.map((t) => …)` **shadowed the `t` import** for the length
+  of the expression, so a `t('…')` added inside it would have called an option
+  object. Renamed while the file was open.
+
+  **The criterion, verified live against MySQL**: a probe module with a
+  published entry, renamed through the restyled screen - not through the API -
+  and the `redirects` table then held exactly the two rows #69 promises:
+
+  ```
+  301  /en/old          ->  /en/brand-new
+  301  /en/old/a-page   ->  /en/brand-new/a-page
+  ```
+
+  Both old addresses answered **301** over real HTTP and both new ones **200**.
+  The module, its entry and both redirect rows were removed afterwards, and the
+  table is back to zero.
+
+  58 tests, and every fix mutation-tested. **One mutation did not bite**, which
+  is the result worth keeping: removing `defaultLangCode` from the builder's
+  name still passed, because the test typed Greek first and the fallback
+  therefore happened to give the same answer. Typing English first makes the two
+  paths distinguishable. A mutation check that finds nothing proves the code;
+  one that finds a survivor proves the test.
 
 ### 119. The entry form offers a language the site has switched off — P2
 

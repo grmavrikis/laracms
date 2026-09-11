@@ -99,7 +99,7 @@ The `lib/` helpers are pure functions and carry the interesting decisions:
 | `resources/js/lib/apiErrors.js` | Turns an axios rejection into wording. Used by all three forms. |
 | `resources/js/lib/pagination.js` | Reduces Laravel's paginator envelope. |
 | `resources/js/lib/router.js` + `resources/js/routes.js` | The panel's addresses (#117), hand-written in ~60 pure lines rather than `react-router`. **The table is an array and order disambiguates** — a literal above the parameter that would swallow it, the same rule `routes/web.php` follows. **Content lives under `/content/:module`** because a module slugged `settings` would otherwise shadow that screen and vanish. `routes.test.js` reports any literal route an earlier pattern already matches, by name. |
-| `resources/js/lib/theme.js` | The panel's appearance (#117): two independent axes, `data-theme` and `data-accent` on `<html>`. **Its other half is an inline script in `admin.blade.php`** that applies the same two keys before the first paint; `theme.test.js` pins the shared lists as a contract and names that template when it fails. Storage records only an explicit choice — writing the resolved value would freeze `prefers-color-scheme` into a decision the person never made. |
+| `resources/js/lib/theme.js` | The panel's appearance (#117): two independent axes, `data-theme` and `data-accent` on `<html>`. **Its other half is an inline script in `admin.blade.php`** that applies the same two keys before the first paint; `theme.test.js` pins the shared lists as a contract and names that template when it fails. Storage records only an explicit choice — writing the resolved value would freeze `prefers-color-scheme` into a decision the person never made. **`theme.css.test.js` reads `app.css` itself** and measures it: the swatches against the ramp they advertise, every gray against every surface it sits on, and the `--tw-prose-*` mapping that keeps the rich-text editor readable in dark. Contrast here is **measured, never eyeballed** — twice now a step that looked fine failed AA. |
 | `resources/js/lib/languages.js` | `getLangCode`, which language is the default, and `contentLangCode` — the content language a listing opens on, which **follows the panel's own language when the site has it** and falls back to the default when it does not (#116). |
 | `resources/js/lib/modules.js` | Which name a Module shows in a given language, falling back to the panel's own (#114, #116). Two screens ask; while each held its own expression, one was missed. |
 | `resources/js/lib/languageStore.js` | One `/api/languages` fetch per page load, shared by the five screens that want it. A rejection is not cached. |
@@ -200,7 +200,7 @@ purpose, so `t()` answers its own key — assert the raw English instead.
 
 ```bash
 php artisan test                    # 515 tests
-npm test                            # 424 tests
+npm test                            # 544 tests
 npm run build
 php artisan schema:sync-field-types # after changing field type constants
 php artisan pages:warm              # bake the public site to files (#97) - THE DEPLOY STEP
@@ -271,7 +271,7 @@ Started from a repo that would not boot (eight files of merge conflicts).
 Worked through a prioritised list; every item is either done or recorded in
 `CHANGELOG.md` with its reasoning.
 
-- **515 PHP tests, 424 JS tests**, all passing. Build clean.
+- **515 PHP tests, 544 JS tests**, all passing. Build clean.
 - **The project has a commercial goal as of 2026-08-30**, and it now decides
   what gets worked on. A multilingual CMS that feeds client sites, owned
   outright, for a one-person web agency: **one installation per client site**,
