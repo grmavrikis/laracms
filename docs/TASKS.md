@@ -1247,7 +1247,7 @@ every screen moves.
 | 10 | `ModulesList` restyle | ✅ real modules render; a singleton links straight to its fields |
 | 11 | `EntriesTable` restyle | ✅ the reorder arrows and pagination still work **live** |
 | 12 | `EntriesManager` split into two screens | ✅ `/admin/content/rooms/12` loads the real entry after a cold reload |
-| 13 | `EntryForm` step 1 — `FieldInput` extracted | every field type still saves, against real data |
+| 13 | `EntryForm` step 1 — `FieldInput` extracted | ✅ every field type still saves, against real data |
 | 14 | `EntryForm` step 2 — three blocks, two columns | the right column holds only status, date and slug, and a save round-trips |
 | 15 | Gallery + RichText restyle | an upload and a highlight are readable in **both** themes |
 | 16 | The four Module screens restyle | a rename still writes redirects (#69) |
@@ -1274,7 +1274,7 @@ else, and making them real is PHP.
 > components — mitigated because item 3's tokens already hold the line where
 > drift is most visible, which is colour.
 
-**Where it stands.** Ten are done.
+**Where it stands.** Eleven are done.
 
 - **1. Component test harness — DONE.** See #94, which this closed. It found two
   defects within ten minutes of existing, one of them a test file that no
@@ -1580,6 +1580,34 @@ else, and making them real is PHP.
   `EntryForm.onSaved` now hands back the saved row, because a create has to
   know where it landed. All three entry endpoints already answer with the row
   read back from the database (ARCHITECTURE §5), so it is the whole entry.
+
+- **13. `FieldInput` extracted — DONE.** `renderInput` was a closure inside a
+  530-line component, so the branch choosing between **eight field types** could
+  not be reached without mounting the whole form, its language tabs and its
+  error plumbing. It is `components/entry/FieldInput.jsx` now — props in, no
+  state — and `EntryForm` is 410 lines. Fourteen tests, one per type.
+
+  **Two more untranslated literals, both outside `t()` and therefore invisible
+  to `CatalogueCoversTheCodeTest`:** `-- Select Option --`, which made every
+  select in the panel read English, and `` `Enter ${field.name}...` ``. The
+  second was **removed rather than translated** — it printed *Enter title…*
+  directly beneath a label already reading "title", which is noise, and it was
+  built from a schema key that can never be translated anyway.
+
+  `ui/Input` collects the class string that had been copied into four
+  components and had already drifted in its vertical padding.
+
+  **Verified against a probe module carrying all eight types**, filled through
+  the interface and saved: string, rich text, integer (coerced to a number),
+  boolean, date, select, a real PNG upload, and a gallery. Every one round-
+  tripped through the API. The module, its entry and the uploaded file were
+  removed afterwards — there is no module-delete endpoint, so that was a
+  scratchpad script, as CLAUDE.md prescribes.
+
+  One test worth naming: `value` arrives **null** for a field nobody has
+  filled, and React turns `value={null}` into an *uncontrolled* input — which
+  warns and then stops tracking what is typed. `?? ''` covers it and a test now
+  pins it.
 
   **A review then found the page fix was half-done, and both screens untested.**
   The page went into the listing's address and nowhere else, so opening an entry

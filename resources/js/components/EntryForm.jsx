@@ -1,8 +1,8 @@
 // resources/js/components/EntryForm.jsx
 import { useState } from 'react';
-import api, { uploadImage } from '../lib/api';
-import RichTextEditor from './RichTextEditor';
-import GalleryEditor from './GalleryEditor';
+import api from '../lib/api';
+import FieldInput from './entry/FieldInput';
+import { INPUT_CLASSES } from '../ui/Input';
 import { isRichTextField, emptyDoc } from '../lib/richText';
 import { isGalleryField, emptyGallery, fromStored } from '../lib/gallery';
 import { validationErrors, errorSummary, messagesForField, messagesNotForFields, languagesWithErrors } from '../lib/apiErrors';
@@ -215,138 +215,6 @@ export default function EntryForm({ moduleSlug, schema, languages, onSaved, onCa
         );
     };
 
-    const inputClasses = "block w-full rounded-md border-0 py-2 px-3 text-fg shadow-sm ring-1 ring-inset ring-line-strong placeholder:text-fg-subtle focus:ring-2 focus:ring-inset focus:ring-accent sm:text-sm transition-all duration-200 outline-none bg-surface";
-
-    const renderInput = (field, value, onChange) => {
-        if (isRichTextField(field)) {
-            return (
-                <div className="mt-2 rounded-md shadow-sm ring-1 ring-inset ring-line-strong focus-within:ring-2 focus-within:ring-inset focus-within:ring-accent transition-all duration-200 overflow-hidden bg-surface">
-                    <RichTextEditor
-                        value={value}
-                        onChange={(content) => onChange(content)}
-                    />
-                </div>
-            );
-        }
-
-        if (isGalleryField(field)) {
-            return (
-                <GalleryEditor
-                    value={value}
-                    onChange={onChange}
-                    languages={languages}
-                    onError={setSummary}
-                />
-            );
-        }
-
-        if (field.type === 'boolean') {
-            return (
-                <div className="mt-2 flex items-center h-10">
-                    <input
-                        type="checkbox"
-                        checked={!!value}
-                        onChange={(e) => onChange(e.target.checked)}
-                        className="h-5 w-5 rounded border-line-strong text-accent-text focus:ring-accent transition-all cursor-pointer"
-                    />
-                    <span className="ml-3 text-sm text-fg cursor-default">{t('Enable this field')}</span>
-                </div>
-            );
-        }
-
-        if (field.type === 'date') {
-            return (
-                <div className="mt-2">
-                    <input
-                        type="date"
-                        value={value ?? ''}
-                        onChange={(e) => onChange(e.target.value)}
-                        className={inputClasses}
-                    />
-                </div>
-            );
-        }
-
-        if (field.type === 'select') {
-            const options = Array.isArray(field.options) ? field.options : [];
-            return (
-                <div className="mt-2">
-                    <select
-                        value={value ?? ''}
-                        onChange={(e) => onChange(e.target.value)}
-                        className={inputClasses}
-                    >
-                        <option value="">-- Select Option --</option>
-                        {options.map((opt, idx) => {
-                            const val = typeof opt === 'object' ? opt.value : opt;
-                            const label = typeof opt === 'object' ? opt.label : opt;
-                            return <option key={idx} value={val}>{label}</option>;
-                        })}
-                    </select>
-                </div>
-            );
-        }
-
-        if (field.type === 'image') {
-            const handleFileChange = async (e) => {
-                const file = e.target.files[0];
-                if (!file) return;
-
-                try {
-                    // The endpoint, its field name and the multipart header
-                    // live in lib/api.js, shared with the gallery editor.
-                    onChange(await uploadImage(file));
-                } catch (err) {
-                    console.error('Upload Error:', err);
-                    // The upload endpoint rejects by type and size, and those
-                    // reasons are worth showing rather than replacing with
-                    // "failed".
-                    setSummary(errorSummary(err, t('Could not upload the image.')));
-                }
-            };
-
-            return (
-                <div className="mt-2 space-y-3">
-                    <input
-                        type="file"
-                        accept="image/*"
-                        onChange={handleFileChange}
-                        className="block w-full text-sm text-fg-muted file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-accent-soft file:text-accent-text hover:file:bg-accent-soft cursor-pointer transition-all"
-                    />
-                    {value && (
-                        <div className="relative w-32 h-32 rounded-lg border border-line overflow-hidden bg-surface-muted flex items-center justify-center shadow-sm">
-                            <img
-                                src={value}
-                                alt={t('Preview')}
-                                className="object-cover w-full h-full"
-                                onError={(e) => { e.target.style.display = 'none'; }}
-                            />
-                            <button
-                                type="button"
-                                onClick={() => onChange('')}
-                                className="absolute top-1 right-1 bg-danger/80 hover:bg-danger text-danger-fg rounded-full w-6 h-6 flex items-center justify-center text-xs transition-colors"
-                                title={t('Remove image')}
-                            >
-                                ✕
-                            </button>
-                        </div>
-                    )}
-                </div>
-            );
-        }
-
-        return (
-            <div className="mt-2">
-                <input
-                    type={field.type === 'integer' || field.type === 'number' ? 'number' : 'text'}
-                    value={value ?? ''}
-                    onChange={(e) => onChange(e.target.value)}
-                    className={inputClasses}
-                    placeholder={`Enter ${field.name.toLowerCase()}...`}
-                />
-            </div>
-        );
-    };
 
     return (
         <form onSubmit={handleSubmit} className="overflow-hidden rounded-xl border border-line bg-surface shadow-sm md:col-span-2">
@@ -363,7 +231,13 @@ export default function EntryForm({ moduleSlug, schema, languages, onSaved, onCa
                             <label className="block text-sm font-semibold text-fg capitalize">
                                 {field.name}
                             </label>
-                            {renderInput(field, staticValues[field.name], (v) => setStaticField(field.name, v))}
+                            <FieldInput
+                                field={field}
+                                value={staticValues[field.name]}
+                                onChange={(v) => setStaticField(field.name, v)}
+                                languages={languages}
+                                onError={setSummary}
+                            />
                             {fieldErrorList(field)}
                         </div>
                     ))}
@@ -411,7 +285,13 @@ export default function EntryForm({ moduleSlug, schema, languages, onSaved, onCa
                                             {getLangCode(languages.find(l => l.id === activeLangId))}
                                         </span>
                                     </label>
-                                    {renderInput(field, translations[activeLangId]?.[field.name], (v) => setTranslatedField(activeLangId, field.name, v))}
+                                    <FieldInput
+                                        field={field}
+                                        value={translations[activeLangId]?.[field.name]}
+                                        onChange={(v) => setTranslatedField(activeLangId, field.name, v)}
+                                        languages={languages}
+                                        onError={setSummary}
+                                    />
                                     {/* Only this language's messages. They used
                                         to be shown for every language at once so
                                         an error on a hidden tab was not silent -
@@ -487,7 +367,7 @@ export default function EntryForm({ moduleSlug, schema, languages, onSaved, onCa
                                             value={slugs[code] ?? ''}
                                             onChange={(e) => setSlugs((prev) => ({ ...prev, [code]: e.target.value }))}
                                             placeholder={t('thea-sti-thalassa')}
-                                            className={`${inputClasses} font-mono text-xs`}
+                                            className={`${INPUT_CLASSES} font-mono text-xs`}
                                         />
                                     </div>
                                 );
