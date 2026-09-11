@@ -1804,6 +1804,24 @@ else, and making them real is PHP.
   paths distinguishable. A mutation check that finds nothing proves the code;
   one that finds a survivor proves the test.
 
+### 121. Every control on the Settings screen is unnamed — P1, item 17's job
+
+Found on 2026-09-11 while reviewing item 16. `SettingsManager.jsx` contains
+**no `htmlFor` at all**: its `<label>` sits as a *sibling* of the control rather
+than wrapping it, so the association is never made and every settings input -
+text, boolean, image - is announced as an unnamed box.
+
+It is the same defect item 16 fixed one screen along, and the third file to
+carry it, so the rule from CHANGELOG §39 applies unchanged: a label that neither
+wraps its control nor points at it is not a label.
+
+**Not fixed inline, deliberately.** The screen is item 17's and the fix is not
+one line: the fields are generated from `SiteSettings`' schema, so the ids have
+to be derived from `field.name` and threaded through `renderField`, and the
+file-input branch should then take the `FileInput` **component** rather than the
+bare `FILE_CLASSES` string it uses today. `ui/FileInput.jsx` carries a note
+saying exactly that and naming this item.
+
 ### 119. The entry form offers a language the site has switched off — P2
 
 Found live on 2026-09-11 while verifying #117 item 14. French is

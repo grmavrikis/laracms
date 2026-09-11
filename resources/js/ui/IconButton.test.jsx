@@ -64,3 +64,48 @@ describe('IconButton', () => {
         expect(button).toHaveAttribute('aria-controls', 'panel');
     });
 });
+
+/**
+ * The tone has to be a tone, not an override a caller appends.
+ *
+ * `hover:bg-danger-soft hover:text-danger-text` in a caller's `className`
+ * reads as if it wins, and it does not: the surface tone already emits
+ * `hover:bg-surface-muted hover:text-fg` at identical specificity, and Tailwind
+ * orders utilities in the compiled stylesheet alphabetically rather than by the
+ * order they appear in the class attribute. Measured in the built CSS:
+ * `.hover\:text-danger-text:hover` is rule 658 and `.hover\:text-fg:hover` is
+ * 659, so the base colour won and the remove buttons in `ModuleFields` and
+ * `GalleryEditor` had no destructive hover at all.
+ */
+describe('IconButton, the danger tone', () => {
+    it('paints its own hover colours', () => {
+        render(<IconButton icon={Palette} label="Remove" tone="danger" />);
+
+        const className = screen.getByRole('button', { name: 'Remove' }).className;
+
+        expect(className).toContain('hover:bg-danger-soft');
+        expect(className).toContain('hover:text-danger-text');
+    });
+
+    // The whole point: two utilities for one property, on one element, is the
+    // defect. A tone replaces, it does not stack.
+    it.each([
+        ['hover:text-fg'],
+        ['hover:bg-surface-muted'],
+    ])('does not also carry the surface tone’s %s', (utility) => {
+        render(<IconButton icon={Palette} label="Remove" tone="danger" />);
+
+        const className = screen.getByRole('button', { name: 'Remove' }).className;
+
+        // `hover:text-fg` must not appear as a whole class - `hover:text-fg-muted`
+        // is a different utility and may.
+        expect(className.split(/\s+/)).not.toContain(utility);
+    });
+
+    it('is still a resting icon button until it is hovered', () => {
+        render(<IconButton icon={Palette} label="Remove" tone="danger" />);
+
+        expect(screen.getByRole('button', { name: 'Remove' }).className.split(/\s+/))
+            .toContain('text-fg-muted');
+    });
+});

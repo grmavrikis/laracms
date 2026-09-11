@@ -191,7 +191,8 @@ export default function GalleryEditor({ value, onChange, languages = [], onError
                                         icon={Trash2}
                                         label={t('Remove image :position', { position })}
                                         onClick={() => onChange(withoutItem(items, index))}
-                                        className="h-7 w-7 hover:bg-danger-soft hover:text-danger-text"
+                                        tone="danger"
+                                        className="h-7 w-7"
                                     />
                                 </div>
                             </li>

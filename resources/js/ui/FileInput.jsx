@@ -15,11 +15,19 @@
 import { INPUT_LABEL_CLASSES } from './Input';
 
 /**
- * The picker's own styling, for the two callers that are already labelled from
- * outside: `FieldInput`, where `FieldLabel` renders the schema field's name
- * above it, and `SettingsManager`, which draws its own. They take the string
- * rather than the component so they do not end up with two labels on one
- * control - the defect #117's review round found in the boolean field.
+ * The picker's own styling, for callers that cannot take the component.
+ *
+ * `FieldInput` is the honest case: `FieldLabel` already renders the schema
+ * field's name above it with a real `htmlFor`, so using `FileInput` here would
+ * put **two** labels on one control - the defect #117's review round found in
+ * the boolean field.
+ *
+ * `SettingsManager` is **not** that case and should not be read as one. That
+ * screen contains no `htmlFor` at any call site: its `<label>` is a sibling of
+ * the control rather than wrapping it, so every settings input is unnamed and
+ * this one is too. It takes the string because the screen is item 17's, and
+ * that item's job is to give it labels - at which point it should take the
+ * component instead. TASKS.md #121.
  */
 export const FILE_CLASSES =
     'block w-full cursor-pointer text-sm text-fg-muted '

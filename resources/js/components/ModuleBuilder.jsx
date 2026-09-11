@@ -7,6 +7,7 @@ import { loadLanguages } from '../lib/languageStore';
 import ModuleTranslations, { translationsPayload } from './ModuleTranslations';
 import ModuleFields from './ModuleFields';
 import Alert from '../ui/Alert';
+import { Checkbox } from '../ui/Input';
 import PageHeader from '../ui/PageHeader';
 import { Loader2, FolderPlus } from 'lucide-react';
 import { isGalleryField } from '../lib/gallery';
@@ -109,12 +110,11 @@ export default function ModuleBuilder({ onCreated, onCancel }) {
                 the decision being made. */}
             <div className="border-t border-line pt-4">
                 <label htmlFor="module-singleton" className="flex cursor-pointer select-none items-start gap-3">
-                    <input
+                    <Checkbox
                         id="module-singleton"
-                        type="checkbox"
                         checked={isSingleton}
                         onChange={(e) => setIsSingleton(e.target.checked)}
-                        className="mt-0.5 h-4 w-4 cursor-pointer rounded border-line-strong text-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring-accent"
+                        className="mt-0.5"
                     />
                     <span>
                         <span className="block text-sm font-semibold text-fg">

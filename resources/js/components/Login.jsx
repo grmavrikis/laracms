@@ -3,6 +3,7 @@ import { Eye, EyeOff, Layers } from 'lucide-react';
 import { signIn } from '../lib/api';
 import { errorSummary } from '../lib/apiErrors';
 import { t } from '../lib/i18n';
+import { Checkbox } from '../ui/Input';
 
 /**
  * The sign-in screen (#117 item 9).
@@ -207,11 +208,9 @@ export default function Login({ onLogin }) {
                                 className="flex cursor-pointer items-center gap-2 text-sm text-fg-muted"
                                 title={t('Not available yet.')}
                             >
-                                <input
-                                    type="checkbox"
+                                <Checkbox
                                     checked={rememberMe}
                                     onChange={(e) => setRememberMe(e.target.checked)}
-                                    className="h-4 w-4 cursor-pointer rounded border-line-strong text-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring-accent"
                                 />
                                 {t('Remember me')}
                             </label>

@@ -35,7 +35,13 @@ export default function ModuleTranslations({ languages, value, onChange }) {
             </p>
 
             {languages.map((language) => {
-                const code = getLangCode(language);
+                // `getLangCode` answers null for a row carrying no locale,
+                // code or short_code, and `null.toUpperCase()` below would take
+                // the whole panel to the ErrorBoundary rather than drawing one
+                // odd block. `languages.code` is NOT NULL so the API cannot
+                // send one today; `lib/languages.js` guards the case anyway,
+                // because it caused a real bug once.
+                const code = getLangCode(language) ?? '';
                 const id = (part) => `module-${code}-${part}`;
                 const slug = value[code]?.slug ?? '';
 

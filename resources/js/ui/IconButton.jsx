@@ -17,7 +17,23 @@ const TONES = {
     surface: 'text-fg-muted hover:bg-surface-muted hover:text-fg',
     // On the dark rail, which keeps its own tokens in both themes.
     sidebar: 'text-sidebar-fg-muted hover:bg-sidebar-hover hover:text-sidebar-fg',
+    // A control that destroys something. Resting colour is the same as
+    // `surface` - a row of icons should not be a row of red - and only the
+    // hover turns.
+    danger: 'text-fg-muted hover:bg-danger-soft hover:text-danger-text',
 };
+
+/**
+ * **A tone replaces; it never stacks.** `hover:text-danger-text` appended to a
+ * caller's `className` reads as though it wins and does not: `surface` already
+ * emits `hover:text-fg` at identical specificity, and Tailwind orders utilities
+ * in the compiled stylesheet alphabetically rather than by the order they
+ * appear in the class attribute. Measured in the built CSS,
+ * `.hover\:text-danger-text:hover` is rule 658 and `.hover\:text-fg:hover` is
+ * 659, so the base colour won and the remove controls in `ModuleFields` and
+ * `GalleryEditor` had no destructive hover at all. Anything that needs
+ * different hover colours needs a tone here, not an override there.
+ */
 
 export default function IconButton({
     icon: Icon,

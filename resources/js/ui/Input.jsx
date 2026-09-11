@@ -26,6 +26,29 @@ export function Input({ className = '', ...rest }) {
     return <input className={`${INPUT_CLASSES} ${className}`} {...rest} />;
 }
 
+/**
+ * A checkbox, tinted by the panel's accent.
+ *
+ * **`text-*` does not do that.** It sets `color`, which a native control
+ * ignores; `accent-color` is the property that paints the box and its tick, and
+ * `accent-accent` is the utility for it. Every checkbox in the panel carried
+ * `text-accent` or `text-accent-text` and rendered the browser default blue -
+ * measured live with the emerald palette active, `accent-color` read `auto`
+ * while `--ui-accent` was `#34d399`. Six controls in five files, in all six
+ * palettes and both themes: the one place item 3's token layer never reached.
+ *
+ * The size is here too, because a checkbox that is 16px on one screen and 20px
+ * on another is the drift `INPUT_CLASSES` exists to have ended.
+ */
+export const CHECKBOX_CLASSES =
+    'h-4 w-4 cursor-pointer rounded border-line-strong accent-accent '
+    + 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring-accent '
+    + 'disabled:cursor-not-allowed disabled:opacity-40';
+
+export function Checkbox({ className = '', ...rest }) {
+    return <input type="checkbox" className={`${CHECKBOX_CLASSES} ${className}`} {...rest} />;
+}
+
 export function Select({ className = '', children, ...rest }) {
     return (
         <select className={`${INPUT_CLASSES} cursor-pointer ${className}`} {...rest}>

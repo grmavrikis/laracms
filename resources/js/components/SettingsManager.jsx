@@ -5,6 +5,7 @@ import { getLangCode } from '../lib/languages';
 import { loadLanguages } from '../lib/languageStore';
 import { t } from '../lib/i18n';
 import { FILE_CLASSES } from '../ui/FileInput';
+import { Checkbox } from '../ui/Input';
 
 /**
  * What the site says about itself (TASKS.md #67).
@@ -113,11 +114,9 @@ export default function SettingsManager({ onBack }) {
         if (field.type === 'boolean') {
             return (
                 <label className="flex items-center gap-2">
-                    <input
-                        type="checkbox"
+                    <Checkbox
                         checked={value === true || value === 1 || value === '1'}
                         onChange={(e) => setValue(field.name, e.target.checked)}
-                        className="h-4 w-4 rounded border-line-strong text-accent-text focus:ring-accent"
                     />
                     <span className="text-sm text-fg-muted">{field.label}</span>
                 </label>

@@ -200,7 +200,7 @@ purpose, so `t()` answers its own key — assert the raw English instead.
 
 ```bash
 php artisan test                    # 515 tests
-npm test                            # 544 tests
+npm test                            # 566 tests
 npm run build
 php artisan schema:sync-field-types # after changing field type constants
 php artisan pages:warm              # bake the public site to files (#97) - THE DEPLOY STEP
@@ -271,7 +271,7 @@ Started from a repo that would not boot (eight files of merge conflicts).
 Worked through a prioritised list; every item is either done or recorded in
 `CHANGELOG.md` with its reasoning.
 
-- **515 PHP tests, 544 JS tests**, all passing. Build clean.
+- **515 PHP tests, 566 JS tests**, all passing. Build clean.
 - **The project has a commercial goal as of 2026-08-30**, and it now decides
   what gets worked on. A multilingual CMS that feeds client sites, owned
   outright, for a one-person web agency: **one installation per client site**,

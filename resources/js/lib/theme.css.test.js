@@ -184,10 +184,43 @@ describe('the grays are readable on the surfaces they sit on', () => {
         expect(contrast(inkHex, surfaceHex)).toBeGreaterThanOrEqual(floor);
     });
 
-    // The rail keeps its own tokens in both themes, so it needs its own check -
-    // nothing above would notice it.
-    it.each([['sidebar-fg', 4.5], ['sidebar-fg-muted', 4.5]])('the rail reads: %s clears %s:1', (ink, floor) => {
-        expect(contrast(declaration(lightRoot, `ui-${ink}`), declaration(lightRoot, 'ui-sidebar-bg')))
-            .toBeGreaterThanOrEqual(floor);
+    /**
+     * The rail needs its own check because nothing above would notice it, and
+     * it needs **both** themes: `--ui-sidebar-bg` is re-pointed under
+     * `[data-theme='dark']` while the two inks are not, so the dark pairing is
+     * one the light block alone never describes. Checking light only - which
+     * this did at first - would pass while the dark rail went unreadable.
+     */
+    it.each([
+        ['light', 'sidebar-fg', 4.5],
+        ['light', 'sidebar-fg-muted', 4.5],
+        ['dark', 'sidebar-fg', 4.5],
+        ['dark', 'sidebar-fg-muted', 4.5],
+    ])('%s: the rail ink %s clears %s:1', (theme, ink, floor) => {
+        const body = theme === 'dark' ? darkRoot : lightRoot;
+
+        // The inks are declared on `:root` only, so dark inherits them; the
+        // background is re-pointed and has to be read from the dark block.
+        const inkHex = declaration(body, `ui-${ink}`) ?? declaration(lightRoot, `ui-${ink}`);
+        const bgHex = declaration(body, 'ui-sidebar-bg') ?? declaration(lightRoot, 'ui-sidebar-bg');
+
+        expect(inkHex, `--ui-${ink}`).toMatch(HEX);
+        expect(bgHex, '--ui-sidebar-bg').toMatch(HEX);
+        expect(contrast(inkHex, bgHex)).toBeGreaterThanOrEqual(floor);
+    });
+
+    /**
+     * The highlight is the narrowest margin in the panel - it measured 4.58:1
+     * in dark, live - and it is a self-contained pair of literal hexes in both
+     * theme blocks, which is exactly the shape this file already handles.
+     * Leaving it out is how `--tw-prose-body` shipped at 2.01:1.
+     */
+    it.each([['light', lightRoot], ['dark', darkRoot]])('%s: highlighted text stays readable', (_theme, body) => {
+        const ink = declaration(body, 'ui-highlight-fg');
+        const ground = declaration(body, 'ui-highlight-bg');
+
+        expect(ink, '--ui-highlight-fg').toMatch(HEX);
+        expect(ground, '--ui-highlight-bg').toMatch(HEX);
+        expect(contrast(ink, ground)).toBeGreaterThanOrEqual(4.5);
     });
 });

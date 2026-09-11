@@ -2,7 +2,7 @@ import { Plus, Trash2, Lock, Images } from 'lucide-react';
 import fieldTypes from '../lib/fieldTypes.json';
 import { isGalleryField } from '../lib/gallery';
 import { t } from '../lib/i18n';
-import { Input, Select, INPUT_LABEL_CLASSES } from '../ui/Input';
+import { Input, Select, Checkbox, INPUT_LABEL_CLASSES } from '../ui/Input';
 import IconButton from '../ui/IconButton';
 
 // Which types exist is the backend's decision, so the values come from the
@@ -144,13 +144,11 @@ export default function ModuleFields({ fields, onChange, onAdd, onRemove }) {
                                         gallery || locked ? 'cursor-not-allowed text-fg-muted' : 'cursor-pointer text-fg'
                                     }`}
                                 >
-                                    <input
+                                    <Checkbox
                                         id={id('translatable')}
-                                        type="checkbox"
                                         checked={field.translatable}
                                         disabled={gallery || locked}
                                         onChange={(e) => onChange(field._id, 'translatable', e.target.checked)}
-                                        className="h-4 w-4 cursor-pointer rounded border-line-strong text-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring-accent disabled:cursor-not-allowed disabled:opacity-40"
                                     />
                                     {t('Translatable')}
                                 </label>
@@ -161,12 +159,10 @@ export default function ModuleFields({ fields, onChange, onAdd, onRemove }) {
                                     htmlFor={id('required')}
                                     className="flex cursor-pointer select-none items-center gap-2 text-sm text-fg"
                                 >
-                                    <input
+                                    <Checkbox
                                         id={id('required')}
-                                        type="checkbox"
                                         checked={field.required}
                                         onChange={(e) => onChange(field._id, 'required', e.target.checked)}
-                                        className="h-4 w-4 cursor-pointer rounded border-line-strong text-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring-accent"
                                     />
                                     {t('Required')}
                                 </label>
@@ -175,8 +171,9 @@ export default function ModuleFields({ fields, onChange, onAdd, onRemove }) {
                                     icon={Trash2}
                                     label={t('Remove field :position', { position })}
                                     onClick={() => onRemove(field._id)}
+                                    tone="danger"
                                     disabled={fields.length === 1 || locked}
-                                    className="ml-auto h-8 w-8 hover:bg-danger-soft hover:text-danger-text disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-fg-muted"
+                                    className="ml-auto h-8 w-8 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-fg-muted"
                                 />
                             </div>
 

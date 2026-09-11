@@ -88,6 +88,19 @@ export default function ModuleTranslator({ module, onSaved, onCancel }) {
                 icon={Pencil}
                 title={t('Edit this module')}
                 description={t('Changing an address changes every page under it. The old one stops working.')}
+                actions={
+                    // This form is taller than the screen once a site has four
+                    // languages, and the other four screens all keep an escape
+                    // at the top. Dropping it left Cancel at the very bottom as
+                    // the only way out.
+                    <button
+                        type="button"
+                        onClick={onCancel}
+                        className="cursor-pointer rounded-lg px-2.5 py-1.5 text-sm font-medium text-fg-muted transition-colors hover:bg-surface-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring-accent"
+                    >
+                        {t('Back to modules')}
+                    </button>
+                }
             />
 
             <Alert messages={errors} />

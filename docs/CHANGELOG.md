@@ -4602,3 +4602,63 @@ on the screen measures 6.14:1. The module, its entry and both redirect rows were
 removed afterwards.
 
 515 PHP tests, 544 JS tests, build clean.
+
+### The review of this section, and two things it caught that nothing else could
+
+A review over the finished commit found nine, and the two worst were both
+**live in the browser and invisible to every test** - the same shape as the
+`prose` defect in §38, one layer down.
+
+**A caller cannot override a Tailwind utility by appending another.** The remove
+controls in `ModuleFields` and `GalleryEditor` passed
+`hover:bg-danger-soft hover:text-danger-text` in their `className` on top of
+`IconButton`'s `surface` tone, which already emits
+`hover:bg-surface-muted hover:text-fg`. Same property, same specificity - and
+Tailwind orders utilities in the compiled stylesheet **alphabetically**, not by
+the order they appear in the class attribute. Read out of the live CSSOM:
+`.hover\:text-danger-text:hover` is rule 658, `.hover\:text-fg:hover` is 659,
+so the base colour won. The only visual warning before a destructive click had
+never once rendered.
+
+`IconButton` has a `danger` tone now and its docblock carries the rule: **a tone
+replaces, it never stacks.** Anything wanting different hover colours needs a
+tone in the component, not an override at the call site.
+
+**`text-*` is inert on a native checkbox.** It sets `color`, which the control
+does not use; `accent-color` is the property that paints the box and its tick.
+Every checkbox in the panel carried `text-accent` or `text-accent-text` and
+rendered the **browser default blue** - measured with emerald active,
+`accent-color` read `auto` while `--ui-accent` was `#34d399`. Six controls in
+five files, in all six palettes and both themes: the one place item 3's token
+layer never reached, and nothing could see it because the class was present and
+spelled correctly. `ui/Input` exports a `Checkbox` now, and all six take it;
+verified across three palettes and both themes, the box tracks `--ui-accent`
+exactly.
+
+**A `role` is a promise about behaviour.** `role="toolbar"` tells a reader the
+arrow keys move between its controls and Tab leaves it. The rich-text toolbar
+declared the role with twelve separate tab stops and no key handling, so the
+reader was told to press arrows, nothing happened, and Tab now cost twelve
+presses to reach the text. It implements a roving tabindex now - one tab stop
+that follows the person, arrows and Home/End moving within, wrapping at both
+ends. Declaring a role without its keyboard contract is worse than using no
+role, because the person acts on what they were told.
+
+Also: `code.toUpperCase()` in `ModuleTranslations` turned a language row with no
+code from an odd-looking block into a TypeError that takes the whole panel to
+the `ErrorBoundary` (latent - the column is NOT NULL - but `lib/languages.js`
+guards the case because it caused a real bug once); the swap to `PageHeader`
+dropped `ModuleTranslator`'s top-level *Back to modules*, leaving a form taller
+than the screen with its only exit at the bottom while the other four screens
+kept theirs; the `sidebar` contrast check measured light only although
+`--ui-sidebar-bg` is re-pointed in dark; the highlight pair - the narrowest
+margin in the panel at 4.58:1 - was not measured at all; and `Lang`, `Req` and
+`Remove field` were left in both catalogues with no caller.
+
+One finding was **logged rather than fixed**: `SettingsManager` contains no
+`htmlFor` anywhere, so every control on that screen is unnamed. It is item 17's
+screen and the fix is structural, so it is TASKS.md #121 - and `ui/FileInput`'s
+docblock, which had claimed that screen "draws its own" label, now says plainly
+that it does not.
+
+Ten fixes, twelve tests, and every one mutation-tested.

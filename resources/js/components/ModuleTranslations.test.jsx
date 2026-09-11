@@ -24,6 +24,20 @@ const draw = (props = {}) => {
 const block = (code) => screen.getByRole('group', { name: code.toUpperCase() });
 
 describe('ModuleTranslations', () => {
+    /**
+     * `getLangCode` answers `null` for a row carrying no locale, code or
+     * short_code, and `null.toUpperCase()` is a TypeError - so the group name
+     * took the whole panel to the ErrorBoundary where the old markup had drawn
+     * one odd-looking block. `languages.code` is NOT NULL today, which makes
+     * this latent rather than live; `lib/languages.js` guards the case anyway,
+     * because it caused a real bug once.
+     */
+    it('draws a language carrying no code rather than throwing', () => {
+        expect(() => render(
+            <ModuleTranslations languages={[{ id: 9 }]} value={{}} onChange={vi.fn()} />
+        )).not.toThrow();
+    });
+
     it('asks once per language', () => {
         draw();
 

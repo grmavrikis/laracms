@@ -162,6 +162,23 @@ describe('ModuleTranslator', () => {
         expect(await screen.findByRole('alert')).toHaveTextContent('Could not reach the server.');
     });
 
+    /**
+     * With four languages and several fields this form is taller than the
+     * screen, and the swap to `PageHeader` dropped the escape at the top - so
+     * the only way out was the Cancel button past every control. The other four
+     * screens all keep one.
+     */
+    it('offers a way back without scrolling to the bottom', async () => {
+        const user = userEvent.setup();
+        const { onCancel } = draw();
+        await ready();
+
+        await user.click(screen.getByRole('button', { name: 'Back to modules' }));
+
+        expect(onCancel).toHaveBeenCalled();
+        expect(put).not.toHaveBeenCalled();
+    });
+
     it('leaves without saving', async () => {
         const user = userEvent.setup();
         const { onCancel } = draw();

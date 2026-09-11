@@ -6,7 +6,7 @@ import { isGalleryField } from '../../lib/gallery';
 import { t } from '../../lib/i18n';
 import RichTextEditor from '../RichTextEditor';
 import GalleryEditor from '../GalleryEditor';
-import { Input, Select } from '../../ui/Input';
+import { Input, Select, Checkbox } from '../../ui/Input';
 import { FILE_CLASSES } from '../../ui/FileInput';
 
 /**
@@ -67,12 +67,11 @@ export default function FieldInput({ field, value, onChange, languages = [], onE
     if (field.type === 'boolean') {
         return (
             <div className="mt-2 flex h-10 items-center">
-                <input
+                <Checkbox
                     id={controlId(field)}
-                    type="checkbox"
                     checked={!!value}
                     onChange={(e) => onChange(e.target.checked)}
-                    className="h-5 w-5 cursor-pointer rounded border-line-strong text-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring-accent"
+                    className="h-5 w-5"
                 />
                 {/* A `span`, not a second `label`. The field's name above is
                     already the checkbox's label, and two labels on one control

@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 
 import { describe, it, expect, vi, beforeAll } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import RichTextEditor from './RichTextEditor';
+import RichTextEditor, { CONTROL_COUNT } from './RichTextEditor';
 
 /**
  * jsdom lays nothing out, so it implements no geometry - and ProseMirror asks
@@ -92,5 +92,88 @@ describe('RichTextEditor', () => {
         draw();
 
         expect(screen.getByRole('toolbar', { name: 'Formatting' })).toBeInTheDocument();
+    });
+});
+
+/**
+ * A toolbar is one tab stop, not twelve.
+ *
+ * `role="toolbar"` tells a reader the arrow keys move between its controls and
+ * that Tab leaves it - the ARIA pattern calls it a roving tabindex. Declaring
+ * the role without implementing it is worse than using no role: the person is
+ * told to press arrows, nothing happens, and Tab now costs twelve presses to
+ * get past the formatting into the text.
+ */
+describe('RichTextEditor, toolbar keyboard', () => {
+    const controls = () => within(screen.getByRole('toolbar')).getAllByRole('button');
+
+    // The hook is told how many controls there are before any has rendered,
+    // so the constant and the markup have to agree or End and the wrap lose
+    // whichever control was added last.
+    it('draws as many controls as the roving focus was told about', () => {
+        draw();
+
+        expect(controls()).toHaveLength(CONTROL_COUNT);
+    });
+
+    it('offers exactly one tab stop', () => {
+        draw();
+
+        const stops = controls().filter((b) => b.tabIndex === 0);
+
+        expect(stops).toHaveLength(1);
+        expect(stops[0]).toHaveAccessibleName('Heading 1');
+    });
+
+    it('walks right and left with the arrow keys', async () => {
+        const user = userEvent.setup();
+        draw();
+
+        controls()[0].focus();
+        await user.keyboard('{ArrowRight}');
+        expect(screen.getByRole('button', { name: 'Heading 2' })).toHaveFocus();
+
+        await user.keyboard('{ArrowLeft}');
+        expect(screen.getByRole('button', { name: 'Heading 1' })).toHaveFocus();
+    });
+
+    // Wrapping, so the twelfth control is one press from the first rather than
+    // eleven - and so arrowing never dead-ends.
+    it('wraps at both ends', async () => {
+        const user = userEvent.setup();
+        draw();
+
+        controls()[0].focus();
+        await user.keyboard('{ArrowLeft}');
+        expect(screen.getByRole('button', { name: 'Justify' })).toHaveFocus();
+
+        await user.keyboard('{ArrowRight}');
+        expect(screen.getByRole('button', { name: 'Heading 1' })).toHaveFocus();
+    });
+
+    it('jumps to either end with Home and End', async () => {
+        const user = userEvent.setup();
+        draw();
+
+        controls()[0].focus();
+        await user.keyboard('{End}');
+        expect(screen.getByRole('button', { name: 'Justify' })).toHaveFocus();
+
+        await user.keyboard('{Home}');
+        expect(screen.getByRole('button', { name: 'Heading 1' })).toHaveFocus();
+    });
+
+    // The tab stop follows the person, so returning to the toolbar puts them
+    // back where they were rather than at the start.
+    it('remembers which control it was left on', async () => {
+        const user = userEvent.setup();
+        draw();
+
+        controls()[0].focus();
+        await user.keyboard('{ArrowRight}{ArrowRight}');
+
+        const stops = controls().filter((b) => b.tabIndex === 0);
+        expect(stops).toHaveLength(1);
+        expect(stops[0]).toHaveAccessibleName('Heading 3');
     });
 });
