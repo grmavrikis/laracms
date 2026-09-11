@@ -4752,3 +4752,81 @@ the ISO value beside them. Lowest contrast across both screens and both themes
 is 5.48:1.
 
 515 PHP tests, 608 JS tests, build clean.
+
+## 41. Two screens that say which of their numbers are invented (#117, item 18)
+
+The Dashboard and Analytics were both a `Placeholder` reading *This screen is
+not built yet*. They are screens now, and the interesting part is what they
+admit about themselves.
+
+### The rule, applied rather than assumed
+
+#117's phase rule says anything needing PHP is drawn with static data. Read
+loosely that would have made both screens wholly fake — and two of the numbers
+a dashboard wants are already served.
+
+So: **real where an endpoint exists, invented where one does not.**
+`/api/modules` and `/api/enquiries` answer today, so the section count, the
+enquiry total and the three most recent enquiries are this site's own. A count
+of entries per module is not served — the listing endpoint takes `?page` and
+answers rows, so counting from the panel would mean one request per module and
+a `total` read out of a paginator built to be thrown away. That block, and only
+that block, is drawn.
+
+### Why the marker is a region and not a tint
+
+`ui/Preview` wraps anything drawn from invented figures. It is a `region` named
+by its own warning, so the fact reaches somebody who cannot see the dashed
+border and the amber ground.
+
+A dashboard showing *47 room views last week*, convincingly, is worse than one
+showing nothing: the owner makes a decision on it. That is CHANGELOG §27's
+lesson one layer up, where a green test described a world that did not exist.
+
+Analytics sits inside **one** `Preview` rather than marking a block at a time,
+because nothing on it is real and a marker around part of a screen implies the
+rest did not need one.
+
+### The TODO is the deliverable
+
+The item's definition of done is a visible marker **and a TODO naming the
+endpoint**, and `screens/preview-markers.test.js` reads both files and checks
+exactly that: a `<Preview>` wrapper, and a TODO line carrying a verb and an
+`/api/` path. *Make this real later* is not a task; `GET /api/stats/entries` is.
+
+Analytics' TODO is the one worth reading, because it records that the work is
+**not one endpoint**. The public site is static HTML served by Apache before PHP
+starts (#97), so a visit never reaches Laravel and there is nothing to count.
+The two plausible answers are parsing Apache's access log on a schedule, or a
+beacon the baked pages carry. `BUSINESS.md`'s ceiling on support minutes per
+client is the argument for the log — nothing to embed, nothing for a client to
+break — and that reasoning is in the file rather than in somebody's memory.
+
+### Two findings, both caught by the suite
+
+**A comment broke the catalogue test.** `CatalogueCoversTheCodeTest` scans
+comments as well as code, so a docblock containing a quoted `t(…)` example
+demanded its own example string of `lang/en.json`. The comment now describes the
+call rather than spelling it out — and says why, since the next person to
+explain this rule will reach for the same example.
+
+**One English key, two meanings.** `t('Sections')` labels the sidebar's `nav`,
+where Greek correctly reads *Ενότητες πλοήγησης*; on a card counting content
+that is wrong. The catalogue maps one key to one string and **cannot tell two
+senses of an English word apart** — the identity map that makes an untranslated
+string readable is the same thing that makes this collision invisible. The only
+lever is to pick a different key, so the card uses `Modules`, which the panel
+already reads as *Ενότητες* everywhere else.
+
+### Verified
+
+Live in both themes. The Dashboard draws the real six sections and the real
+enquiry, with all six invented counts inside the marker and nothing invented
+outside it. Analytics has zero headings outside its marker; its bar chart is
+`aria-hidden` with a sentence carrying the same range for anybody who cannot see
+it. Lowest contrast across both screens and both themes: 4.84:1.
+
+The `Placeholder` component is deleted and *This screen is not built yet* is
+dropped from both catalogues.
+
+515 PHP tests, 631 JS tests, build clean.

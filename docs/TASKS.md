@@ -1252,7 +1252,7 @@ every screen moves.
 | 15 | Gallery + RichText restyle | ✅ an upload and a highlight are readable in **both** themes |
 | 16 | The four Module screens restyle | ✅ a rename still writes redirects (#69) |
 | 17 | Enquiries + Settings restyle | ✅ grouped settings save |
-| 18 | Dashboard + Analytics, static | both wear a visible marker and a TODO **naming** the endpoint they want |
+| 18 | Dashboard + Analytics, static | ✅ both wear a visible marker and a TODO **naming** the endpoint they want |
 | 19 | Static sort / filter / bulk bar on the listing | same |
 | 20 | Catalogue + docs sweep | `php artisan test` green, and the three docs updated |
 
@@ -1274,7 +1274,7 @@ else, and making them real is PHP.
 > components — mitigated because item 3's tokens already hold the line where
 > drift is most visible, which is colour.
 
-**Where it stands.** Fifteen are done.
+**Where it stands.** Sixteen are done.
 
 - **1. Component test harness — DONE.** See #94, which this closed. It found two
   defects within ten minutes of existing, one of them a test file that no
@@ -1875,6 +1875,62 @@ saying exactly that and naming this item.
   both screens and both themes: 5.48:1.
 
   42 tests where there were none, and all eleven fixes mutation-tested.
+
+- **18. Dashboard and Analytics — DONE.** Both were a `Placeholder` reading
+  *This screen is not built yet*, which the route table has now stopped
+  rendering; the component is deleted and its string dropped from both
+  catalogues.
+
+  **The phase rule was applied rather than assumed: real where an endpoint
+  already exists, invented where one does not.** `/api/modules` and
+  `/api/enquiries` are served today, so the Dashboard's section count, enquiry
+  total and three most recent enquiries are this site's own. What is missing is
+  a count of entries per module, so that block - and only that block - is drawn
+  and marked.
+
+  `ui/Preview` is the marker, and it is a `region` named by its own warning, not
+  a tint: a dashboard showing *47 room views last week* convincingly is worse
+  than one showing nothing, because the owner makes a decision on it. That is
+  CHANGELOG §27's lesson one layer up, where a green test described a world that
+  did not exist.
+
+  **Analytics sits inside one `Preview` entirely**, because nothing on it is
+  real and a marker around part of a screen implies the rest did not need one.
+  Its TODO is the interesting half: the screen wants `GET /api/stats/traffic`,
+  but **that is not one endpoint's worth of work** - the public site is static
+  HTML served by Apache before PHP starts (#97), so a visit never reaches
+  Laravel and there is nothing to count. The two plausible answers are parsing
+  Apache's access log on a schedule, or a beacon the baked pages carry, and
+  `BUSINESS.md`'s ceiling on support minutes is the argument for the log:
+  nothing to embed, nothing for a client to break. That is recorded in the file
+  rather than decided here.
+
+  `screens/preview-markers.test.js` reads both files and **checks the item's own
+  definition of done**: each wears the marker, and each leaves a TODO naming a
+  verb and an `/api/` path. *Make this real later* is not a task;
+  `GET /api/stats/entries` is.
+
+  **Two findings on the way**, both mine and both caught by the suite rather
+  than by reading:
+
+  - A docblock containing a quoted `t(…)` example **broke the catalogue test**.
+    `CatalogueCoversTheCodeTest` scans comments as well as code, so a sentence
+    explaining the rule demanded its own example string of `lang/en.json`. The
+    comment now describes the call instead of spelling it out, and says why.
+  - `t('Sections')` means two different things. The sidebar uses it for its
+    `nav` label, where Greek correctly reads *Ενότητες πλοήγησης*; on a card
+    counting content that is wrong. **A catalogue maps one key to one string and
+    cannot tell two senses of an English word apart**, so the only lever is to
+    pick a different key - the card uses `Modules`, which the panel already
+    reads as *Ενότητες* everywhere else.
+
+  Verified live in both themes: the Dashboard shows the real six sections and
+  the real enquiry, with all six invented counts inside the marker and **nothing
+  invented outside it**; Analytics has zero headings outside its marker and its
+  bar chart is `aria-hidden` with a sentence carrying the same range. Lowest
+  contrast across both screens and both themes: 4.84:1.
+
+  23 tests, and all ten fixes mutation-tested.
 
 ### 119. The entry form offers a language the site has switched off — P2
 

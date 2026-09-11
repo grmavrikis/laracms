@@ -6,6 +6,8 @@ import { t } from './lib/i18n';
 import { loadModules, forgetModules, onModulesChanged } from './lib/moduleStore';
 import Login from './components/Login';
 import ModulesList from './components/ModulesList';
+import Dashboard from './screens/Dashboard';
+import Analytics from './screens/Analytics';
 import EntriesScreen from './screens/EntriesScreen';
 import EntryEditScreen from './screens/EntryEditScreen';
 import ModuleBuilder from './components/ModuleBuilder';
@@ -96,26 +98,6 @@ function ByModuleSlug({ slug, children }) {
     return children(state.module);
 }
 
-/**
- * Placeholder until item 18 of #117.
- *
- * TODO (#117 item 18): a real dashboard needs counts the API does not expose -
- * there is no endpoint answering how many entries, drafts or enquiries exist.
- * Drawn statically until there is, per this item's rule.
- */
-function Placeholder({ title }) {
-    return (
-        <div className="rounded-xl border border-dashed border-line-strong p-12 text-center">
-            {/* `h1`, not `h2`: nothing in the Shell renders one - the Topbar has
-                no heading and the rail's brand is a span - so starting at level
-                two leaves the document with no top-level heading at all, and
-                "skip to the main heading" lands nowhere. */}
-            <h1 className="text-lg font-semibold text-fg">{title}</h1>
-            <p className="mt-2 text-sm text-fg-muted">{t('This screen is not built yet.')}</p>
-        </div>
-    );
-}
-
 const entriesScreen = ({ params }) => (
     <ByModuleSlug slug={params.module}>
         {(module) => <EntriesScreen module={module} />}
@@ -145,8 +127,8 @@ const entryFormScreen = ({ params }) => (
  * error boundary turns into a message - loud is affordable since #117 item 8.
  */
 const SCREENS = {
-    dashboard: () => <Placeholder title={t('Dashboard')} />,
-    analytics: () => <Placeholder title={t('Analytics')} />,
+    dashboard: ({ navigate }) => <Dashboard navigate={navigate} />,
+    analytics: () => <Analytics />,
 
     enquiries: ({ navigate }) => <EnquiriesManager onBack={() => navigate('dashboard')} />,
     settings: ({ navigate }) => <SettingsManager onBack={() => navigate('dashboard')} />,
