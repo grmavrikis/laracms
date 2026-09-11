@@ -3,6 +3,7 @@ import { languagesWithErrors } from '../../lib/apiErrors';
 import { t } from '../../lib/i18n';
 import FieldInput from './FieldInput';
 import FieldErrors from './FieldErrors';
+import FieldLabel, { labelId } from './FieldLabel';
 import Badge from '../../ui/Badge';
 
 /**
@@ -31,6 +32,17 @@ export default function TranslatableFields({
 
     const failedLanguages = languagesWithErrors(errors, languages.map(getLangCode));
     const activeCode = getLangCode(languages.find((l) => l.id === activeLangId));
+
+    // **Not merely cosmetic.** `FieldErrors` reads a null `langCode` as "this
+    // field is not translatable, show everything" - so rendering these fields
+    // without a resolved language put every language's complaints under every
+    // box at once, which is the defect #96 fixed and ARCHITECTURE records: the
+    // Greek box marked wrong because the French one was empty.
+    if (!activeCode) {
+        return (
+            <p className="text-sm text-fg-muted">{t('Could not load the languages.')}</p>
+        );
+    }
 
     return (
         <div className="space-y-6">
@@ -75,19 +87,16 @@ export default function TranslatableFields({
 
             {fields.map((field) => (
                 <div key={field.name}>
-                    <label
-                        htmlFor={`field-${field.name}`}
-                        className="flex items-center gap-2 text-sm font-semibold capitalize text-fg"
-                    >
-                        {field.name}
+                    <FieldLabel field={field}>
                         <Badge tone="accent">{activeCode}</Badge>
-                    </label>
+                    </FieldLabel>
                     <FieldInput
                         field={field}
                         value={translations[activeLangId]?.[field.name]}
                         onChange={(value) => onChange(activeLangId, field.name, value)}
                         languages={languages}
                         onError={onError}
+                        labelledBy={labelId(field)}
                     />
                     {/* Only this language's messages - see the note above. */}
                     <FieldErrors errors={errors} fieldName={field.name} langCode={activeCode} />

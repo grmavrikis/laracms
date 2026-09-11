@@ -1,8 +1,12 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
+import { ChevronUp, ChevronDown, Trash2, ImageOff, Loader2 } from 'lucide-react';
 import { uploadImage } from '../lib/api';
 import { errorSummary } from '../lib/apiErrors';
 import { getLangCode } from '../lib/languages';
 import { t } from '../lib/i18n';
+import { Input, INPUT_LABEL_CLASSES } from '../ui/Input';
+import FileInput from '../ui/FileInput';
+import IconButton from '../ui/IconButton';
 import {
     toGallery,
     galleryItem,
@@ -20,12 +24,18 @@ import {
  * tabs, because a gallery is not a translatable field: the photographs are one
  * set and only their description differs. Each image therefore shows one alt
  * box per active language, side by side.
+ *
+ * **Every box is labelled by position and language** (#117 item 15). Two
+ * photographs in two languages is four identical boxes, and a reader who cannot
+ * see the thumbnail beside them had nothing to tell them apart - the language
+ * code was a `span` sitting next to an input, which associates with nothing.
+ * The position is what identifies an image here: the URL is a generated
+ * filename and the alt text is the thing being written.
  */
 export default function GalleryEditor({ value, onChange, languages = [], onError })
 {
     const items = toGallery(value);
     const [uploading, setUploading] = useState(false);
-    const fileInput = useRef(null);
 
     const handleFiles = async (event) => {
         const files = Array.from(event.target.files ?? []);
@@ -77,102 +87,116 @@ export default function GalleryEditor({ value, onChange, languages = [], onError
         setUploading(false);
     };
 
-    const buttonClass = 'inline-flex items-center justify-center rounded-md px-2 py-1 text-xs font-medium '
-        + 'text-fg-muted ring-1 ring-inset ring-line-strong bg-surface hover:bg-surface-muted '
-        + 'disabled:opacity-30 disabled:cursor-not-allowed transition-colors';
-
     return (
         <div className="mt-2 space-y-3">
-            <input
-                ref={fileInput}
-                type="file"
+            <FileInput
+                id="gallery-upload"
+                label={t('Add images')}
+                hideLabel
                 accept="image/*"
                 multiple
                 disabled={uploading}
                 onChange={handleFiles}
-                className="block w-full text-sm text-fg-muted file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-accent-soft file:text-accent-text hover:file:bg-accent-soft cursor-pointer transition-all disabled:opacity-50"
             />
 
             {uploading && (
-                <p className="text-xs text-fg-muted">{t('Uploading…')}</p>
+                <p className="flex items-center gap-2 text-xs text-fg-muted">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" aria-hidden="true" />
+                    {t('Uploading…')}
+                </p>
             )}
 
             {items.length === 0 ? (
-                <p className="text-sm text-fg-subtle">{t('No images yet.')}</p>
+                <p className="flex items-center gap-2 rounded-lg border border-dashed border-line-strong px-3 py-4 text-sm text-fg-subtle">
+                    <ImageOff className="h-4 w-4" aria-hidden="true" />
+                    {t('No images yet.')}
+                </p>
             ) : (
                 <ul className="space-y-3">
-                    {items.map((item, index) => (
-                        <li
-                            // Keyed by URL alone. With the index in the key,
-                            // moving an image changed the key of every one
-                            // below it, so React discarded and rebuilt those
-                            // rows - losing focus in an alt box mid-edit -
-                            // instead of moving them. Each upload is stored
-                            // under its own generated name, so two images in
-                            // one gallery cannot share a URL.
-                            key={item.url}
-                            className="flex gap-4 rounded-lg border border-line bg-surface-muted/50 p-3"
-                        >
-                            <div className="h-20 w-20 shrink-0 overflow-hidden rounded-md border border-line bg-surface">
-                                <img
-                                    src={item.url}
-                                    alt=""
-                                    className="h-full w-full object-cover"
-                                    onError={(e) => { e.target.style.visibility = 'hidden'; }}
-                                />
-                            </div>
+                    {items.map((item, index) => {
+                        const position = index + 1;
 
-                            <div className="min-w-0 flex-1 space-y-2">
-                                {languages.map((language) => {
-                                    const code = getLangCode(language);
+                        return (
+                            <li
+                                // Keyed by URL alone. With the index in the key,
+                                // moving an image changed the key of every one
+                                // below it, so React discarded and rebuilt those
+                                // rows - losing focus in an alt box mid-edit -
+                                // instead of moving them. Each upload is stored
+                                // under its own generated name, so two images in
+                                // one gallery cannot share a URL.
+                                key={item.url}
+                                role="group"
+                                aria-label={t('Image :position', { position })}
+                                className="flex gap-4 rounded-xl border border-line bg-surface-muted/50 p-3 transition-colors hover:border-line-strong"
+                            >
+                                <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-lg border border-line bg-surface">
+                                    <img
+                                        src={item.url}
+                                        // Decorative: the box beside it holds
+                                        // the description, and announcing a
+                                        // generated filename twice is noise.
+                                        alt=""
+                                        className="h-full w-full object-cover"
+                                        onError={(e) => { e.target.style.visibility = 'hidden'; }}
+                                    />
+                                    <span className="absolute left-0 top-0 rounded-br-lg bg-surface/85 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-fg-muted">
+                                        {position}
+                                    </span>
+                                </div>
 
-                                    return (
-                                        <div key={language.id} className="flex items-center gap-2">
-                                            <span className="w-8 shrink-0 text-xs font-semibold uppercase text-fg-muted">
-                                                {code}
-                                            </span>
-                                            <input
-                                                type="text"
-                                                value={altFor(item, code)}
-                                                onChange={(e) => onChange(withAlt(items, index, code, e.target.value))}
-                                                placeholder={t('Alt text — what the photo shows')}
-                                                className="block w-full rounded-md border-0 py-1.5 px-3 text-sm text-fg shadow-sm ring-1 ring-inset ring-line-strong placeholder:text-fg-subtle focus:ring-2 focus:ring-inset focus:ring-accent outline-none bg-surface"
-                                            />
-                                        </div>
-                                    );
-                                })}
-                            </div>
+                                <div className="min-w-0 flex-1 space-y-2">
+                                    {languages.map((language) => {
+                                        const code = getLangCode(language);
+                                        const id = `alt-${position}-${code}`;
 
-                            <div className="flex shrink-0 flex-col gap-1">
-                                <button
-                                    type="button"
-                                    onClick={() => onChange(moveItem(items, index, index - 1))}
-                                    disabled={index === 0}
-                                    className={buttonClass}
-                                    title={t('Move up')}
-                                >
-                                    ↑
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => onChange(moveItem(items, index, index + 1))}
-                                    disabled={index === items.length - 1}
-                                    className={buttonClass}
-                                    title={t('Move down')}
-                                >
-                                    ↓
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => onChange(withoutItem(items, index))}
-                                    className={`${buttonClass} hover:text-danger-text hover:ring-danger/40`}
-                                    title={t('Remove')}
-                                >
-                                    ✕
-                                </button>
-                            </div>
-                        </li>
-                    ))}
+                                        return (
+                                            <div key={language.id} className="flex items-center gap-2">
+                                                <label htmlFor={id} className={`${INPUT_LABEL_CLASSES} mb-0 w-8 shrink-0`}>
+                                                    {code}
+                                                </label>
+                                                <Input
+                                                    id={id}
+                                                    type="text"
+                                                    value={altFor(item, code)}
+                                                    onChange={(e) => onChange(withAlt(items, index, code, e.target.value))}
+                                                    placeholder={t('Alt text — what the photo shows')}
+                                                    className="py-1.5 text-sm"
+                                                />
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+
+                                <div className="flex shrink-0 flex-col gap-1">
+                                    {/* Named by position, not just "Move up":
+                                        a list of identical controls tells a
+                                        reader nothing about which row they are
+                                        standing in. */}
+                                    <IconButton
+                                        icon={ChevronUp}
+                                        label={t('Move image :position up', { position })}
+                                        onClick={() => onChange(moveItem(items, index, index - 1))}
+                                        disabled={index === 0}
+                                        className="h-7 w-7 disabled:cursor-not-allowed disabled:opacity-30"
+                                    />
+                                    <IconButton
+                                        icon={ChevronDown}
+                                        label={t('Move image :position down', { position })}
+                                        onClick={() => onChange(moveItem(items, index, index + 1))}
+                                        disabled={index === items.length - 1}
+                                        className="h-7 w-7 disabled:cursor-not-allowed disabled:opacity-30"
+                                    />
+                                    <IconButton
+                                        icon={Trash2}
+                                        label={t('Remove image :position', { position })}
+                                        onClick={() => onChange(withoutItem(items, index))}
+                                        className="h-7 w-7 hover:bg-danger-soft hover:text-danger-text"
+                                    />
+                                </div>
+                            </li>
+                        );
+                    })}
                 </ul>
             )}
         </div>

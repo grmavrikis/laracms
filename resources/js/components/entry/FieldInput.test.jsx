@@ -67,11 +67,18 @@ describe('FieldInput', () => {
         expect(container.querySelector('input[type="date"]')).toHaveValue('2026-09-11');
     });
 
-    it('draws a checkbox for a boolean, with a label that focuses it', async () => {
+    // The words beside the box are a `span`, not a second `label`: the field's
+    // name - which `FieldLabel` renders above this component - is already the
+    // checkbox's label, and two labels on one control are announced differently
+    // by every reader. `FieldBlocks.test.jsx` pins the pair together.
+    it('draws a checkbox for a boolean, carrying the id its label points at', async () => {
         const user = userEvent.setup();
         const { onChange } = draw({ name: 'featured', type: 'boolean' }, { value: false });
 
-        await user.click(screen.getByLabelText('Enable this field'));
+        const box = screen.getByRole('checkbox');
+        expect(box).toHaveAttribute('id', 'field-featured');
+
+        await user.click(box);
 
         expect(onChange).toHaveBeenCalledWith(true);
     });

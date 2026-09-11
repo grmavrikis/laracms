@@ -110,8 +110,10 @@ The `lib/` helpers are pure functions and carry the interesting decisions:
 | `resources/js/lib/fieldTypes.json` | **Generated** by `php artisan schema:sync-field-types`. Never edit by hand. |
 
 Components, in order of how much they will surprise you:
-`EntryForm.jsx` (largest — dynamic fields, translations, error display),
-`screens/EntriesScreen.jsx` (fetching, pagination, the order queue),
+`screens/EntriesScreen.jsx` (largest at 346 lines — fetching, pagination, the
+order queue), `EntryForm.jsx` (281 — state, the payload, and where a 422 is
+routed; the fields themselves moved to `components/entry/` in #117, and
+`PublicationPanel` there carries the rule for what the side column may hold),
 `screens/EntryEditScreen.jsx` (the guard that must not mount the form early),
 `ModuleBuilder.jsx`, `EntriesTable.jsx`, `GalleryEditor.jsx` (several images
 on one entry, alt text per language), `RichTextEditor.jsx` (Tiptap),
@@ -198,7 +200,7 @@ purpose, so `t()` answers its own key — assert the raw English instead.
 
 ```bash
 php artisan test                    # 515 tests
-npm test                            # 391 tests
+npm test                            # 424 tests
 npm run build
 php artisan schema:sync-field-types # after changing field type constants
 php artisan pages:warm              # bake the public site to files (#97) - THE DEPLOY STEP
@@ -269,7 +271,7 @@ Started from a repo that would not boot (eight files of merge conflicts).
 Worked through a prioritised list; every item is either done or recorded in
 `CHANGELOG.md` with its reasoning.
 
-- **515 PHP tests, 391 JS tests**, all passing. Build clean.
+- **515 PHP tests, 424 JS tests**, all passing. Build clean.
 - **The project has a commercial goal as of 2026-08-30**, and it now decides
   what gets worked on. A multilingual CMS that feeds client sites, owned
   outright, for a one-person web agency: **one installation per client site**,

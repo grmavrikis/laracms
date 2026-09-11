@@ -2,7 +2,7 @@ import { getLangCode } from '../../lib/languages';
 import { STATUS_DRAFT, STATUS_PUBLISHED } from '../../lib/entries';
 import { t } from '../../lib/i18n';
 import { formatDate } from '../../lib/format';
-import { INPUT_CLASSES } from '../../ui/Input';
+import { Input } from '../../ui/Input';
 
 /**
  * Everything about an entry that is **not** one of its Module's fields.
@@ -84,13 +84,13 @@ export default function PublicationPanel({
                                 >
                                     {code}
                                 </label>
-                                <input
+                                <Input
                                     id={`slug-${code}`}
                                     type="text"
                                     value={slugs[code] ?? ''}
                                     onChange={(e) => onSlugChange(code, e.target.value)}
                                     placeholder={t('thea-sti-thalassa')}
-                                    className={`${INPUT_CLASSES} font-mono text-xs`}
+                                    className="font-mono text-xs"
                                 />
                             </div>
                         );

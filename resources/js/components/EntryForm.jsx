@@ -80,7 +80,13 @@ export default function EntryForm({ moduleSlug, schema, languages, onSaved, onCa
     const [activeLangId, setActiveLangId] = useState(() => {
         const code = contentLangCode(languages, locale);
 
-        return languages.find((language) => getLangCode(language) === code)?.id ?? null;
+        // Falls back to the **first language** rather than to null. A null id
+        // matched no language, and `FieldErrors` reads the resulting null code
+        // as "not translatable, show everything" - so every language's
+        // complaints appeared under every box, which is the defect #96 fixed.
+        return languages.find((language) => getLangCode(language) === code)?.id
+            ?? languages[0]?.id
+            ?? null;
     });
     const [submitting, setSubmitting] = useState(false);
 
@@ -194,12 +200,6 @@ export default function EntryForm({ moduleSlug, schema, languages, onSaved, onCa
         }
     };
 
-    /**
-     * @param langCode the translation being edited, so a complaint about
-     *        another language is not rendered against this input. Null for a
-     *        field that is not translatable - a gallery's keys nest deeper
-     *        than one segment and must not be filtered.
-     */
     return (
         <form onSubmit={handleSubmit} className="space-y-6">
             {summary.length > 0 && (
@@ -273,7 +273,7 @@ export default function EntryForm({ moduleSlug, schema, languages, onSaved, onCa
                     disabled={submitting}
                     className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg bg-accent px-5 py-2 text-sm font-semibold text-accent-fg transition-colors hover:bg-accent-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring-accent disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                    {submitting && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
+                    {submitting && <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />}
                     {submitting ? t('Saving…') : t('Save entry')}
                 </button>
             </div>

@@ -1,5 +1,6 @@
 import FieldInput from './FieldInput';
 import FieldErrors from './FieldErrors';
+import FieldLabel, { labelId } from './FieldLabel';
 
 /**
  * The schema fields that hold one value, whatever language anybody reads in.
@@ -17,18 +18,14 @@ export default function StaticFields({ fields, values, onChange, languages, erro
         <div className="space-y-6">
             {fields.map((field) => (
                 <div key={field.name}>
-                    <label
-                        htmlFor={`field-${field.name}`}
-                        className="block text-sm font-semibold capitalize text-fg"
-                    >
-                        {field.name}
-                    </label>
+                    <FieldLabel field={field} />
                     <FieldInput
                         field={field}
                         value={values[field.name]}
                         onChange={(value) => onChange(field.name, value)}
                         languages={languages}
                         onError={onError}
+                        labelledBy={labelId(field)}
                     />
                     <FieldErrors errors={errors} fieldName={field.name} />
                 </div>

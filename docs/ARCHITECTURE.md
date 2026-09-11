@@ -1089,6 +1089,42 @@ route that does not exist — and in React an uncaught render throw unmounts the
 whole tree, so each one was a white document with no message. The boundary is
 outside the providers so it still renders when one of *them* is what threw.
 
+### What the entry form's side column holds (#117 item 14)
+
+**The structural fields, and nothing else**: `status`, when the entry first went
+out, and its address per language. That is `PublicationPanel`, and the rule is
+not a layout preference — it is the same line §2 already draws in the database.
+Those four are indexed columns precisely because they mean the same thing for
+every Module, while everything in `data` is the client's own schema.
+
+So a schema field never moves right, however well it would fit. Which fields a
+Module has is the client's decision and they may edit it (#115); a column that
+sometimes held one of them would rearrange itself underneath the author as they
+worked, and two installations of the same CMS would disagree about where to look
+for the same thing. The left column is the Module's; the right column is the
+CMS's.
+
+The split starts at `xl`, not at `lg`. The rail already takes 256px from `lg`,
+so splitting there left both columns too narrow to be worth it — a form squeezed
+into half a laptop is worse than one honest column.
+
+**A composite control is named by `aria-labelledby`, not by `for`.** Rich text
+is a contenteditable inside a `div` and a gallery is a list of images with their
+own inputs; neither is a labelable element, so a `for` aimed at one resolves to
+nothing — the control keeps no accessible name, clicking the label does nothing,
+and the markup asserts otherwise. `FieldLabel` renders a `<span>` carrying an id
+for those two and a real `<label for>` for the rest, and `FieldInput` puts
+`role="group"` with `aria-labelledby` around the composite pair. The same rule
+is why the boolean's "Enable this field" is a `<span>`: the field name above is
+already the checkbox's label, and two labels on one control are announced
+differently by every reader.
+
+**`TranslatableFields` refuses to render when the active language resolves to
+nothing.** `FieldErrors` reads a null `langCode` as *this field is not
+translatable, show everything* — so a form whose language id matched no row put
+every language's complaints under every box at once, which is the defect #96
+fixed arriving by a different door.
+
 ## 5c. Site settings (TASKS.md #67)
 
 One row, one screen, `SiteSettings`. It holds two kinds of value and that is

@@ -9,6 +9,22 @@ import GalleryEditor from '../GalleryEditor';
 import { Input, Select } from '../../ui/Input';
 
 /**
+ * Whether this field's control is something a `<label for>` can point at.
+ *
+ * Rich text is a contenteditable inside a `div` and a gallery is a list of
+ * images with their own inputs - neither is a labelable element, so a `for`
+ * aimed at them resolved to nothing. A label claiming an association it does
+ * not have is worse than no label: the control still has no accessible name,
+ * clicking does nothing, and the markup says otherwise. Those two are given a
+ * `role="group"` named by the same text instead, which is what a composite
+ * control is supposed to carry.
+ */
+export const isLabelable = (field) => !isRichTextField(field) && !isGalleryField(field);
+
+/** The id a labelable control carries, and a label points at. */
+export const controlId = (field) => `field-${field.name}`;
+
+/**
  * One schema field's control, chosen by its type (#117 item 13).
  *
  * Lifted out of `EntryForm`, where it was a `renderInput` closure inside a
@@ -21,10 +37,14 @@ import { Input, Select } from '../../ui/Input';
  * refused - rather than throwing: those reasons are worth showing, and the form
  * owns where a message appears.
  */
-export default function FieldInput({ field, value, onChange, languages = [], onError }) {
+export default function FieldInput({ field, value, onChange, languages = [], onError, labelledBy }) {
     if (isRichTextField(field)) {
         return (
-            <div className="mt-2 overflow-hidden rounded-lg border border-line bg-surface focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-ring-accent">
+            <div
+                role="group"
+                aria-labelledby={labelledBy}
+                className="mt-2 overflow-hidden rounded-lg border border-line bg-surface focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-ring-accent"
+            >
                 <RichTextEditor value={value} onChange={onChange} />
             </div>
         );
@@ -32,12 +52,14 @@ export default function FieldInput({ field, value, onChange, languages = [], onE
 
     if (isGalleryField(field)) {
         return (
-            <GalleryEditor
-                value={value}
-                onChange={onChange}
-                languages={languages}
-                onError={onError}
-            />
+            <div role="group" aria-labelledby={labelledBy}>
+                <GalleryEditor
+                    value={value}
+                    onChange={onChange}
+                    languages={languages}
+                    onError={onError}
+                />
+            </div>
         );
     }
 
@@ -45,15 +67,17 @@ export default function FieldInput({ field, value, onChange, languages = [], onE
         return (
             <div className="mt-2 flex h-10 items-center">
                 <input
-                    id={`field-${field.name}`}
+                    id={controlId(field)}
                     type="checkbox"
                     checked={!!value}
                     onChange={(e) => onChange(e.target.checked)}
                     className="h-5 w-5 cursor-pointer rounded border-line-strong text-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring-accent"
                 />
-                <label htmlFor={`field-${field.name}`} className="ml-3 cursor-pointer text-sm text-fg">
-                    {t('Enable this field')}
-                </label>
+                {/* A `span`, not a second `label`. The field's name above is
+                    already the checkbox's label, and two labels on one control
+                    are announced differently by every reader - some join them,
+                    some take the first. */}
+                <span className="ml-3 text-sm text-fg">{t('Enable this field')}</span>
             </div>
         );
     }
@@ -62,7 +86,7 @@ export default function FieldInput({ field, value, onChange, languages = [], onE
         return (
             <div className="mt-2">
                 <Input
-                    id={`field-${field.name}`}
+                    id={controlId(field)}
                     type="date"
                     value={value ?? ''}
                     onChange={(e) => onChange(e.target.value)}
@@ -77,7 +101,7 @@ export default function FieldInput({ field, value, onChange, languages = [], onE
         return (
             <div className="mt-2">
                 <Select
-                    id={`field-${field.name}`}
+                    id={controlId(field)}
                     value={value ?? ''}
                     onChange={(e) => onChange(e.target.value)}
                 >
@@ -117,7 +141,7 @@ export default function FieldInput({ field, value, onChange, languages = [], onE
         return (
             <div className="mt-2 space-y-3">
                 <input
-                    id={`field-${field.name}`}
+                    id={controlId(field)}
                     type="file"
                     accept="image/*"
                     onChange={handleFileChange}
@@ -152,7 +176,7 @@ export default function FieldInput({ field, value, onChange, languages = [], onE
                 that already said "title" - noise, and an untranslatable string
                 built from a schema key at that. */}
             <Input
-                id={`field-${field.name}`}
+                id={controlId(field)}
                 type={field.type === 'integer' || field.type === 'number' ? 'number' : 'text'}
                 value={value ?? ''}
                 onChange={(e) => onChange(e.target.value)}

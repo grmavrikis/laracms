@@ -13,6 +13,15 @@ export const INPUT_CLASSES =
     + 'focus-visible:outline-offset-2 focus-visible:outline-ring-accent '
     + 'disabled:cursor-not-allowed disabled:opacity-60';
 
+/**
+ * The small caps label that sits over a box.
+ *
+ * Written out by hand in `PublicationPanel`, and wanted again by the gallery's
+ * alt boxes and the file picker - the third copy of a string is where this
+ * repo has twice decided to stop copying.
+ */
+export const INPUT_LABEL_CLASSES = 'mb-1 block text-xs font-semibold uppercase text-fg-muted';
+
 export function Input({ className = '', ...rest }) {
     return <input className={`${INPUT_CLASSES} ${className}`} {...rest} />;
 }

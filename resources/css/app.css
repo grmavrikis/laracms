@@ -334,6 +334,32 @@
    prose selectors are wrapped in :where(), so these plain rules outrank them. */
 .tiptap-editor {
     line-height: 1.5;
+
+    /* `prose` brings its own palette, and it is not the panel's: the plugin
+       sets these to fixed grays, so the words a client typed measured 8.4:1 on
+       the light surface and **2.01:1** on the dark one. The surface was
+       tokenised and the text was not, and nothing failed - the editor was the
+       one place in the panel where a theme switch made the content unreadable.
+
+       Mapping them here makes the editor follow both axes for free, which is
+       the trick `@theme inline` plays for utilities. Unlayered, so these outrank
+       the plugin's own `.prose` block at equal specificity.
+
+       The list is the **server's**: `RichTextDocument::NODES` and `::MARKS`
+       decide what can be stored, so anything outside it would be paint for
+       markup that cannot survive a save. */
+    --tw-prose-body: var(--ui-fg);
+    --tw-prose-headings: var(--ui-fg);
+    --tw-prose-bold: var(--ui-fg);
+    --tw-prose-links: var(--ui-accent-text);
+    --tw-prose-bullets: var(--ui-fg-muted);
+    --tw-prose-counters: var(--ui-fg-muted);
+    --tw-prose-quotes: var(--ui-fg);
+    --tw-prose-quote-borders: var(--ui-border-strong);
+    --tw-prose-code: var(--ui-fg);
+    --tw-prose-pre-bg: var(--ui-surface-muted);
+    --tw-prose-pre-code: var(--ui-fg);
+    --tw-prose-hr: var(--ui-border);
 }
 
 .tiptap-editor p,

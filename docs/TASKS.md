@@ -1647,6 +1647,80 @@ else, and making them real is PHP.
   removing either fix fails them. The mount guard - the one that stops a blank
   form being saved over a real entry - is pinned by four.
 
+  **A second review found the same shape one level down**, and it is the third
+  round in a row to do so: four components were extracted in this item and one
+  of them had a test. Ten findings, the worst of them real defects rather than
+  polish:
+
+  - **`TranslatableFields` rendered with no resolved language.** `FieldErrors`
+    reads a null `langCode` as *not translatable, show everything*, so a form
+    whose active id matched no row put **every** language's complaints under
+    **every** box - #96's defect arriving through a different door. It now
+    refuses to render and says so.
+  - **`FieldLabel` pointed `for` at nothing** for rich text and gallery. Neither
+    is a labelable element, so the association resolved to nothing: no
+    accessible name, clicking did nothing, and the markup claimed otherwise.
+    Those two are named with `aria-labelledby` on a `role="group"` now.
+  - **The boolean carried two labels**, its field name and *Enable this field*,
+    which every reader announces differently. The second is a `span`.
+  - `activeLangId` could resolve to null while languages existed; a dangling
+    `@param` sat above a `return`; the spinner ignored `prefers-reduced-motion`;
+    `PublicationPanel` had a raw `<input>` beside `INPUT_CLASSES` instead of the
+    `Input` it was extracted alongside.
+
+  **The fix round is 33 new tests** - `FieldBlocks.test.jsx` over the three
+  blocks and `FieldErrors`, and `EntryForm.test.jsx` over the wiring that never
+  moved: the payload, #86's omission rules, and the jump to a failing language.
+  All twelve fixes were mutation-tested, each breaking exactly the test that
+  covers it and nothing else.
+
+  Verified live against MySQL on a probe module carrying all eight field types:
+  every `for` resolved, every composite control was named, no control had two
+  labels, and a save that failed on Greek while English was open **switched to
+  Greek**, marked that tab in words as well as in colour, and filed the one
+  message under the Greek box alone. Error text measures 6.2:1 light and 9.9:1
+  dark. The probe was deleted afterwards.
+
+### 119. The entry form offers a language the site has switched off — P2
+
+Found live on 2026-09-11 while verifying #117 item 14. French is
+`is_active: false` in the development database, and the entry form still draws
+an **FR tab** and an `slug-fr` box. An author can write a French translation and
+give it an address for a language that has no public pages at all.
+
+Pre-existing, and a deliberate consequence rather than an oversight:
+`LanguageController` returns every language since #114 so a **Module** can be
+translated ahead of going live, and `EntriesManager` carried a comment saying
+exactly that. What nobody decided is what an **Entry** form should do with one.
+
+The two screens already disagree. `ModuleTranslations` marks an inactive
+language visibly; the entry form says nothing. `contentLangCode` excludes them
+from the opening tab (#116) but not from the tabs themselves.
+
+Three possible answers, and the owner picks: hide inactive languages in the
+entry form; show them marked, the way the module translator does; or keep them
+plain and accept that translating ahead is the point. **Showing them marked is
+the likely one** - it matches the screen that already solved this, and writing
+ahead of a launch is a real thing an agency does.
+
+### 120. A validation message says `data.title.el` to the client — P2
+
+Found live on 2026-09-11, in the same session. A required translation left empty
+answers *"Το πεδίο data.title.el είναι υποχρεωτικό."* - the attribute path,
+raw, in the sentence an accommodation owner reads.
+
+It is correct and unusable. The panel puts the message under the right box, in
+the right language tab, so the path carries no information the position does not
+already give - it only makes the sentence look like a stack trace.
+
+The fix is PHP and therefore not this phase: `SchemaRuleBuilder` knows each
+field's name and its language, so it can hand Laravel an `attributes()` map
+turning `data.title.el` into the field's own name. **Where it goes is the
+question worth thinking about** - a schema field's name is the client's word and
+untranslatable, so the sentence will read *"Το πεδίο title είναι
+υποχρεωτικό."*, which is better but still half English. The language belongs in
+the wording rather than in the attribute.
+
 ### 116. The panel's language decides which content language it opens on — DONE (CHANGELOG §32)
 
 Raised by the owner on 2026-09-07: the panel had el/en, the site had el/en/fr,

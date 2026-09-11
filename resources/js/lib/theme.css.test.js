@@ -86,3 +86,43 @@ describe('the dark theme', () => {
         }
     });
 });
+
+/**
+ * `prose` paints its own colours, and they are not the panel's.
+ *
+ * The rich-text editor wears `prose` for its type scale and list markers, but
+ * the plugin sets `--tw-prose-body` and friends to fixed grays - so the words a
+ * client types measured **8.4:1 on the light surface and 2.01:1 on the dark
+ * one**. Everything they had written was nearly invisible with the theme
+ * switched, and nothing failed: the surface was tokenised, the text was not.
+ *
+ * Mapping the variables onto `--ui-*` once means the editor follows both axes
+ * for free, the same trick `@theme inline` plays for utilities.
+ *
+ * The list is the **server's**, not a guess: `RichTextDocument::NODES` and
+ * `::MARKS` decide what can be stored, so a colour outside it would be paint
+ * for markup that cannot survive a save.
+ */
+describe('the rich-text editor follows the theme', () => {
+    const editor = blockContaining('.tiptap-editor {');
+
+    it.each([
+        ['body', 'a paragraph'],
+        ['headings', 'H1, H2 and H3'],
+        ['bold', 'bold text'],
+        ['links', 'a link'],
+        ['bullets', 'a bullet list'],
+        ['counters', 'an ordered list'],
+        ['quotes', 'a blockquote'],
+        ['quote-borders', 'a blockquote'],
+        ['code', 'inline code'],
+        ['pre-bg', 'a code block'],
+        ['pre-code', 'a code block'],
+        ['hr', 'a horizontal rule'],
+    ])('paints %s, which the editor writes for %s, from a theme token', (name) => {
+        const value = declaration(editor, `tw-prose-${name}`);
+
+        expect(value, `--tw-prose-${name} is left to the plugin's fixed gray`).not.toBeNull();
+        expect(value, `--tw-prose-${name} names a colour instead of a token`).toMatch(/^var\(--ui-[\w-]+\)$/);
+    });
+});
