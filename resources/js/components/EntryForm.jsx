@@ -1,15 +1,16 @@
 // resources/js/components/EntryForm.jsx
 import { useState } from 'react';
 import api from '../lib/api';
-import FieldInput from './entry/FieldInput';
-import { INPUT_CLASSES } from '../ui/Input';
+import { Loader2 } from 'lucide-react';
+import StaticFields from './entry/StaticFields';
+import TranslatableFields from './entry/TranslatableFields';
+import PublicationPanel from './entry/PublicationPanel';
 import { isRichTextField, emptyDoc } from '../lib/richText';
 import { isGalleryField, emptyGallery, fromStored } from '../lib/gallery';
-import { validationErrors, errorSummary, messagesForField, messagesNotForFields, languagesWithErrors } from '../lib/apiErrors';
+import { validationErrors, errorSummary, messagesNotForFields, languagesWithErrors } from '../lib/apiErrors';
 import { getLangCode, contentLangCode } from '../lib/languages';
-import { STATUS_DRAFT, STATUS_PUBLISHED, slugsToMap, entryPayload } from '../lib/entries';
+import { STATUS_DRAFT, slugsToMap, entryPayload } from '../lib/entries';
 import { t, locale } from '../lib/i18n';
-import { formatDate } from '../lib/format';
 
 const coerce = (type, raw) => {
     if (type === 'integer') return raw === '' || raw === null ? null : Number(raw);
@@ -199,191 +200,70 @@ export default function EntryForm({ moduleSlug, schema, languages, onSaved, onCa
      *        field that is not translatable - a gallery's keys nest deeper
      *        than one segment and must not be filtered.
      */
-    const failedLanguages = languagesWithErrors(fieldErrors, languages.map(getLangCode));
-
-    const fieldErrorList = (field, langCode = null) => {
-        const messages = messagesForField(fieldErrors, field.name, langCode);
-
-        if (messages.length === 0) {
-            return null;
-        }
-
-        return (
-            <ul className="mt-1.5 space-y-0.5 text-xs text-danger-text">
-                {messages.map((message, i) => <li key={i}>{message}</li>)}
-            </ul>
-        );
-    };
-
-
     return (
-        <form onSubmit={handleSubmit} className="overflow-hidden rounded-xl border border-line bg-surface shadow-sm md:col-span-2">
-            <div className="px-6 py-8">
-                {summary.length > 0 && (
-                    <div className="mb-8 rounded-xl border border-danger/30 bg-danger-soft p-4 text-sm text-danger-text space-y-1">
-                        {summary.map((message, i) => <div key={i}>{message}</div>)}
-                    </div>
-                )}
-
-                <div className="grid max-w-2xl grid-cols-1 gap-x-6 gap-y-6 sm:grid-cols-6">
-                    {staticFields.map((field) => (
-                        <div key={field.name} className="sm:col-span-full">
-                            <label className="block text-sm font-semibold text-fg capitalize">
-                                {field.name}
-                            </label>
-                            <FieldInput
-                                field={field}
-                                value={staticValues[field.name]}
-                                onChange={(v) => setStaticField(field.name, v)}
-                                languages={languages}
-                                onError={setSummary}
-                            />
-                            {fieldErrorList(field)}
-                        </div>
-                    ))}
+        <form onSubmit={handleSubmit} className="space-y-6">
+            {summary.length > 0 && (
+                <div
+                    role="alert"
+                    className="space-y-1 rounded-xl border border-danger/30 bg-danger-soft p-4 text-sm text-danger-text"
+                >
+                    {summary.map((message, i) => <div key={i}>{message}</div>)}
                 </div>
+            )}
 
-                {translatableFields.length > 0 && (
-                    <div className="mt-10 pt-8 border-t border-line">
-                        <div className="flex p-1 mb-8 space-x-1 bg-surface-muted/80 rounded-lg w-max border border-line/50">
-                            {languages.map((l) => {
-                                // A tab carries a dot when that translation
-                                // failed. Messages are filed under their own
-                                // language now, so this is what keeps one on a
-                                // tab the author cannot see from being silent.
-                                const failed = failedLanguages.includes(getLangCode(l));
+            {/* Two columns from `xl`, not from `lg`. The rail already takes
+                256px at `lg`, so splitting there left both columns too narrow
+                to be worth the split - and a form squeezed into half a laptop
+                is worse than one honest column. */}
+            <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_20rem]">
+                <div className="min-w-0 space-y-8">
+                    <StaticFields
+                        fields={staticFields}
+                        values={staticValues}
+                        onChange={setStaticField}
+                        languages={languages}
+                        errors={fieldErrors}
+                        onError={setSummary}
+                    />
 
-                                return (
-                                    <button
-                                        key={l.id}
-                                        type="button"
-                                        onClick={() => setActiveLangId(l.id)}
-                                        title={failed ? t('This translation has errors') : undefined}
-                                        className={`flex items-center gap-1.5 px-5 py-1.5 text-sm font-medium rounded-md transition-all duration-200 ${activeLangId === l.id
-                                            ? 'bg-surface text-accent-text shadow-sm'
-                                            : failed
-                                                ? 'text-danger-text hover:bg-surface-muted/50'
-                                                : 'text-fg-muted hover:text-fg hover:bg-surface-muted/50'
-                                            }`}
-                                    >
-                                        {getLangCode(l).toUpperCase()}
-                                        {failed && (
-                                            <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-danger" />
-                                        )}
-                                        {failed && <span className="sr-only">has errors</span>}
-                                    </button>
-                                );
-                            })}
-                        </div>
-
-                        <div className="grid max-w-2xl grid-cols-1 gap-x-6 gap-y-6 sm:grid-cols-6">
-                            {translatableFields.map((field) => (
-                                <div key={field.name} className="sm:col-span-full">
-                                    <label className="flex items-center text-sm font-semibold text-fg capitalize">
-                                        {field.name}
-                                        <span className="ml-2 inline-flex items-center rounded-full bg-accent-soft px-2 py-0.5 text-xs font-medium text-accent-text">
-                                            {getLangCode(languages.find(l => l.id === activeLangId))}
-                                        </span>
-                                    </label>
-                                    <FieldInput
-                                        field={field}
-                                        value={translations[activeLangId]?.[field.name]}
-                                        onChange={(v) => setTranslatedField(activeLangId, field.name, v)}
-                                        languages={languages}
-                                        onError={setSummary}
-                                    />
-                                    {/* Only this language's messages. They used
-                                        to be shown for every language at once so
-                                        an error on a hidden tab was not silent -
-                                        which marked the Greek box wrong because
-                                        the French one was empty. The tabs above
-                                        carry that job now, and the form opens on
-                                        the language that failed. */}
-                                    {fieldErrorList(field, getLangCode(languages.find((l) => l.id === activeLangId)))}
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                )}
-
-                <div className="mt-10 pt-8 border-t border-line space-y-6">
-                    <div>
-                        <h3 className="text-sm font-semibold text-fg">{t('Publication')}</h3>
-                        <p className="text-sm text-fg-muted">
-                            {t('A draft is saved but never shown on the site.')}
-                        </p>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-2">
-                        {[
-                            { value: STATUS_DRAFT, label: t('Draft') },
-                            { value: STATUS_PUBLISHED, label: t('Published') },
-                        ].map((option) => (
-                            <button
-                                key={option.value}
-                                type="button"
-                                onClick={() => setStatus(option.value)}
-                                aria-pressed={status === option.value}
-                                className={`rounded-lg px-4 py-2 text-sm font-semibold transition-all ${status === option.value
-                                    ? 'bg-accent text-accent-fg shadow-sm'
-                                    : 'bg-surface text-fg ring-1 ring-inset ring-line-strong hover:bg-surface-muted'
-                                    }`}
-                            >
-                                {option.label}
-                            </button>
-                        ))}
-
-                        {initialData?.published_at && (
-                            <span className="ml-2 text-xs text-fg-muted">
-                                {/* Both halves were wrong: the label was a bare
-                                    English string outside `t()`, so no test
-                                    demanded it and a Greek reader saw English,
-                                    and the date asked the browser rather than
-                                    the panel for its language. */}
-                                {t('First published :date', { date: formatDate(initialData.published_at) })}
-                            </span>
-                        )}
-                    </div>
-
-                    {languages.length > 0 && (
-                        <div className="space-y-2">
-                            <div>
-                                <h3 className="text-sm font-semibold text-fg">{t('Address')}</h3>
-                                <p className="text-sm text-fg-muted">
-                                    {t('The last part of the URL, per language. Leave a language empty and it has no page in it.')}
-                                </p>
-                            </div>
-
-                            {languages.map((language) => {
-                                const code = getLangCode(language);
-
-                                return (
-                                    <div key={language.id} className="flex items-center gap-2">
-                                        <span className="w-8 shrink-0 text-xs font-semibold uppercase text-fg-muted">
-                                            {code}
-                                        </span>
-                                        <input
-                                            type="text"
-                                            value={slugs[code] ?? ''}
-                                            onChange={(e) => setSlugs((prev) => ({ ...prev, [code]: e.target.value }))}
-                                            placeholder={t('thea-sti-thalassa')}
-                                            className={`${INPUT_CLASSES} font-mono text-xs`}
-                                        />
-                                    </div>
-                                );
-                            })}
-                        </div>
+                    {staticFields.length > 0 && translatableFields.length > 0 && (
+                        <hr className="border-line" />
                     )}
+
+                    <TranslatableFields
+                        fields={translatableFields}
+                        languages={languages}
+                        activeLangId={activeLangId}
+                        onLanguageChange={setActiveLangId}
+                        translations={translations}
+                        onChange={setTranslatedField}
+                        errors={fieldErrors}
+                        onError={setSummary}
+                    />
                 </div>
+
+                {/* Sticky, because the form is as long as the Module's schema
+                    and the reader should not have to scroll back to the top to
+                    publish what they have just written. */}
+                <aside className="xl:sticky xl:top-0 xl:self-start">
+                    <PublicationPanel
+                        status={status}
+                        onStatusChange={setStatus}
+                        publishedAt={initialData?.published_at}
+                        languages={languages}
+                        slugs={slugs}
+                        onSlugChange={(code, value) => setSlugs((prev) => ({ ...prev, [code]: value }))}
+                    />
+                </aside>
             </div>
 
-            <div className="flex items-center justify-end gap-x-4 border-t border-line bg-surface-muted px-6 py-4">
+            <div className="flex items-center justify-end gap-3 border-t border-line pt-4">
                 {onCancel && (
                     <button
                         type="button"
                         onClick={onCancel}
                         disabled={submitting}
-                        className="rounded-md px-4 py-2 text-sm font-medium text-fg hover:bg-surface-muted transition-colors focus:outline-none focus:ring-2 focus:ring-line-strong disabled:opacity-50"
+                        className="cursor-pointer rounded-lg px-4 py-2 text-sm font-medium text-fg transition-colors hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring-accent disabled:opacity-50"
                     >
                         {t('Cancel')}
                     </button>
@@ -391,19 +271,10 @@ export default function EntryForm({ moduleSlug, schema, languages, onSaved, onCa
                 <button
                     type="submit"
                     disabled={submitting}
-                    className="inline-flex items-center justify-center rounded-md bg-accent px-6 py-2 text-sm font-semibold text-accent-fg shadow-sm hover:bg-accent-hover transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg bg-accent px-5 py-2 text-sm font-semibold text-accent-fg transition-colors hover:bg-accent-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring-accent disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                    {submitting ? (
-                        <>
-                            <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-accent-fg" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                            </svg>
-                            {t('Saving…')}
-                        </>
-                    ) : (
-                        t('Save entry')
-                    )}
+                    {submitting && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
+                    {submitting ? t('Saving…') : t('Save entry')}
                 </button>
             </div>
         </form>

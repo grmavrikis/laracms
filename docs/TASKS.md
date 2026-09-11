@@ -1248,7 +1248,7 @@ every screen moves.
 | 11 | `EntriesTable` restyle | ✅ the reorder arrows and pagination still work **live** |
 | 12 | `EntriesManager` split into two screens | ✅ `/admin/content/rooms/12` loads the real entry after a cold reload |
 | 13 | `EntryForm` step 1 — `FieldInput` extracted | ✅ every field type still saves, against real data |
-| 14 | `EntryForm` step 2 — three blocks, two columns | the right column holds only status, date and slug, and a save round-trips |
+| 14 | `EntryForm` step 2 — three blocks, two columns | ✅ the right column holds only status, date and slug, and a save round-trips |
 | 15 | Gallery + RichText restyle | an upload and a highlight are readable in **both** themes |
 | 16 | The four Module screens restyle | a rename still writes redirects (#69) |
 | 17 | Enquiries + Settings restyle | grouped settings save |
@@ -1274,7 +1274,7 @@ else, and making them real is PHP.
 > components — mitigated because item 3's tokens already hold the line where
 > drift is most visible, which is colour.
 
-**Where it stands.** Eleven are done.
+**Where it stands.** Twelve are done.
 
 - **1. Component test harness — DONE.** See #94, which this closed. It found two
   defects within ten minutes of existing, one of them a test file that no
@@ -1608,6 +1608,32 @@ else, and making them real is PHP.
   filled, and React turns `value={null}` into an *uncontrolled* input — which
   warns and then stops tracking what is typed. `?? ''` covers it and a test now
   pins it.
+
+- **14. Two columns — DONE.** The three blocks `EntryForm` already had became
+  `StaticFields`, `TranslatableFields` and `PublicationPanel`, with
+  `FieldErrors` shared by the first two. The form is **281 lines**, from 530
+  before item 13: state, `handleSubmit` and the error routing never moved.
+
+  **The rule for the side column is the database's, not a layout preference.**
+  It holds status, first-published and the per-language slug — the three things
+  that mean the same for *every* Module, which is exactly why they are indexed
+  columns rather than keys inside `data` (ARCHITECTURE §2). A schema field never
+  belongs there however well it would fit: which fields a Module has is the
+  client's decision, so a column that sometimes held one would move under them
+  as they edited the schema.
+
+  **Two columns from `xl`, not `lg`.** The rail already takes 256px at `lg`, so
+  splitting there leaves both halves too narrow to be worth it — a form squeezed
+  into half a laptop is worse than one honest column. The side column is sticky,
+  because the form is as long as the Module's schema and nobody should scroll
+  back to the top to publish what they have just written.
+
+  Verified live at 1440: the grid measured `727.2px 320px`, the side column held
+  only the four slug boxes and the two status buttons, and **no schema field
+  appeared in it**. A save changed one thing in each column — `sleeps` on the
+  left, the Greek slug on the right — and both round-tripped while `status` was
+  left alone, which is #86's rule still holding. The entry was restored
+  afterwards and the `redirects` table checked for debris: none.
 
   **A review then found the page fix was half-done, and both screens untested.**
   The page went into the listing's address and nowhere else, so opening an entry
