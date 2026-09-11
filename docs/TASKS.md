@@ -1251,7 +1251,7 @@ every screen moves.
 | 14 | `EntryForm` step 2 — three blocks, two columns | ✅ the right column holds only status, date and slug, and a save round-trips |
 | 15 | Gallery + RichText restyle | ✅ an upload and a highlight are readable in **both** themes |
 | 16 | The four Module screens restyle | ✅ a rename still writes redirects (#69) |
-| 17 | Enquiries + Settings restyle | grouped settings save |
+| 17 | Enquiries + Settings restyle | ✅ grouped settings save |
 | 18 | Dashboard + Analytics, static | both wear a visible marker and a TODO **naming** the endpoint they want |
 | 19 | Static sort / filter / bulk bar on the listing | same |
 | 20 | Catalogue + docs sweep | `php artisan test` green, and the three docs updated |
@@ -1274,7 +1274,7 @@ else, and making them real is PHP.
 > components — mitigated because item 3's tokens already hold the line where
 > drift is most visible, which is colour.
 
-**Where it stands.** Fourteen are done.
+**Where it stands.** Fifteen are done.
 
 - **1. Component test harness — DONE.** See #94, which this closed. It found two
   defects within ten minutes of existing, one of them a test file that no
@@ -1804,7 +1804,7 @@ else, and making them real is PHP.
   paths distinguishable. A mutation check that finds nothing proves the code;
   one that finds a survivor proves the test.
 
-### 121. Every control on the Settings screen is unnamed — P1, item 17's job
+### 121. Every control on the Settings screen is unnamed — DONE (item 17)
 
 Found on 2026-09-11 while reviewing item 16. `SettingsManager.jsx` contains
 **no `htmlFor` at all**: its `<label>` sits as a *sibling* of the control rather
@@ -1821,6 +1821,60 @@ to be derived from `field.name` and threaded through `renderField`, and the
 file-input branch should then take the `FileInput` **component** rather than the
 bare `FILE_CLASSES` string it uses today. `ui/FileInput.jsx` carries a note
 saying exactly that and naming this item.
+
+- **17. Enquiries and Settings — DONE.** The criterion was that grouped
+  settings save, and #121 was already waiting here.
+
+  **`SettingsManager` had no `htmlFor` anywhere.** Its `<label>` sat as a
+  *sibling* of the control rather than wrapping it, so nineteen boxes - text,
+  select, switch, picker, and two boxes per language for each translatable
+  setting - were every one of them unnamed. Testing-library states the defect
+  better than prose does: *"Found a label with the text of: Site name, however
+  no form control was found associated to that label."* The ids come from
+  `field.name`, which is the one thing the server guarantees is unique, and
+  `renderField` now takes the id it must carry rather than inventing one.
+
+  **Two more that the tests turned up while fixing it**, both of which had been
+  shipping:
+
+  - The `boolean` branch rendered its **own** `<label>` carrying `field.label`,
+    underneath the field label already showing it - the words printed twice and
+    the control had two labels.
+  - A 422 was shown **twice**: once in the banner and once beside the field,
+    because the banner took `errorSummary` rather than `messagesNotForFields`.
+    `EntryForm` settled that rule; this screen never got it.
+
+  **`EnquiriesManager` formatted dates in the browser's locale.** It called
+  `toLocaleString()` and `toLocaleDateString()` with no argument, so a Greek
+  panel on an English machine printed `9/3/2026` for the third of September -
+  which reads as the ninth of March. `lib/format.js` was written in item 13
+  after the identical defect in `EntryForm`; this file kept its own two
+  one-liners and never received the fix. Dates are `<time dateTime=…>` now, so
+  the machine gets the ISO value and the reader gets their own language.
+
+  `ui/Pagination` is extracted at its second use: `EntriesTable` and this screen
+  ask the same question of the same shape, and the second copy had already
+  drifted - still carrying the arrows and the older button styling that item 11
+  removed from the first.
+
+  Each enquiry is its own `<article>` named by whoever sent it, and the delete
+  control carries *Delete the enquiry from :name* in the accessibility tree
+  while still reading `Delete` on screen: a column of identical buttons says
+  nothing about which row it belongs to, and spelling the sender out in the row
+  would be a sentence where a verb belongs.
+
+  **Verified live against MySQL**, on the demo site's real settings. A field
+  from each group and one language of a translatable field were changed and
+  saved: `page_cache` true → false, the telephone, and the Greek address. All
+  three round-tripped, **English and French were untouched**, every field
+  nobody edited survived the whole-form send, and *Αποθηκεύτηκε.* was announced
+  through `role="status"`. The three originals were then restored and read back
+  byte for byte. The screen reports nineteen controls, **zero unnamed, zero
+  double-labelled, zero labels pointing at nothing**, and the two translatable
+  settings as named groups of four labelled boxes each. Lowest contrast across
+  both screens and both themes: 5.48:1.
+
+  42 tests where there were none, and all eleven fixes mutation-tested.
 
 ### 119. The entry form offers a language the site has switched off — P2
 

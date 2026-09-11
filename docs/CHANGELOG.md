@@ -4662,3 +4662,93 @@ docblock, which had claimed that screen "draws its own" label, now says plainly
 that it does not.
 
 Ten fixes, twelve tests, and every one mutation-tested.
+
+## 40. The screens that were never named at all (#117, item 17)
+
+`SettingsManager` and `EnquiriesManager`, the last two screens with no tests.
+The restyle is again the smaller half.
+
+### Nineteen unnamed controls on one screen
+
+`SettingsManager` contained **no `htmlFor` anywhere**. Its `<label>` sat as a
+*sibling* of the control rather than wrapping it, so the association was never
+made: nineteen boxes — text, select, switch, file picker, and two boxes per
+language for each translatable setting — were every one of them announced as
+unnamed.
+
+Testing-library puts it better than prose can, and this is what the first run
+printed:
+
+> Found a label with the text of: Site name, however no form control was found
+> associated to that label.
+
+That is the fourth file to carry this, after the entry form's composite
+controls (§38), the gallery's alt boxes and the Module screens (§39). The rule
+from §39 needed no amendment, only applying: a label that neither wraps its
+control nor points at it is not a label.
+
+The ids come from `field.name` — the one thing the server guarantees is unique,
+since the whole form is generated from the schema it sends — and `renderField`
+takes the id it must carry rather than inventing one.
+
+### Two defects the tests turned up on the way
+
+Neither was in the review that scheduled this work; both had been shipping.
+
+**The switch had two labels.** The `boolean` branch rendered its own `<label>`
+carrying `field.label`, directly under the field label already showing it. The
+words appeared twice on screen and the control carried two labels, which every
+reader announces differently.
+
+**A 422 was shown twice.** The banner took `errorSummary`, which on a 422
+returns every message, while the same messages were also rendered beside their
+fields. `EntryForm` settled this rule — only what belongs to no field goes in
+the banner, via `messagesNotForFields` — and this screen never received it.
+
+### The browser's locale is not the panel's
+
+`EnquiriesManager` called `toLocaleString()` and `toLocaleDateString()` with no
+argument. Those format in the **browser's** locale, so a Greek panel on an
+English-language machine printed `9/3/2026` for the third of September — a date
+that reads as the ninth of March to the person it was written for.
+
+`lib/format.js` exists for exactly this and was written in item 13, after the
+identical defect in `EntryForm`. This file kept its own two one-line helpers and
+never received the fix, which is the same shape as the two above: **a rule
+settled in one file does not travel to the others by itself.** The dates are
+`<time dateTime="…">` now, so the machine gets the ISO value and the reader gets
+their own language.
+
+### Extracted, at the second use
+
+`ui/Pagination`. `EntriesTable` and `EnquiriesManager` ask the same question of
+the same shape — whatever `lib/pagination.js` reduced Laravel's envelope to —
+and the second copy had already drifted, still carrying the arrows and the older
+button styling that item 11 removed from the first.
+
+Each enquiry is its own `<article>` named by whoever sent it, so a reader moves
+*between* enquiries rather than through every line of each. Its delete control
+carries *Delete the enquiry from :name* in the accessibility tree while reading
+`Delete` on screen: a column of identical buttons says nothing about which row
+it belongs to, and spelling the sender out in the row would be a sentence where
+a verb belongs.
+
+### Verified
+
+Live against MySQL, on the demo site's own settings rather than a probe.
+
+A field from each group and one language of a translatable field were changed
+and saved — `page_cache` true → false, the telephone, and the Greek address.
+All three round-tripped; **English and French were untouched**; every field
+nobody edited survived the whole-form send, which is the point of sending the
+whole form; and *Αποθηκεύτηκε.* was announced through `role="status"` rather
+than appearing as a silent green word at the foot of a long page. The three
+originals were then restored and read back byte for byte.
+
+The screen reports nineteen controls with **zero unnamed, zero double-labelled
+and zero labels pointing at nothing**, and both translatable settings as named
+groups of four labelled boxes. Enquiry dates read *5 Σεπ 2026, 4:33 μ.μ.* with
+the ISO value beside them. Lowest contrast across both screens and both themes
+is 5.48:1.
+
+515 PHP tests, 608 JS tests, build clean.
