@@ -1,12 +1,57 @@
-import { ChevronUp, ChevronDown, Pencil, Inbox } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { ChevronUp, ChevronDown, Pencil, Inbox, Trash2, Eye, EyeOff, ArrowUpDown } from 'lucide-react';
 import { isRichTextField, docToText } from '../lib/richText';
 import { isGalleryField, galleryPreview } from '../lib/gallery';
 import { getLangCode } from '../lib/languages';
 import { t } from '../lib/i18n';
 import { formatDate } from '../lib/format';
 import { isPublished, reorderedIds, positionInOrder, sortByOrder, valueForLanguage } from '../lib/entries';
+import { toggle, toggleAll, allSelected, someSelected } from '../lib/selection';
 import Badge from '../ui/Badge';
 import IconButton from '../ui/IconButton';
+import Preview from '../ui/Preview';
+import { Select, Checkbox, INPUT_LABEL_CLASSES } from '../ui/Input';
+
+/**
+ * A checkbox whose third state is a real one.
+ *
+ * `indeterminate` is a **property, not an attribute** - there is no way to set
+ * it in JSX - so a part-ticked page would otherwise render as an empty box and
+ * tell the reader nothing on it is selected.
+ */
+/** One action the bar offers, an icon and a word. */
+const BulkButton = ({ icon: Icon, label, tone, onClick, disabled, note }) => (
+    <button
+        type="button"
+        onClick={onClick}
+        disabled={disabled}
+        // The reason is part of the name, not only a tooltip: a disabled
+        // control takes no focus and fires no pointer events, so a `title` on
+        // one is reachable by neither keyboard nor hover (CHANGELOG 39).
+        aria-label={note ? `${label} — ${note}` : undefined}
+        className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring-accent disabled:cursor-not-allowed disabled:opacity-50 ${
+            disabled ? '' : 'cursor-pointer '
+        }${
+            tone === 'danger'
+                ? 'border-danger/40 bg-surface text-danger-text hover:bg-danger-soft'
+                : 'border-line bg-surface text-fg hover:bg-surface-muted'
+        }`}
+    >
+        <Icon className="h-4 w-4" aria-hidden="true" />
+        {label}
+        {note && <span className="text-xs font-normal text-fg-muted">({note})</span>}
+    </button>
+);
+
+function PageCheckbox({ indeterminate, ...rest }) {
+    const box = useRef(null);
+
+    useEffect(() => {
+        if (box.current) box.current.indeterminate = !!indeterminate;
+    }, [indeterminate]);
+
+    return <Checkbox ref={box} {...rest} />;
+}
 
 const Empty = () => <span className="text-fg-subtle">—</span>;
 
@@ -78,6 +123,9 @@ export default function EntriesTable({
     onLanguageChange,
     pagination = null,
     onPageChange,
+    selected = [],
+    onSelectionChange,
+    onBulkAction,
 }) {
     // Fall back to the row count only when the response was not paginated;
     // otherwise this counted one page and labelled it the total.
@@ -88,6 +136,23 @@ export default function EntriesTable({
     // rows follow that rather than waiting for the refetch - otherwise pressing
     // the arrow three times looks like nothing happening.
     const rows = sortByOrder(entries, orderIds);
+    const pageIds = rows.map((entry) => entry.id);
+    const chosen = selected.length;
+
+    /**
+     * **Deleting asks first, and the other two do not.**
+     *
+     * Publishing is reversible by pressing the button beside it. A delete is
+     * the one irreversible thing in the panel, it acts on rows chosen one at a
+     * time, and a mis-click on a full page takes fifteen entries - the enquiry
+     * inbox already asks before removing a single one.
+     *
+     * The question is dropped whenever the selection moves, or it would name a
+     * number that no longer matches what pressing Delete would take.
+     */
+    const [confirming, setConfirming] = useState(false);
+
+    useEffect(() => { setConfirming(false); }, [chosen]);
 
     return (
         <div className="mt-6 flex flex-col gap-4">
@@ -130,6 +195,110 @@ export default function EntriesTable({
                 )}
             </div>
 
+            {/*
+                Sort and filter are **drawn and not wired**, per the rule at the
+                top of #117: `EntryController::index` takes a page and nothing
+                else, so a control that sorted the fifteen rows on screen would
+                claim to have ordered the four hundred behind them. Disabled
+                rather than merely inert - a control that looks usable and
+                silently does nothing is what the marker exists to prevent.
+
+                TODO(#117 item 19): these want `GET /modules/{module}/entries`
+                to take `?sort=<column>&direction=asc|desc` and
+                `?status=draft|published`, applied inside `Entry::inListOrder()`
+                so the paginator and `order()` keep agreeing - they must, or a
+                reorder computed against one order is applied to another (#75).
+            */}
+            <Preview note={t('These do not filter or sort anything yet.')}>
+                <div className="flex flex-wrap items-end gap-3">
+                    <div>
+                        <label htmlFor="entries-sort" className={INPUT_LABEL_CLASSES}>{t('Sort by')}</label>
+                        <Select id="entries-sort" disabled defaultValue="position" className="py-1.5 text-sm">
+                            <option value="position">{t('Position')}</option>
+                            <option value="created">{t('Created')}</option>
+                            <option value="status">{t('Status')}</option>
+                        </Select>
+                    </div>
+                    <div>
+                        <label htmlFor="entries-status" className={INPUT_LABEL_CLASSES}>{t('Status')}</label>
+                        <Select id="entries-status" disabled defaultValue="" className="py-1.5 text-sm">
+                            <option value="">{t('All')}</option>
+                            <option value="published">{t('Published')}</option>
+                            <option value="draft">{t('Draft')}</option>
+                        </Select>
+                    </div>
+                    <ArrowUpDown className="mb-2 h-4 w-4 text-fg-subtle" aria-hidden="true" />
+                </div>
+            </Preview>
+
+            {/* Appears where the reader already is, and says what the next
+                press will touch. A live region, because the count changing is
+                the whole information. */}
+            {chosen > 0 && (
+                <div
+                    role="status"
+                    className="flex flex-wrap items-center gap-2 rounded-xl border border-accent/30 bg-accent-soft p-3"
+                >
+                    <span className="text-sm font-semibold text-accent-soft-fg">
+                        {t(':count selected', { count: chosen })}
+                    </span>
+
+                    {confirming ? (
+                        <span className="flex flex-wrap items-center gap-2 sm:ml-auto">
+                            <span className="text-sm font-semibold text-danger-text">
+                                {t('Delete :count entries permanently?', { count: chosen })}
+                            </span>
+                            <BulkButton
+                                icon={Trash2}
+                                label={t('Delete')}
+                                tone="danger"
+                                onClick={() => { setConfirming(false); onBulkAction?.('delete', selected); }}
+                            />
+                            <button
+                                type="button"
+                                onClick={() => setConfirming(false)}
+                                className="cursor-pointer rounded-lg px-3 py-1.5 text-sm font-medium text-accent-soft-fg transition-colors hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring-accent"
+                            >
+                                {t('Cancel')}
+                            </button>
+                        </span>
+                    ) : (
+                        <span className="flex flex-wrap items-center gap-2 sm:ml-auto">
+                            {/*
+                                **Disabled, and this is the whole finding.**
+                                `SchemaRuleBuilder::build()` hard-codes
+                                `data => required` and both entry requests share
+                                it, so `PUT { status }` alone answers 422 with
+                                *The data field is required*. Sending the whole
+                                document back instead would re-post everything
+                                the listing happened to be holding, which is
+                                #86's defect pointing the other way.
+
+                                Found by pressing the button against the real
+                                API, with 701 tests green.
+
+                                TODO(#117 item 19): bulk publishing wants
+                                `data` to be `sometimes` on the **update** path
+                                only - create must keep it required - so a
+                                status-only `PUT` is accepted. That is one line
+                                in `SchemaRuleBuilder::build()` plus a flag from
+                                `UpdateEntryRequest`, and it is PHP.
+                            */}
+                            <BulkButton icon={Eye} label={t('Publish selected')} disabled note={t('not wired yet')} />
+                            <BulkButton icon={EyeOff} label={t('Unpublish selected')} disabled note={t('not wired yet')} />
+                            <BulkButton icon={Trash2} label={t('Delete selected')} tone="danger" onClick={() => setConfirming(true)} />
+                            <button
+                                type="button"
+                                onClick={() => onSelectionChange?.([])}
+                                className="cursor-pointer rounded-lg px-3 py-1.5 text-sm font-medium text-accent-soft-fg underline-offset-2 transition-colors hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring-accent"
+                            >
+                                {t('Clear selection')}
+                            </button>
+                        </span>
+                    )}
+                </div>
+            )}
+
             {!entries || entries.length === 0 ? (
                 <div className="rounded-xl border border-dashed border-line-strong px-4 py-16 text-center">
                     <Inbox className="mx-auto h-10 w-10 text-fg-subtle" aria-hidden="true" />
@@ -147,7 +316,15 @@ export default function EntriesTable({
                     <table className="min-w-full divide-y divide-line text-left text-sm">
                         <thead className="bg-surface-muted">
                             <tr>
-                                <th scope="col" className="px-4 py-3 font-semibold text-fg sm:pl-6">
+                                <th scope="col" className="w-px px-4 py-3 sm:pl-6">
+                                    <PageCheckbox
+                                        aria-label={t('Select every entry on this page')}
+                                        checked={allSelected(selected, pageIds)}
+                                        indeterminate={someSelected(selected, pageIds)}
+                                        onChange={() => onSelectionChange?.(toggleAll(selected, pageIds))}
+                                    />
+                                </th>
+                                <th scope="col" className="px-4 py-3 font-semibold text-fg">
                                     {t('ID')}
                                 </th>
                                 <th scope="col" className="px-4 py-3 font-semibold text-fg">
@@ -176,7 +353,17 @@ export default function EntriesTable({
 
                                 return (
                                     <tr key={entry.id} className="transition-colors hover:bg-surface-muted/60">
-                                        <td className="whitespace-nowrap px-4 py-3 font-medium text-fg sm:pl-6">
+                                        <td className="w-px px-4 py-3 sm:pl-6">
+                                            {/* Named by the entry it ticks: one
+                                                of several identical controls in
+                                                a column says nothing alone. */}
+                                            <Checkbox
+                                                aria-label={t('Select entry :id', { id: entry.id })}
+                                                checked={selected.some((one) => String(one) === String(entry.id))}
+                                                onChange={() => onSelectionChange?.(toggle(selected, entry.id))}
+                                            />
+                                        </td>
+                                        <td className="whitespace-nowrap px-4 py-3 font-medium text-fg">
                                             #{entry.id}
                                         </td>
                                         <td className="whitespace-nowrap px-4 py-3">

@@ -1253,7 +1253,7 @@ every screen moves.
 | 16 | The four Module screens restyle | ✅ a rename still writes redirects (#69) |
 | 17 | Enquiries + Settings restyle | ✅ grouped settings save |
 | 18 | Dashboard + Analytics, static | ✅ both wear a visible marker and a TODO **naming** the endpoint they want |
-| 19 | Static sort / filter / bulk bar on the listing | same |
+| 19 | Static sort / filter / bulk bar on the listing | ✅ same |
 | 20 | Catalogue + docs sweep | `php artisan test` green, and the three docs updated |
 
 Items 18 and 19 are the ones the rule at the top of this item governs: they are
@@ -1274,7 +1274,7 @@ else, and making them real is PHP.
 > components — mitigated because item 3's tokens already hold the line where
 > drift is most visible, which is colour.
 
-**Where it stands.** Sixteen are done.
+**Where it stands.** Seventeen are done.
 
 - **1. Component test harness — DONE.** See #94, which this closed. It found two
   defects within ten minutes of existing, one of them a test file that no
@@ -1961,6 +1961,43 @@ saying exactly that and naming this item.
   thirteen Dashboard tests were written after the screen and passed on the first
   run, against CLAUDE.md's first rule. That is how the misleading test name got
   in. Every fix in this round was written test-first and confirmed red.
+
+- **19. The listing's action bar — DONE.** Tick boxes, a bulk bar, and sort and
+  filter drawn behind the marker.
+
+  **The split follows the rule rather than the item's title.** `DELETE` on an
+  entry exists, so **bulk delete is real** - n requests, no new PHP. The listing
+  endpoint takes a page and nothing else, so sort and filter are drawn,
+  **disabled**, and marked.
+
+  **And bulk publishing turned out to need PHP, which only the live check
+  found.** `PUT { status }` alone answers 422: `SchemaRuleBuilder::build()`
+  hard-codes `data` as `required` and both entry requests share it. Sending the
+  whole document back instead would re-post everything the listing happened to
+  be holding - #86's defect pointing the other way - so the two publish controls
+  are drawn, disabled, and carry the reason in their **accessible name**, not a
+  tooltip a disabled control cannot deliver. **701 tests were green and twelve
+  mutation checks had passed while the feature did not work.**
+
+  `lib/selection.js` holds the tick logic as pure functions, for the reason
+  `moduleFields.js` gives: three defects shipped in one commit while that kind
+  of logic lived in a component, and this one decides what a **delete** acts on.
+  Ids compare as strings, because they arrive as numbers from JSON and strings
+  from the DOM. `screens/bulk.js` applies an action with `allSettled` and
+  reports *2 of 3 could not be done* - a delete that half-succeeded cannot be
+  undone by retrying the set.
+
+  A selection is **per page**, derived through `onlyPresent` rather than cleared
+  in an effect, so no render exists in which the bar names a count the page no
+  longer holds. Deleting **asks first**; publishing would not have, because it
+  is reversible by the button beside it.
+
+  **Verified live against MySQL** on a probe module of five entries: two were
+  ticked, the bar announced *2 επιλεγμένα*, the two publish controls were
+  disabled and said why, Delete asked *Οριστική διαγραφή 2 εγγραφών;* and after
+  confirming the database held exactly the other three. The probe was removed.
+
+  53 tests, and twelve mutation checks.
 
 ### 119. The entry form offers a language the site has switched off — P2
 

@@ -4906,3 +4906,76 @@ failed before the change, and the `defaultPrevented` guard was mutation-checked
 after it.
 
 515 PHP tests, 646 JS tests, build clean.
+
+## 43. The bulk action the tests could not see was broken (#117, item 19)
+
+The listing gained tick boxes, a bulk bar, and sort and filter controls behind
+the marker. The split between what is real and what is drawn was decided by the
+API rather than by the item's title — and one of those decisions could only be
+made by pressing the button.
+
+### Real, drawn, and the one in between
+
+`DELETE` on an entry exists, so **bulk delete is real**: n requests, no new PHP,
+the same rule that kept the dashboard's section count real. The listing endpoint
+takes a page and nothing else, so **sort and filter are drawn** — disabled, not
+merely inert, because a control that looks usable and silently does nothing is
+what the marker exists to prevent.
+
+**Bulk publishing sat between them, and looked real until it was tried.**
+`PUT { status }` alone answers 422 with *The data field is required*:
+`SchemaRuleBuilder::build()` hard-codes `'data' => ['required', 'array']` and
+both entry requests share it. Posting the whole document back instead would
+re-post everything the listing happened to be holding, which is #86's defect
+pointing the other way — the panel overwriting a field it was not asked to
+change.
+
+So those two controls are drawn, disabled, and carry the reason **in their
+accessible name** rather than a `title`, because a disabled control takes no
+focus and fires no pointer events (§39). The TODO names the change: `data` wants
+to be `sometimes` on the *update* path only — create must keep it required.
+
+**This is the finding worth keeping.** 702 tests were green and twelve mutation
+checks had passed. Every one of them asserted that the panel *sends* the right
+request; not one could know the API refuses it. The live check is not a
+formality at the end of an item — it is the only thing that tests the half of
+the contract the panel does not own.
+
+### Where the logic went
+
+`lib/selection.js` — `toggle`, `toggleAll`, `allSelected`, `someSelected`,
+`onlyPresent` — as pure functions, for the reason `moduleFields.js` records:
+three defects shipped in one commit while that kind of logic lived inside a
+component. This one decides what a **delete** acts on, which is the least
+forgiving thing in the panel to get wrong.
+
+**Ids compare as strings.** They arrive as numbers from JSON and as strings from
+the DOM, and `[7]` failing to contain `'7'` is how a tick goes missing and the
+wrong row is removed.
+
+`screens/bulk.js` applies one action to many with `allSettled` and reports *2 of
+3 could not be done*. The count is the information: *some could not be deleted*
+leaves somebody counting rows. A delete that half-succeeded cannot be undone by
+retrying the set, so the screen has to say exactly which half went.
+
+### Two decisions about the selection
+
+**It is per page**, narrowed through `onlyPresent` on every render rather than
+cleared in an effect — so there is no render in which the bar names a count the
+page no longer holds. The header box ticks the page and leaves a selection made
+elsewhere alone.
+
+**Deleting asks first and publishing would not have.** Publishing is reversible
+by the button beside it; a delete is the one irreversible thing in the panel, it
+acts on rows chosen one at a time, and a mis-click on a full page takes fifteen
+entries. The enquiry inbox already asks before removing one.
+
+### Verified
+
+Live against MySQL on a probe module of five entries. Two were ticked; the bar
+announced *2 επιλεγμένα*; the two publish controls were disabled and said why in
+their names; Delete asked *Οριστική διαγραφή 2 εγγραφών;* and after confirming
+the **database** held exactly the other three. The probe module and its entries
+were removed.
+
+515 PHP tests, 702 JS tests, build clean.

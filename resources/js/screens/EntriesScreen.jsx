@@ -4,6 +4,8 @@ import api from '../lib/api';
 import EntriesTable from '../components/EntriesTable';
 import { paginationFrom, rowsFrom, isPastLastPage } from '../lib/pagination';
 import { t, locale } from '../lib/i18n';
+import { onlyPresent } from '../lib/selection';
+import { applyToEach, bulkSummary } from './bulk';
 import { contentLangCode } from '../lib/languages';
 import { loadLanguages } from '../lib/languageStore';
 import { moduleNameForReader } from '../lib/modules';
@@ -48,6 +50,16 @@ export default function EntriesScreen({ module }) {
     const [reorderable, setReorderable] = useState(true);
     const [refreshKey, setRefreshKey] = useState(0);
 
+    /**
+     * Which rows are ticked, and what happened to the last bulk action.
+     *
+     * **Per page.** `onlyPresent` narrows the selection to the rows now on
+     * show, so turning to page two cannot leave a delete acting on entries the
+     * reader is no longer looking at while the bar names the old count.
+     */
+    const [selected, setSelected] = useState([]);
+    const [bulkError, setBulkError] = useState(null);
+
     // The last order the server confirmed, to fall back to when a write fails,
     // and the queue that guarantees one write at a time.
     const savedOrder = useRef([]);
@@ -87,6 +99,53 @@ export default function EntriesScreen({ module }) {
      * address was supposed to end. On a module of forty rooms, correcting the
      * last one threw the owner back to the top after every save.
      */
+    /**
+     * The selection, narrowed to the rows now on show.
+     *
+     * A selection is **per page**: carrying fifteen ticks to page two would let
+     * a delete act on entries the reader is no longer looking at, while the bar
+     * still named the old count. Derived rather than cleared in an effect, so
+     * there is no render in which the two disagree.
+     */
+    const onPage = onlyPresent(selected, entries.map((entry) => entry.id));
+
+    /**
+     * One action, applied to every ticked entry (#117 item 19).
+     *
+     * **Delete only, and that is deliberate.** `DELETE` needs no body, so it is
+     * n requests and no new PHP - the same rule that kept the dashboard's
+     * counts real. Publishing in bulk would need `PUT { status }` to be
+     * accepted, and `SchemaRuleBuilder::build()` hard-codes `data` as
+     * `required` for both entry requests, so it answers 422 with *The data
+     * field is required*. Posting the whole document back instead would re-post
+     * everything the listing happened to be holding, which is #86's defect
+     * pointing the other way. Those two controls are drawn, disabled and
+     * explained in `EntriesTable`.
+     *
+     * The listing endpoint is the other thing that cannot help - it takes a
+     * page and nothing else - which is why sort and filter are marked too.
+     */
+    const handleBulkAction = async (action, ids) => {
+        if (action !== 'delete') {
+            return;
+        }
+
+        setBulkError(null);
+
+        const result = await applyToEach(ids, (id) => api.delete(`/modules/${module.slug}/entries/${id}`));
+        const summary = bulkSummary(result);
+
+        if (summary) {
+            console.error(result.reason);
+            setBulkError(summary);
+        }
+
+        // The selection is dropped either way: the rows it named have moved,
+        // and a tick left on an entry that is gone is worse than none.
+        setSelected([]);
+        setRefreshKey((n) => n + 1);
+    };
+
     const entryHref = (entry) => ({
         name: 'entryEdit',
         params: { module: module.slug, entry: entry.id },
@@ -157,7 +216,8 @@ export default function EntriesScreen({ module }) {
             })
             .finally(() => current && setLoading(false));
 
-        return () => { current = false; };
+
+    return () => { current = false; };
     }, [module.slug, refreshKey, page, goToPage]);
 
     // The order of the whole module, which the table reorders against.
@@ -309,7 +369,7 @@ export default function EntriesScreen({ module }) {
             {/* Keyed by which failure it is rather than by its own text: two
                 sources holding the same string collided on the key and React
                 rendered one of them. */}
-            {Object.entries({ languages: languagesError, entries: error, order: orderError })
+            {Object.entries({ languages: languagesError, entries: error, order: orderError, bulk: bulkError })
                 .filter(([, message]) => message)
                 .map(([source, message]) => (
                     <p key={source} role="alert" className="text-sm text-danger-text">{message}</p>
@@ -327,6 +387,9 @@ export default function EntriesScreen({ module }) {
                 <EntriesTable
                     schema={module.schema ?? []}
                     entries={entries}
+                    selected={onPage}
+                    onSelectionChange={setSelected}
+                    onBulkAction={handleBulkAction}
                     orderIds={orderIds}
                     onEdit={(entry) => {
                         const to = entryHref(entry);
