@@ -1184,6 +1184,75 @@ just not by faking it.
 > The reset is the more valuable half. Remember me saves a login a week;
 > a reset saves a telephone call at an hour when nobody wants one.
 
+### 122. The PHP the panel is waiting on (#117's debt)
+
+#117 redesigned the panel under one rule: **no PHP that pass.** Whatever needed
+an endpoint was drawn from static figures, wrapped in `ui/Preview`, and left a
+TODO **naming** what it wants. This is that list, gathered in one place so it is
+a decision rather than a scavenger hunt. Each is independent; none blocks
+Phase 2.
+
+They are ordered by what they cost against what they return, not by screen.
+
+**1. `data` must be `sometimes` on the update path — the only one that is
+already broken in front of a user.**
+
+`PUT /api/entries/{entry}` with `{ status: 'published' }` answers **422**.
+`SchemaRuleBuilder::build()` hard-codes `'data' => ['required', 'array']`, so a
+status-only update is refused for lacking a payload it does not need. The fix is
+one line plus a flag from `UpdateEntryRequest`; **create must keep it
+required**, or an entry can be made with no content at all.
+
+Until it lands, the listing's bulk *Publish* and *Unpublish* are **disabled with
+the reason in their accessible name** — the button is drawn because the feature
+is real, and disabled because the API will not take it.
+
+Found by pressing the button against the running app with 701 tests green. No
+test could see it: the panel's tests mock the client, and the PHP suite never
+sends a status-only update. **That is the half of the contract a live check
+exists for.**
+
+**2. `GET /api/stats/entries` — the dashboard's per-module counts.**
+
+Answering `{ module_slug: { total, draft, published } }`, which is a single
+`GROUP BY module_id, status` over `entries`. The dashboard's section and enquiry
+counts are **already real** — they come from `/api/modules` and `/api/enquiries`
+— and only this block is invented, so only this block wears the marker.
+
+**3. Sorting and filtering the listing.**
+
+`GET /modules/{module}/entries` takes a page and nothing else, so the column
+sort and the status filter are **drawn and disabled**. They want
+`?sort=<column>&direction=asc|desc` and `?status=draft|published`.
+
+**Applied inside `Entry::inListOrder()`, not on top of it.** The paginator and
+`PUT /entries/order` must keep agreeing about what the list's order *is*, or a
+reorder computed against one order is applied to another — which is #75, already
+fixed once. A control that sorts only the fifteen rows of the current page is
+the thing the marker exists to prevent: it tells the owner their four hundred
+entries are ordered when they are not.
+
+**4. `GET /api/stats/traffic` — a decision before it is an endpoint.**
+
+The Analytics screen is invented end to end, which is why it sits inside one
+`ui/Preview` rather than marking a block at a time. The reason it cannot simply
+be written is #97: **the public site is static HTML served by Apache before PHP
+starts**, so a visit never reaches Laravel and there is nothing to count.
+
+Two plausible answers, both Phase 3 conversations: parse Apache's access log on
+a schedule, or have the baked pages carry a one-pixel beacon. `BUSINESS.md`'s
+ceiling on **support minutes per client** argues for the log — nothing to embed
+in a template, nothing for a client to break, and no third party in the page.
+
+**5. `users.theme` and `users.accent`, beside `users.locale`.**
+
+The theme and accent live in `localStorage` because that pass added no
+migrations, so a choice follows the person to their second **tab** rather than
+their second machine. Two columns and a save; the panel's own half already
+resolves both against an allow-list before applying them.
+
+---
+
 ### 117. The panel redesign — DONE (2026-09-10 → 2026-09-12, CHANGELOG §37–§45)
 
 See the Amendment above for **why**, which is a business argument rather than a
@@ -1274,7 +1343,8 @@ else, and making them real is PHP.
 > components — mitigated because item 3's tokens already hold the line where
 > drift is most visible, which is colour.
 
-**Where it stands.** All twenty are done.
+**Where it stands.** All twenty are done. **The PHP this pass deferred is
+#122**, gathered in one place: five items, none of them blocking Phase 2.
 
 - **1. Component test harness — DONE.** See #94, which this closed. It found two
   defects within ten minutes of existing, one of them a test file that no

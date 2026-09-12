@@ -31,10 +31,6 @@ import Preview from '../ui/Preview';
  * literal single-quoted call at the point of use. `CatalogueCoversTheCodeTest`
  * scans for exactly that shape, and `t(stat.label)` slips past it - which is how
  * a string reaches a client untranslated.
- *
- * The scanner reads **comments too**, so this one deliberately describes the
- * call rather than spelling it out: a quoted example in a docblock is demanded
- * of the catalogue just as a real call is, and the suite fails on a sentence.
  */
 const SUMMARY = [
     { key: 'visitors', label: () => t('Visitors'), value: '1,284', change: '+12%' },

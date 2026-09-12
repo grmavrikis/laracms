@@ -303,6 +303,9 @@ Worked through a prioritised list; every item is either done or recorded in
   screen restyled and named, and the catalogue checked in both directions. The
   rule of that phase was **appearance only**: what needs PHP is drawn with
   static data inside `ui/Preview`, with a TODO naming the endpoint it wants.
+  **The PHP it deferred is gathered in `TASKS.md` #122** — five items, smallest
+  first, and the first of them is already visible to a user: a status-only
+  `PUT` answers 422, so bulk publish is drawn disabled.
 - **The project has a commercial goal as of 2026-08-30**, and it now decides
   what gets worked on. A multilingual CMS that feeds client sites, owned
   outright, for a one-person web agency: **one installation per client site**,
