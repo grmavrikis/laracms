@@ -88,53 +88,58 @@ describe('ModulesList', () => {
         draw();
         await ready();
 
-        expect(await screen.findByText('Rooms')).toBeInTheDocument();
-        expect(screen.getByText('rooms')).toBeInTheDocument();
-        expect(screen.getByText('List')).toBeInTheDocument();
+        const rooms = await screen.findByText('Rooms');
+        const roomsRow = rooms.closest('[data-module]');
+        // The slug is rendered twice - once under the name for a narrow
+        // screen, once in its own column for a wide one - both present in
+        // the DOM at once, since only CSS width decides which one shows.
+        expect(within(roomsRow).getAllByText('rooms').length).toBeGreaterThan(0);
+        expect(within(roomsRow).getByText('List')).toBeInTheDocument();
 
-        expect(screen.getByText('About')).toBeInTheDocument();
-        expect(screen.getByText('Single page')).toBeInTheDocument();
+        const about = screen.getByText('About');
+        expect(within(about.closest('[data-module]')).getByText('Single page')).toBeInTheDocument();
     });
 
-    // The screen's own title is an `h1` (`PageHeader`), and nothing here sits
-    // between it and a module's own name - so a module heading has to be an
-    // `h2`, or a screen reader's heading list skips a level.
-    it('names each module with a heading one level under the screen\'s own', async () => {
+    it('lays the modules out as a table, with a header naming every column', async () => {
         draw();
+        await ready();
 
-        expect(await screen.findByRole('heading', { level: 1, name: 'Modules' })).toBeInTheDocument();
-        expect(screen.getByRole('heading', { level: 2, name: 'Rooms' })).toBeInTheDocument();
+        expect(screen.getByRole('table')).toBeInTheDocument();
+        expect(screen.getByRole('columnheader', { name: 'Module name' })).toBeInTheDocument();
+        expect(screen.getByRole('columnheader', { name: 'Slug' })).toBeInTheDocument();
+        expect(screen.getByRole('columnheader', { name: 'Languages' })).toBeInTheDocument();
+        expect(screen.getByRole('columnheader', { name: 'Actions' })).toBeInTheDocument();
     });
 
     it('reports a module complete in every active language', async () => {
         draw();
         const rooms = await screen.findByText('Rooms');
 
-        // Scoped to Rooms' own card/row - "About" is missing German, and a
-        // query for the badge text alone cannot tell whose badge it found.
-        const card = rooms.closest('[data-module]');
+        // Scoped to Rooms' own row - "About" is missing German, and a query
+        // for the badge text alone cannot tell whose badge it found.
+        const row = rooms.closest('[data-module]');
 
-        expect(within(card).getByText('All languages')).toBeInTheDocument();
+        expect(within(row).getByText('All languages')).toBeInTheDocument();
     });
 
     it('names the language a module has no page in, rather than only counting it', async () => {
         draw();
         const about = await screen.findByText('About');
-        const card = about.closest('[data-module]');
+        const row = about.closest('[data-module]');
 
         // Named, not counted (see the comment on `missingTranslations`): a
         // reader should not have to open the module to find out which.
-        expect(within(card).getByText('No DE page')).toBeInTheDocument();
-        expect(within(card).queryByText('All languages')).not.toBeInTheDocument();
+        expect(within(row).getByText('No DE page')).toBeInTheDocument();
+        expect(within(row).queryByText('All languages')).not.toBeInTheDocument();
     });
 
     it('opens the translator for the module whose edit control was used', async () => {
         const user = userEvent.setup();
         const { onTranslateModule } = draw();
         const rooms = await screen.findByText('Rooms');
-        const card = rooms.closest('[data-module]');
+        const row = rooms.closest('[data-module]');
 
-        await user.click(within(card).getByRole('button', { name: 'Edit this module' }));
+        await user.click(within(row).getByRole('button', { name: 'Edit this module' }));
 
         expect(onTranslateModule).toHaveBeenCalledWith(expect.objectContaining({ slug: 'rooms' }));
     });

@@ -1251,7 +1251,22 @@ migrations, so a choice follows the person to their second **tab** rather than
 their second machine. Two columns and a save; the panel's own half already
 resolves both against an allow-list before applying them.
 
-### 130. The Modules screen read as a table for six items — DONE (CHANGELOG §53)
+### 131. The card grid didn't land; the Modules screen is a table again, improved — DONE (CHANGELOG §54)
+
+§130's card grid was checked against the owner's own eyes and lost: the cards
+were worse than the table they replaced, not better. Reverted, but not with a
+plain `git revert` - the parts of §130 that were real improvements on their
+own, independent of the card-vs-table question, came back with the table: the
+`<Alert>` import fix (see #130 below - the same bug existed in the original
+table too), the `:count fields` badge (now beside the type badge in the name
+cell rather than a column of its own), the empty state's icon, and a new
+icon-tile per row echoing `PageHeader`'s. What did **not** come back: an `h2`
+per module - a table row is not a heading, and `<th scope="col">` is what
+relates a cell to its column for a screen reader. `ModulesList.test.jsx`'s ten
+tests were rewritten against the table rather than deleted, and confirmed to
+fail for the right reason against §130's card markup before being trusted.
+
+### 130. The Modules screen read as a table for six items — reverted, see #131 (CHANGELOG §53, §54)
 
 The owner's whole complaint was appearance, not behaviour: *«η σελίδα modules
 δεν μου αρέσει καθόλου»*. `ModulesList` drew a table - name, slug, languages,
@@ -1267,12 +1282,14 @@ Found and fixed on the way, as the one-line exception for code already being
 rewritten: the error branch called `<Alert>` without importing it, so a failed
 `/api/modules` request would have crashed to the `ErrorBoundary` instead of
 showing the retry button - untested until this pass, since the screen had no
-test file at all before it.
+test file at all before it. This fix is the one part of this item that
+outlived it - see #131.
 
 `ModulesList.test.jsx` is new - ten tests, written against the old table first
 and confirmed failing for the right reasons. Heading levels corrected in the
 same pass: each card names itself with an `h2`, one level under the screen's
-own `h1`, not the `h3` it was first written with.
+own `h1`, not the `h3` it was first written with. **Checked again against the
+owner and reverted (#131): the cards read worse than the table.**
 
 531 PHP tests, 810 JS tests, build clean.
 

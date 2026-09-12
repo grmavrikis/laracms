@@ -14,99 +14,97 @@ import IconButton from '../ui/IconButton';
 import Alert from '../ui/Alert';
 
 /**
- * One module, as a card rather than a table row (#130 - the row-and-column
- * treatment read as a spreadsheet for something that is never more than a
- * handful of items; see `TASKS.md` → Deferred, "module grouping - no problem
- * to solve at six modules"; six is also exactly what makes a grid work).
- *
- * **`data-module` is a hook for tests, not styling.** Nothing here reads it;
- * it exists so a test can scope a query to *this* card - "the missing-language
- * badge" is meaningless as a page-wide query once two modules can carry one.
- *
- * The card is not one giant click target. Edit and the primary action are
- * separate controls with separate names, the same rule the rest of this panel
- * follows for a row of buttons that all say "Delete" - a `<div onClick>`
- * around everything would answer neither "what does clicking the icon do" nor
- * "what does clicking the name do" correctly.
+ * One module, as a table row (#131 - a grid of cards (#130) was tried and
+ * reverted; the owner's word was that it read worse than the table it
+ * replaced). `data-module` is a hook for tests, not styling - nothing here
+ * reads it; it exists so a test can scope a query to *this* row, since "the
+ * missing-language badge" is meaningless as a page-wide query once two
+ * modules can carry one.
  */
-function ModuleCard({ module: mod, name, missing, onOpen, onTranslate }) {
+function ModuleRow({ module: mod, name, missing, onOpen, onTranslate }) {
     const fieldCount = mod.schema?.length ?? 0;
 
     return (
-        <div
-            data-module={mod.slug}
-            className="flex flex-col gap-4 rounded-xl border border-line bg-surface p-5 transition-colors hover:border-line-strong"
-        >
-            <div className="flex items-start gap-3">
-                {/* The same icon-tile `PageHeader` opens every screen with, so a
-                    module reads as a peer of the screens that manage it rather
-                    than a smaller, different kind of thing. */}
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent-soft text-accent-text ring-1 ring-inset ring-accent/20">
-                    {mod.is_singleton
-                        ? <FileText className="h-5 w-5" aria-hidden="true" />
-                        : <List className="h-5 w-5" aria-hidden="true" />}
-                </span>
+        <tr data-module={mod.slug} className="transition-colors hover:bg-surface-muted/60">
+            <td className="py-3 pl-4 pr-3 sm:pl-6">
+                <div className="flex items-center gap-3">
+                    {/* The same icon-tile vocabulary `PageHeader` and the rail
+                        use, so a row reads as a peer of the rest of the panel
+                        rather than plain text in a grid. */}
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent-soft text-accent-text ring-1 ring-inset ring-accent/20">
+                        {mod.is_singleton
+                            ? <FileText className="h-4 w-4" aria-hidden="true" />
+                            : <List className="h-4 w-4" aria-hidden="true" />}
+                    </span>
 
-                <div className="min-w-0 flex-1">
-                    {/* `h2`, not `h3` - `PageHeader` above already spends `h1`
-                        on "Modules" and nothing on this screen sits between
-                        the two, so `h3` would skip a level a screen reader's
-                        heading list depends on being sequential. */}
-                    <h2 className="truncate text-base font-semibold text-fg">{name}</h2>
-                    {/* Always on screen, not folded away below `sm`. A table
-                        cell had to choose between a column and hiding it under
-                        the name; a card has room for both at every width. */}
-                    <p className="mt-0.5 truncate font-mono text-xs text-fg-subtle">{mod.slug}</p>
+                    <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-medium text-fg">{name}</span>
+                            {/* Whether this is one page or many decides what
+                                opening it does, so it belongs on the row
+                                rather than being discovered by clicking. */}
+                            <Badge tone="neutral">
+                                {mod.is_singleton
+                                    ? <><FileText className="h-3 w-3" aria-hidden="true" />{t('Single page')}</>
+                                    : <><List className="h-3 w-3" aria-hidden="true" />{t('List')}</>}
+                            </Badge>
+                            {fieldCount > 0 && (
+                                <Badge tone="neutral">{t(':count fields', { count: fieldCount })}</Badge>
+                            )}
+                        </div>
+                        {/* The slug has no column of its own on a narrow
+                            screen, so it rides under the name instead of
+                            being lost. */}
+                        <span className="mt-0.5 block truncate font-mono text-xs text-fg-subtle sm:hidden">
+                            {mod.slug}
+                        </span>
+                    </div>
                 </div>
+            </td>
 
-                <IconButton
-                    icon={Pencil}
-                    label={t('Edit this module')}
-                    onClick={() => onTranslate(mod)}
-                />
-            </div>
+            <td className="hidden px-3 py-3 font-mono text-xs text-fg-muted sm:table-cell">
+                {mod.slug}
+            </td>
 
-            {/* Whether this is one page or many decides what opening it does,
-                so it stays named in words beside the count of fields - a
-                second fact about the module already sitting in memory, not a
-                second request to draw it. */}
-            <div className="flex flex-wrap items-center gap-1.5">
-                <Badge tone="neutral">
-                    {mod.is_singleton
-                        ? <><FileText className="h-3 w-3" aria-hidden="true" />{t('Single page')}</>
-                        : <><List className="h-3 w-3" aria-hidden="true" />{t('List')}</>}
-                </Badge>
-                {fieldCount > 0 && (
-                    <Badge tone="neutral">{t(':count fields', { count: fieldCount })}</Badge>
-                )}
-            </div>
-
-            {/* Named, not counted. "2 missing" makes somebody open the module
-                to find out which - and since #114 a module with no translation
-                has no page in that language at all. */}
-            <div className="flex flex-wrap gap-1.5 border-t border-line pt-4">
+            <td className="hidden px-3 py-3 md:table-cell">
                 {missing.length === 0 ? (
                     <Badge tone="success">{t('All languages')}</Badge>
                 ) : (
-                    missing.map((code) => (
-                        <Badge key={code} tone="warning">
-                            {t('No :language page', { language: code.toUpperCase() })}
-                        </Badge>
-                    ))
+                    <div className="flex flex-wrap gap-1.5">
+                        {/* Named, not counted. "2 missing" makes somebody
+                            open the module to find out which - and since
+                            #114 a module with no translation has no page in
+                            that language at all. */}
+                        {missing.map((code) => (
+                            <Badge key={code} tone="warning">
+                                {t('No :language page', { language: code.toUpperCase() })}
+                            </Badge>
+                        ))}
+                    </div>
                 )}
-            </div>
+            </td>
 
-            <button
-                type="button"
-                onClick={() => onOpen(mod)}
-                className="mt-auto inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-line px-3 py-2 text-sm font-semibold text-fg transition-colors hover:border-line-strong hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring-accent"
-            >
-                {/* A singleton opens straight into its one entry, so calling
-                    that "Entries" promises a list that is never shown. */}
-                {mod.is_singleton ? t('Open') : t('Entries')}
-                <ChevronRight className="h-4 w-4" aria-hidden="true" />
-            </button>
-        </div>
+            <td className="py-3 pl-3 pr-4 text-right sm:pr-6">
+                <div className="flex items-center justify-end gap-1">
+                    <IconButton
+                        icon={Pencil}
+                        label={t('Edit this module')}
+                        onClick={() => onTranslate(mod)}
+                    />
+                    <button
+                        type="button"
+                        onClick={() => onOpen(mod)}
+                        className="inline-flex cursor-pointer items-center gap-1 rounded-lg px-2.5 py-1.5 text-sm font-semibold text-accent-text transition-colors hover:bg-accent-soft focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring-accent"
+                    >
+                        {/* A singleton opens straight into its one entry, so
+                            calling that "Entries" promises a list that is
+                            never shown. */}
+                        {mod.is_singleton ? t('Open') : t('Entries')}
+                        <ChevronRight className="h-4 w-4" aria-hidden="true" />
+                    </button>
+                </div>
+            </td>
+        </tr>
     );
 }
 
@@ -232,22 +230,40 @@ export default function ModulesList({ onSelectModule, onCreateModule, onTranslat
                     </p>
                 </div>
             ) : (
-                // A grid rather than a table: six items is the whole of a
-                // typical site (`TASKS.md` → Deferred), and six rows of a
-                // table is mostly empty space next to a few words each. A card
-                // per module gives it room to be looked at rather than merely
-                // scanned.
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                    {modules.map((mod) => (
-                        <ModuleCard
-                            key={mod.id ?? mod.slug}
-                            module={mod}
-                            name={moduleNameIn(mod, viewLangCode)}
-                            missing={missingTranslations(mod, languages)}
-                            onOpen={onSelectModule}
-                            onTranslate={onTranslateModule}
-                        />
-                    ))}
+                // The table scrolls inside its own box rather than pushing the
+                // page sideways, which is what `min-w-0` on the Shell's main
+                // region is there to allow.
+                <div className="overflow-x-auto rounded-xl border border-line bg-surface">
+                    <table className="min-w-full divide-y divide-line text-sm">
+                        <thead className="bg-surface-muted">
+                            <tr>
+                                <th scope="col" className="py-3 pl-4 pr-3 text-left font-semibold text-fg sm:pl-6">
+                                    {t('Module name')}
+                                </th>
+                                <th scope="col" className="hidden px-3 py-3 text-left font-semibold text-fg sm:table-cell">
+                                    {t('Slug')}
+                                </th>
+                                <th scope="col" className="hidden px-3 py-3 text-left font-semibold text-fg md:table-cell">
+                                    {t('Languages')}
+                                </th>
+                                <th scope="col" className="py-3 pl-3 pr-4 text-right font-semibold text-fg sm:pr-6">
+                                    {t('Actions')}
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-line">
+                            {modules.map((mod) => (
+                                <ModuleRow
+                                    key={mod.id ?? mod.slug}
+                                    module={mod}
+                                    name={moduleNameIn(mod, viewLangCode)}
+                                    missing={missingTranslations(mod, languages)}
+                                    onOpen={onSelectModule}
+                                    onTranslate={onTranslateModule}
+                                />
+                            ))}
+                        </tbody>
+                    </table>
                 </div>
             )}
         </div>

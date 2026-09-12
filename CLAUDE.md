@@ -298,16 +298,18 @@ Worked through a prioritised list; every item is either done or recorded in
 `CHANGELOG.md` with its reasoning.
 
 - **531 PHP tests, 810 JS tests**, all passing. Build clean.
-- **#130, the Modules screen redrawn as cards, is DONE** (CHANGELOG §53) — the
-  owner's whole complaint was appearance: a table of name/slug/languages/
-  actions for a screen that never holds more than a handful of rows. Replaced
-  with a responsive card grid, one `ModuleCard` per module, name and slug both
-  always visible, type and field-count badges, and the language-completeness
-  badges under a divider. Found on the way and fixed as the one-line exception
-  for code already being rewritten: the error branch called `<Alert>` without
-  importing it — untested until this pass, since the screen had no test file
-  at all before it. `ModulesList.test.jsx` is new, ten tests, written against
-  the old table first.
+- **#131, the Modules screen is a table again, is DONE** (CHANGELOG §54) —
+  #130's card grid was checked against the owner's own eyes and lost: worse
+  than the table it replaced, not better. Reverted, but not with a plain
+  `git revert` — the real improvements from #130 came back with the table
+  rather than being lost with the cards: the `<Alert>` import fix (a genuine
+  bug, present in the original table too), the `:count fields` badge (now
+  beside the type badge in the name cell), the empty state's icon, and a new
+  icon tile per row echoing `PageHeader`'s. What did **not** come back: an
+  `h2` per module — a table row is not a heading, and `<th scope="col">` is
+  what relates a cell to its column for a screen reader. `ModulesList.test.jsx`
+  was rewritten against the table and confirmed to fail for the right reason
+  against #130's card markup before being trusted.
 - **#129, a colour bleed and a singleton's active click, is DONE**
   (CHANGELOG §51, §52) — moving the hover between an active and an inactive
   row faded the flyout out and back in for what was really the same,

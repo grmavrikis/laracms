@@ -5699,3 +5699,69 @@ Verified live in both themes, at a phone width, and at three desktop widths
 (one/two/three columns); heading levels read `h1` → `h2` with nothing skipped.
 
 531 PHP tests, 810 JS tests, build clean.
+
+---
+
+## 54. The card grid didn't land; back to a table, improved
+
+§53's whole premise - that six modules read badly as a table - turned out to
+be wrong once it was seen next to its replacement: checked again with the
+owner, the cards were **worse** than the table they replaced, not better. The
+instruction was plain: bring the rows back.
+
+Rather than a plain `git revert`, the parts of §53 that were real
+improvements on their own - independent of the card-vs-table question - came
+back with the table rather than being lost with the cards:
+
+- **The missing `<Alert>` import was a genuine bug** in the original table too
+  (confirmed: `git show` on the pre-§53 file shows the same unimported
+  `<Alert>` in the same error branch). Still fixed.
+- **The `:count fields` badge** - a second fact about a module already sitting
+  in memory - is real information nobody was shown before. Kept, next to the
+  type badge in the name cell rather than in a column of its own, so it does
+  not cost the table a fifth column that would only be hidden on anything
+  narrower than desktop.
+- **The empty state's icon.** Cosmetic, and no reason to lose it.
+- **An icon tile per row**, the same accent-soft square `PageHeader` and the
+  rail use, is new: it was worth trying in the table too, since part of what
+  made the cards read as more "designed" was that one detail, and it costs
+  nothing a table's row height wasn't already spending.
+
+What did **not** come back: the `h2` per module. A table row is not a
+heading - the column's own `<th scope="col">` is what a screen reader uses to
+relate a cell to what it means, and reintroducing a heading per row would
+have been inventing a hierarchy the markup does not have. The heading-level
+test from §53 is gone with it; a new test instead asserts the table's own
+column headers are all present and named (`Module name`, `Slug`, `Languages`,
+`Actions`) as **column headers**, not headings.
+
+### Checked
+
+`ModulesList.test.jsx`'s ten tests were rewritten against the table rather
+than deleted: most needed only `card` renamed to `row` in a comment, since
+`.closest('[data-module]')` scopes to a `<tr>` exactly as it did to a `<div>`.
+One combined assertion needed real thought - the slug is now rendered twice
+at once (once under the name for a narrow screen, once in its own column for
+a wide one; only CSS decides which one is visible, and JSDOM applies neither),
+so `getByText` on the bare slug throws on an ambiguous match. Scoped to the
+row and asserted with `getAllByText` instead.
+
+Confirmed the rewritten tests bite for the right reason before trusting them:
+stashed the table `ModulesList.jsx`, ran the suite against §53's card
+markup, and the column-header assertion failed as expected (`getByRole('table')`
+found nothing) with nine of the ten still green - the ones that only look for
+text and a `data-module` scope do not care which element wraps them. Restored
+the table and reran clean.
+
+`Languages` and `Slug`, the two catalogue keys §53 called orphaned once the
+table's headers went with it, are back in `lang/en.json` and `lang/el.json`
+with their original Greek text (`git show` on the pre-§53 file for the exact
+wording, since guessing a retranslation risks drifting from what the agency
+already signed off).
+
+Verified live at `http://mini-cms.test/admin/modules`: the icon tile, the
+field-count badge beside the type badge, all four columns at desktop width,
+the table narrowing to name-and-actions-only on a phone with the slug riding
+under the name, and both themes.
+
+531 PHP tests, 810 JS tests, build clean.
