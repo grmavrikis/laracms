@@ -107,17 +107,32 @@ The `lib/` helpers are pure functions and carry the interesting decisions:
 | `resources/js/lib/i18n.js` | `t()` — the panel's strings. The catalogue is **injected by the server** into `window.miniCms`, never bundled, so a new language needs no rebuild. `translate` mirrors PHP's `strtr`: one pass, longest name first. |
 | `resources/js/lib/api.js` | One axios client. `signIn()` owns the CSRF-then-credentials ordering; `uploadImage()` owns the upload contract, shared by both editors. |
 | `public/forms.js` | **Not part of the bundle and not built.** The public site's only JavaScript: one submitter any theme form opts into with `data-cms-form` (#97). Tested by `resources/js/public-forms.test.js`, which loads the shipped file into jsdom. |
+| `resources/js/lib/selection.js` | Which rows of a listing are ticked (#117 item 19). **Ids compare as strings** - they arrive as numbers from JSON and strings from the DOM, and this decides what a bulk delete acts on. A selection is per page: `onlyPresent` narrows it every render. |
+| `resources/js/screens/bulk.js` | One action applied to many entries. `allSettled`, so a half-finished delete is reported with a count rather than discarded; `bulkRequest` is a lookup that **throws** for an action it does not know. |
 | `resources/js/lib/fieldTypes.json` | **Generated** by `php artisan schema:sync-field-types`. Never edit by hand. |
 
+**`resources/js/ui/` is the panel's vocabulary** and is worth two minutes before
+writing any screen: `Input`/`Select`/`Checkbox`, `IconButton`, `Alert`, `Link`,
+`Badge`, `PageHeader`, `Pagination`, `FileInput`, `Preview`. Each was extracted
+at its **second or later** use, and each docblock says which copy forced it.
+Three rules they carry that are easy to undo: an `IconButton` **tone replaces
+rather than stacks** (a caller appending `hover:text-danger-text` silently
+loses); `Alert` owns its `role`, so copying its classes loses the announcement;
+and `Preview` marks anything drawn from invented figures, which
+`screens/preview-markers.test.js` enforces along with the TODO naming the
+endpoint. See ARCHITECTURE § *How the panel is put together*.
+
 Components, in order of how much they will surprise you:
-`screens/EntriesScreen.jsx` (largest at 346 lines — fetching, pagination, the
-order queue), `EntryForm.jsx` (281 — state, the payload, and where a 422 is
-routed; the fields themselves moved to `components/entry/` in #117, and
-`PublicationPanel` there carries the rule for what the side column may hold),
-`screens/EntryEditScreen.jsx` (the guard that must not mount the form early),
-`ModuleBuilder.jsx`, `EntriesTable.jsx`, `GalleryEditor.jsx` (several images
-on one entry, alt text per language), `RichTextEditor.jsx` (Tiptap),
-`Login.jsx`, `app.jsx`.
+`screens/EntriesScreen.jsx` (largest — fetching, pagination, the order queue,
+and the bulk actions), `EntriesTable.jsx` (the rows, the tick boxes, and the
+sort/filter controls that are drawn and disabled), `EntryForm.jsx` (state, the
+payload, and where a 422 is routed; the fields themselves moved to
+`components/entry/` in #117, and `PublicationPanel` there carries the rule for
+what the side column may hold), `screens/EntryEditScreen.jsx` (the guard that
+must not mount the form early), `SettingsManager.jsx`, `ModuleBuilder.jsx`,
+`GalleryEditor.jsx` (several images on one entry, alt text per language),
+`RichTextEditor.jsx` (Tiptap), `screens/Dashboard.jsx` (real counts beside
+invented ones), `Login.jsx`, `app.jsx`.
 
 ### 4. Tests — read one before writing one
 
@@ -148,6 +163,17 @@ helper files cost 77s of setup for 422ms of tests.
 `*.test.js` but not `*.test.jsx`, so it would demand your test's string of
 `lang/en.json`. `resources/js/test/setup.js` leaves the catalogue empty on
 purpose, so `t()` answers its own key — assert the raw English instead.
+
+**The catalogue is checked in both directions**, and both read the code through
+`tests/Support/TranslatedLiterals`: `CatalogueCoversTheCodeTest` fails on a
+string the catalogue lacks, `CatalogueHasNoOrphansTest` on a key nothing asks
+for — an orphan is a sentence somebody is paid to translate into a language
+nobody reads it in. The scan **strips comments**, so an example written in a
+docblock is not demanded; `TranslatedLiteralsTest` pins that, and pins the hole
+it had (`accept="image/*"` read as a comment opener, silently hiding 4,700
+characters of `GalleryEditor.jsx` from the check that exists to catch
+untranslated strings). A string reached only through a variable is invisible to
+both — write `t('…')` literally, as `FIELD_TYPE_LABELS` does.
 
 ---
 
@@ -199,8 +225,8 @@ purpose, so `t()` answers its own key — assert the raw English instead.
 ## Commands
 
 ```bash
-php artisan test                    # 515 tests
-npm test                            # 714 tests
+php artisan test                    # 523 tests
+npm test                            # 717 tests
 npm run build
 php artisan schema:sync-field-types # after changing field type constants
 php artisan pages:warm              # bake the public site to files (#97) - THE DEPLOY STEP
@@ -271,7 +297,7 @@ Started from a repo that would not boot (eight files of merge conflicts).
 Worked through a prioritised list; every item is either done or recorded in
 `CHANGELOG.md` with its reasoning.
 
-- **515 PHP tests, 714 JS tests**, all passing. Build clean.
+- **523 PHP tests, 717 JS tests**, all passing. Build clean.
 - **The project has a commercial goal as of 2026-08-30**, and it now decides
   what gets worked on. A multilingual CMS that feeds client sites, owned
   outright, for a one-person web agency: **one installation per client site**,

@@ -1176,6 +1176,97 @@ the language being rendered — inside the cached closure, so a hit costs
 nothing. Saving invalidates the cache through `PageCacheObserver`, like an
 Entry: the footer is on every page.
 
+### How the panel is put together (#117)
+
+Three layers, and each exists because a thing was written out by hand until it
+drifted.
+
+**Tokens, in `resources/css/app.css`.** Two axes on `<html>` - `data-theme` and
+`data-accent` - and three tiers under them: an accent ramp per palette, semantic
+`--ui-*` roles per theme, and `@theme inline` turning those into utilities. A
+screen writes `bg-surface` and `text-fg-muted` and inherits both axes without
+asking. `theme.css.test.js` reads the stylesheet and **measures** it: the
+swatches against the ramp they advertise, every gray against every surface it
+sits on, and the `--tw-prose-*` mapping. Contrast here is measured, never
+eyeballed - three steps that looked fine have failed AA.
+
+**Primitives, in `resources/js/ui/`.** Each was extracted at its *second or
+later* use, never before: a pattern's real shape is visible on its second use,
+and item 6's amendment records why building thirteen of them up front was
+refused.
+
+| | Extracted because |
+|---|---|
+| `Input`, `Select`, `Checkbox` | one class string in four copies, already drifted in its padding; the checkbox tints from `accent-accent`, since `text-*` is inert on a native control |
+| `IconButton` | an icon has no name of its own, so `label` feeds both `aria-label` and `title`. **A tone replaces, it never stacks** - a caller appending `hover:text-danger-text` loses to the base tone, because Tailwind orders utilities in the stylesheet rather than in the class attribute |
+| `Alert` | the sixth copy, and only the first announced itself. `role` lives in the component, not a class string: a copied string copies the colours and loses the behaviour |
+| `Link` | the third copy of the modifier-click guard, and the two later ones had dropped its `defaultPrevented` check |
+| `Pagination`, `Badge`, `PageHeader`, `FileInput` | second uses, each with one copy already diverged |
+| `Preview` | see below |
+
+**Screens, in `resources/js/screens/`**, reached by name from the table in
+`app.jsx`. A name that table does not know is a **throw**, not a default -
+loud is affordable, and a silent default rendered a plausible wrong screen.
+`screens/bulk.js` follows the same rule for bulk actions.
+
+### What a screen must do with a failure (#117)
+
+Two rules, both learned by getting them wrong.
+
+**A failure is not an empty result.** A screen holding only `loading`, `errors`
+and the data cannot say which of the two it means, so it picks one - and the
+Dashboard picked *No sections yet* for *the sections could not be read*, telling
+an owner their content was gone. `ByModuleSlug` had the same defect earlier,
+reporting a failed fetch as *That section no longer exists*. Anything that
+fetches needs a `failed` state kept apart from emptiness, and a way to try
+again.
+
+**Independent requests settle independently.** `Promise.all` rejects as a unit,
+so one unreachable endpoint discarded what the others had already returned.
+`allSettled` is the default here - the Dashboard's three loads, the gallery's
+uploads, and every bulk action - and what partly succeeded is reported with a
+**count**: *2 of 3 could not be done* rather than *some failed*.
+
+### Invented figures wear a marker (#117 items 18-19)
+
+Some screens are drawn ahead of the endpoint that would feed them. The rule is
+that **anything drawn from invented data says so on the screen**: `ui/Preview`
+wraps it and is a `region` named by its own warning, so the fact reaches
+somebody who cannot see the amber ground.
+
+A dashboard showing *47 room views last week*, convincingly, is worse than one
+showing nothing, because the owner makes a decision on it.
+
+Two things follow. **Real where an endpoint exists, invented where one does
+not** - the Dashboard's section and enquiry counts are this site's, only the
+per-module entry counts are drawn; bulk *delete* is real because `DELETE` needs
+no body, while bulk *publish* is disabled because `SchemaRuleBuilder::build()`
+hard-codes `data` as required and `PUT { status }` answers 422. And **every use
+leaves a TODO naming the endpoint it wants**, which
+`screens/preview-markers.test.js` checks: *make this real later* is not a task,
+`GET /api/stats/entries` is.
+
+### Naming controls, which is most of the panel's defects (#117)
+
+Four screens in a row shipped controls nothing could name, and the rule is
+short enough to keep:
+
+> A `span` beside an input is not a label. A label with no `htmlFor` is not a
+> label. A label hidden by a breakpoint is not a label on the half of the
+> screens where it is hidden.
+
+Three corollaries the panel now follows everywhere. A control made of several
+elements - rich text, a gallery, a per-language group - carries `role="group"`
+with `aria-labelledby`, because no `for` can address it. One control gets
+**one** label; two are announced differently by every reader. And a reason
+attached to a **disabled** control is unreachable by design, since a disabled
+control takes neither focus nor pointer events - it goes on the page, or into
+the control's accessible name.
+
+Rows of identical controls are named by their row: *Remove image 2*, *Select
+entry 11*, *Move field 3 up*. A column of buttons all called *Delete* says
+nothing about which one.
+
 ### The panel's language decides which content language it opens on (#116)
 
 The two axes stay separate — the panel's language is a file, the content's is a

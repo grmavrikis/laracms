@@ -4804,11 +4804,17 @@ break — and that reasoning is in the file rather than in somebody's memory.
 
 ### Two findings, both caught by the suite
 
-**A comment broke the catalogue test.** `CatalogueCoversTheCodeTest` scans
-comments as well as code, so a docblock containing a quoted `t(…)` example
-demanded its own example string of `lang/en.json`. The comment now describes the
-call rather than spelling it out — and says why, since the next person to
-explain this rule will reach for the same example.
+**A comment appeared to break the catalogue test, and that claim was wrong.**
+It was corrected in item 20, and the correction is the more useful entry:
+`CatalogueCoversTheCodeTest` **strips comments before scanning**, so a docblock
+carrying a quoted example was never demanded of `lang/en.json`. What reported it
+was an ad-hoc script written for that session, which did not strip them — and
+its output was mistaken for the suite's. A comment was then reworded to satisfy
+a rule the codebase does not have.
+
+The lesson survives the correction, pointed the other way: **check the tool that
+enforces the rule, not one that resembles it.** Running the actual test with the
+example restored takes ten seconds and was not done.
 
 **One English key, two meanings.** `t('Sections')` labels the sidebar's `nav`,
 where Greek correctly reads *Ενότητες πλοήγησης*; on a card counting content
@@ -5007,3 +5013,79 @@ longer draw above an empty table. Two docblocks were reunited with what they
 describe, and an effect's cleanup with the indentation of its own block.
 
 515 PHP tests, 714 JS tests, build clean.
+
+## 44. The check that could not see three files (#117, item 20)
+
+The last item of the redesign was meant to tidy the catalogue and bring the docs
+up to date. It began by asking a question nobody had asked, and the answer was
+worse than untidy.
+
+### One direction was checked; the other was not
+
+`CatalogueCoversTheCodeTest` fails when the code translates a string the
+catalogue lacks — that is what stops a Greek page shipping an English word.
+Nothing failed on the reverse: a **key nothing asks for**. A catalogue is the
+list a translator works from, and `BUSINESS.md` prices adding a language as a
+billable service, so every orphan is a sentence somebody is paid to translate
+into a language nobody will read it in. They accumulate in ordinary work: three
+arrived in a single item of this redesign, when `Lang` and `Req` became
+`Translatable` and `Required`, and the suite stayed green through it.
+
+### The new test reported twenty-one, and most were in use
+
+That was the finding. `accept="image/*"` ends in a slash and a star, which the
+comment stripper read as the start of a block comment — so everything from there
+to the next real terminator was discarded **before the scan ran**. In
+`GalleryEditor.jsx` that is 4,700 characters; the file was being read at 3,792
+of its 10,260.
+
+The consequence is the guarantee turned inside out: `CatalogueCoversTheCodeTest`
+was **passing on the three files that contain an image picker because it could
+not see them.** A test that reads less than it thinks reports success either
+way, and nothing downstream can tell.
+
+A comment opener now has to look like one — a line start, whitespace, or the
+brace of a JSX comment — `TranslatedLiteralsTest` pins that along with URLs,
+mime patterns and comments-that-mention-calls, and the scan itself moved to
+`tests/Support/TranslatedLiterals` so both directions read the code identically
+rather than drifting apart.
+
+### What the eleven real orphans were
+
+Nine were the **field type names**. `String`, `Text`, `Integer`, `Boolean`,
+`Date`, `Datetime`, `Select`, `Image`, `Gallery` — every one translated into
+Greek by somebody, and never asked for, because the dropdown labelled its
+options by capitalising the generated key. A Greek panel read *Gallery* while
+the catalogue held *Συλλογή εικόνων*.
+
+They are `FIELD_TYPE_LABELS` now, written as literal calls rather than
+`t(label)` so the scan can see them — a key reached only through a variable is
+invisible to it, which is how a string reaches a client untranslated in the
+first place. `fieldTypes.json` stays the source of *which* types exist; a test
+fails if the two lists disagree, so a type added in PHP cannot appear here
+unnamed. The other two keys were genuinely dead and are deleted.
+
+### A correction
+
+CHANGELOG §41 claimed a docblock containing a quoted example broke the catalogue
+test. **It does not** — the scan strips comments, and always did. What reported
+it was an ad-hoc script written during that session which did not strip them,
+and its output was mistaken for the suite's; a comment was then reworded to
+satisfy a rule the codebase does not have.
+
+That entry now carries the correction, and the lesson pointed the other way:
+**check the tool that enforces the rule, not one that resembles it.** Running
+the actual test with the example restored takes ten seconds, and was not done.
+
+### The docs
+
+`ARCHITECTURE.md` gained four sections this redesign had never recorded: how the
+panel is put together — the three token tiers, the `ui/` vocabulary and why each
+primitive waited for its second use — what a screen must do with a failure, the
+rule that invented figures wear a marker, and the naming rule that four screens
+in a row got wrong. `CLAUDE.md`'s frontend table and component list were four
+items out of date.
+
+**#117 is complete: all twenty items.**
+
+523 PHP tests, 717 JS tests, build clean.

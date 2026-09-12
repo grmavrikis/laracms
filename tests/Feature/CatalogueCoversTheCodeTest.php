@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use Illuminate\Support\Facades\File;
+use Tests\Support\TranslatedLiterals;
 use Tests\TestCase;
 
 /**
@@ -26,10 +27,9 @@ use Tests\TestCase;
  * to be - the value it resolves to is itself built from literals somewhere
  * else, and that is where it is caught.
  *
- * PHP is read with `token_get_all` rather than a regular expression, because a
- * comment mentioning `__('Name')` is not a translation - the first version of
- * this scan reported exactly that, out of a comment in `AppServiceProvider`
- * explaining how the mechanism works.
+ * **How the code is read lives in `Tests\Support\TranslatedLiterals`**, which
+ * `CatalogueHasNoOrphansTest` needs too: that one asks the same question in the
+ * other direction, and two copies of the scan would give two answers.
  */
 class CatalogueCoversTheCodeTest extends TestCase
 {
@@ -39,7 +39,7 @@ class CatalogueCoversTheCodeTest extends TestCase
     public function test_every_string_the_theme_translates_is_in_the_clients_catalogue(): void
     {
         $this->assertEveryLiteralIsInTheCatalogue(
-            $this->literalsInBlade(config('site.theme')),
+            TranslatedLiterals::inBlade(config('site.theme')),
             config('site.lang') . '/en.json'
         );
     }
@@ -47,13 +47,10 @@ class CatalogueCoversTheCodeTest extends TestCase
     /** Core's own, in `lang/en.json`: PHP, core's Blade, and the panel. */
     public function test_every_string_core_translates_is_in_its_catalogue(): void
     {
-        $literals = array_merge(
-            $this->literalsInPhp(app_path()),
-            $this->literalsInBlade(resource_path('views')),
-            $this->literalsInJavaScript(resource_path('js'))
+        $this->assertEveryLiteralIsInTheCatalogue(
+            TranslatedLiterals::everywhereCoreTranslates(),
+            base_path('lang/en.json')
         );
-
-        $this->assertEveryLiteralIsInTheCatalogue($literals, base_path('lang/en.json'));
     }
 
     /**
@@ -94,155 +91,4 @@ class CatalogueCoversTheCodeTest extends TestCase
         }
     }
 
-    /**
-     * `__('…')` in PHP, read as tokens.
-     *
-     * @return array<string, string>
-     */
-    private function literalsInPhp(string $directory): array
-    {
-        $found = [];
-
-        foreach ($this->filesIn($directory, ['php']) as $file)
-        {
-            $tokens = token_get_all(File::get($file));
-
-            foreach ($tokens as $index => $token)
-            {
-                if (!is_array($token) || $token[0] !== T_STRING || $token[1] !== '__')
-                {
-                    continue;
-                }
-
-                $argument = $this->firstArgument($tokens, $index);
-
-                if ($argument !== null)
-                {
-                    $found[$argument] ??= $this->relative($file);
-                }
-            }
-        }
-
-        return $found;
-    }
-
-    /**
-     * The string literal a call opens with, or null when it opens with anything
-     * else - a variable, a concatenation, a constant.
-     *
-     * @param array<int, array|string> $tokens
-     */
-    private function firstArgument(array $tokens, int $index): ?string
-    {
-        $count = count($tokens);
-
-        for ($i = $index + 1; $i < $count; $i++)
-        {
-            $token = $tokens[$i];
-
-            if (is_array($token) && $token[0] === T_WHITESPACE)
-            {
-                continue;
-            }
-
-            if ($token === '(')
-            {
-                continue;
-            }
-
-            if (is_array($token) && $token[0] === T_CONSTANT_ENCAPSED_STRING)
-            {
-                // The token carries its quotes, and PHP's own unescaping rules
-                // differ between them.
-                $raw = substr($token[1], 1, -1);
-
-                return $token[1][0] === "'"
-                    ? str_replace(["\\'", '\\\\'], ["'", '\\'], $raw)
-                    : stripcslashes($raw);
-            }
-
-            return null;
-        }
-
-        return null;
-    }
-
-    /**
-     * `__('…')` in a Blade template.
-     *
-     * A regular expression rather than tokens, because everything outside
-     * `<?php` is one inline-HTML token - and Blade comments are stripped first
-     * for the reason the PHP side uses tokens at all.
-     *
-     * @return array<string, string>
-     */
-    private function literalsInBlade(string $directory): array
-    {
-        $found = [];
-
-        foreach ($this->filesIn($directory, ['php']) as $file)
-        {
-            $source = preg_replace('/\{\{--.*?--\}\}/s', '', File::get($file));
-
-            preg_match_all('/__\(\s*\'((?:[^\'\\\\]|\\\\.)*)\'/s', (string) $source, $matches);
-
-            foreach ($matches[1] as $key)
-            {
-                $found[str_replace(["\\'", '\\\\'], ["'", '\\'], $key)] ??= $this->relative($file);
-            }
-        }
-
-        return $found;
-    }
-
-    /**
-     * `t('…')` in the panel, whose catalogue is core's - the same file, injected
-     * into the page rather than bundled (#96).
-     *
-     * @return array<string, string>
-     */
-    private function literalsInJavaScript(string $directory): array
-    {
-        $found = [];
-
-        foreach ($this->filesIn($directory, ['js', 'jsx']) as $file)
-        {
-            if (str_ends_with($file, '.test.js'))
-            {
-                continue;
-            }
-
-            // Comments, for the same reason PHP is read as tokens.
-            $source = preg_replace(['#/\*.*?\*/#s', '#(^|\s)//[^\n]*#'], '', File::get($file));
-
-            preg_match_all('/(?<![\w$])t\(\s*\'((?:[^\'\\\\]|\\\\.)*)\'/s', (string) $source, $matches);
-
-            foreach ($matches[1] as $key)
-            {
-                $found[str_replace(["\\'", '\\\\'], ["'", '\\'], $key)] ??= $this->relative($file);
-            }
-        }
-
-        return $found;
-    }
-
-    /** @return array<int, string> */
-    private function filesIn(string $directory, array $extensions): array
-    {
-        if (!File::exists($directory))
-        {
-            return [];
-        }
-
-        return collect(File::allFiles($directory))
-            ->filter(fn ($file) => in_array($file->getExtension(), $extensions, true))
-            ->map(fn ($file) => $file->getPathname())
-            ->values()
-            ->all();
-    }
-
-    private function relative(string $path): string
-    {
-        return str_replace([base_path() . DIRECTORY_SEPARATOR, '\\'], ['', '/'], $path);
-    }
 }
