@@ -121,11 +121,19 @@ export default function EntryEditScreen({ module, entryId }) {
 
     const moduleName = moduleNameForReader(module, languages, locale);
 
+    // `title` is the module's own name, not the mode - every other screen puts
+    // what section you are in there (`EntriesScreen`, `ModulesList`,
+    // `SettingsManager`...), and this one disagreed: "New entry" sat in the
+    // big bold h1 with the module's name shrunk to the muted line under it, so
+    // opening Contact read as *New entry*, barely *Contact*. That is backwards
+    // exactly where it matters most - the collapsed rail drops the module's
+    // name to an icon, so this header is the only place left saying which
+    // section is open.
     const header = (
         <PageHeader
             icon={creating ? Plus : Pencil}
-            title={creating ? t('New entry') : t('Edit entry')}
-            description={moduleName}
+            title={moduleName}
+            description={creating ? t('New entry') : t('Edit entry')}
             actions={!creating && entry?.id ? <Badge tone="accent">#{entry.id}</Badge> : null}
         />
     );

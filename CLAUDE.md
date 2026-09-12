@@ -226,7 +226,7 @@ both — write `t('…')` literally, as `FIELD_TYPE_LABELS` does.
 
 ```bash
 php artisan test                    # 531 tests
-npm test                            # 788 tests
+npm test                            # 789 tests
 npm run build
 php artisan schema:sync-field-types # after changing field type constants
 php artisan pages:warm              # bake the public site to files (#97) - THE DEPLOY STEP
@@ -297,7 +297,12 @@ Started from a repo that would not boot (eight files of merge conflicts).
 Worked through a prioritised list; every item is either done or recorded in
 `CHANGELOG.md` with its reasoning.
 
-- **531 PHP tests, 788 JS tests**, all passing. Build clean.
+- **531 PHP tests, 789 JS tests**, all passing. Build clean.
+- **#125, the entry form's heading, is DONE** (CHANGELOG §47) — `EntryEditScreen`
+  had *New entry* in the big bold heading and the module's own name shrunk to
+  the muted line under it, backwards from every other screen. Found opening
+  Contact from the collapsed rail (#124), where the heading is the only place
+  left saying which section is open.
 - **#124, the rail's Content group, is DONE** (CHANGELOG §46) — the modules read
   as a submenu of *Content* rather than as a column of lettered tiles, and the
   tiles survive only at 68px where the initial is the only glyph a module has.

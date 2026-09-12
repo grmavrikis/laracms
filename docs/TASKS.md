@@ -1251,6 +1251,17 @@ migrations, so a choice follows the person to their second **tab** rather than
 their second machine. Two columns and a save; the panel's own half already
 resolves both against an allow-list before applying them.
 
+### 125. The entry form's heading had the module's name backwards — DONE (CHANGELOG §47)
+
+Found by the owner opening Contact from the collapsed rail (#124): the heading
+read *New entry*, big and bold, with *Contact* shrunk to the muted line under
+it — every other screen puts the section's own name in the heading and a
+sentence about it underneath, and `EntryEditScreen` alone had the two swapped.
+
+Worse now than it would have been before #124: the collapsed rail names a
+module with one letter, so this heading is the only place left saying which
+section is open. One prop swap; `PageHeader` needed no change.
+
 ### 124. The rail's Content group is a submenu — DONE (CHANGELOG §46)
 
 Raised by the owner the day after #117 closed. The modules in the rail each

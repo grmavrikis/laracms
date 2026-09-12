@@ -109,6 +109,20 @@ describe('EntryEditScreen', () => {
         expect(api.get).not.toHaveBeenCalledWith(expect.stringContaining('/entries/'));
     });
 
+    // The module's own name is what says which section is open - the collapsed
+    // rail drops it to an icon, so this heading is the only place left saying
+    // so. "New entry" / "Edit entry" is the mode, not the location, and had
+    // been sitting in the big bold heading with the module's name shrunk under
+    // it as the description - backwards from every other screen in the panel.
+    it('gives the module its own name the main heading, not the mode', async () => {
+        api.get.mockResolvedValue({ data: LANGUAGES });
+
+        mount({ entryId: null }, '/admin/content/rooms/new');
+
+        expect(await screen.findByRole('heading', { name: 'Rooms' })).toBeInTheDocument();
+        expect(screen.queryByRole('heading', { name: 'New entry' })).not.toBeInTheDocument();
+    });
+
     // The other half of the page-carrying fix: the listing puts the page on
     // this screen's address, and returning has to put it back.
     it('returns to the page the reader came from', async () => {

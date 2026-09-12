@@ -5280,3 +5280,32 @@ letters, since collapsing is a desktop idea and `rail = collapsed && isDesktop`
 already said so.
 
 531 PHP tests, 788 JS tests, build clean.
+
+---
+
+## 47. The entry form's heading had the module's name backwards
+
+Raised by the owner opening Contact from the collapsed rail: *«ο τίτλος έχει New
+entry Contact, όπου το New entry είναι δυσανάλογα μεγάλο σε σχέση με το Contact.
+θα ήταν ωραίο να ήταν και το Contact πιο εμφανές».*
+
+`EntryEditScreen`'s `PageHeader` had `title={creating ? 'New entry' : 'Edit
+entry'}` and `description={moduleName}` — the mode word in the big bold `h1`,
+the section's own name shrunk to the muted line underneath it. Every other
+screen that uses `PageHeader` puts the opposite in each slot:
+`EntriesScreen` is `title={moduleName}`, `ModulesList` is `title={t('Modules')}`,
+`SettingsManager` is `title={t('Settings')}` — the identity of the screen is
+always the heading, and a sentence about it is always the description. This one
+screen alone had them swapped.
+
+It matters more here than it looks, because of #124: the collapsed rail drops a
+module to a single letter, and this heading is the only place left on the page
+that says which section is open in words. Reading *New entry*, small *Contact*
+answers a different question than the one a reader is asking.
+
+Fixed by swapping the two props, which is the whole change — `PageHeader` itself
+needed nothing. `EntryEditScreen.test.jsx` gained an assertion that the module's
+name is the `heading` and *New entry* is not, written first and confirmed
+failing against the old order before the swap.
+
+531 PHP tests, 789 JS tests, build clean.
