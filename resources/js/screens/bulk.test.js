@@ -85,7 +85,10 @@ describe('bulkSummary', () => {
  * have done nothing at all, with no console message and no banner.
  */
 describe('bulkRequest', () => {
-    const api = { delete: (url) => Promise.resolve(url) };
+    const api = {
+        delete: (url) => Promise.resolve(url),
+        post: (url, body) => Promise.resolve({ url, body }),
+    };
 
     it('builds the delete each ticked row needs', async () => {
         const send = bulkRequest('delete', api, 'rooms');
@@ -101,5 +104,46 @@ describe('bulkRequest', () => {
     // that something was wrong.
     it('names the action it was given', () => {
         expect(() => bulkRequest('publish', api, 'rooms')).toThrow(/publish/);
+    });
+
+    // A copy is a fresh POST carrying an existing row's own `data` - the same
+    // shape the create form sends - found by id in what the screen already
+    // holds, since the id alone (unlike delete) is not enough to build it.
+    describe('copy', () => {
+        const entries = [
+            { id: 7, data: { title: { en: 'Suite' } } },
+            { id: 9, data: { title: { en: 'Studio' } } },
+        ];
+
+        it('posts the ticked row\'s own data to create a duplicate', async () => {
+            const send = bulkRequest('copy', api, 'rooms', entries);
+
+            expect(await send(7)).toEqual({
+                url: '/modules/rooms/entries',
+                body: { data: { title: { en: 'Suite' } } },
+            });
+        });
+
+        // No `status` and no `slugs` in the body: the column's own default
+        // (`draft`) applies when `status` is left out, and EntryController's
+        // `syncSlugs` never writes a row unless the `slugs` key is present -
+        // so a copy is never live and never fights the original for an
+        // address neither of them chose.
+        it('sends neither status nor slugs, so the copy is a draft with no address', async () => {
+            const send = bulkRequest('copy', api, 'rooms', entries);
+            const { body } = await send(9);
+
+            expect(body).not.toHaveProperty('status');
+            expect(body).not.toHaveProperty('slugs');
+        });
+
+        it('matches the id as a string, the same as the row\'s own checkbox does', async () => {
+            const send = bulkRequest('copy', api, 'rooms', entries);
+
+            expect(await send('9')).toEqual({
+                url: '/modules/rooms/entries',
+                body: { data: { title: { en: 'Studio' } } },
+            });
+        });
     });
 });

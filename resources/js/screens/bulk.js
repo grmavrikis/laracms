@@ -67,20 +67,38 @@ export const bulkSummary = ({ done, failed, reason }) => {
  * PHP away, pressing them would have produced no request, no console message
  * and no banner.
  *
- * Only `delete` is here, and deliberately: `DELETE` needs no body, while
+ * `delete` and `copy` are here; `publish`/`unpublish` are not, and
+ * deliberately: `DELETE` needs no body and `copy` only ever *creates*, while
  * `PUT { status }` answers 422 because `SchemaRuleBuilder::build()` hard-codes
- * `data` as required. Adding a key here is what enabling one looks like.
+ * `data` as required. Adding a key for one of those is what enabling it looks
+ * like.
+ *
+ * **`copy` reads `entries`, the other two do not need to.** A duplicate is a
+ * new row carrying an existing one's `data` - `POST` builds it the same way
+ * the create form does - so it is the one bulk action that has to look the
+ * id up in what the screen already has in memory rather than sending the id
+ * on its own. `status` and `slugs` are both left out of the body on purpose:
+ * `status` then takes the column's own default (`draft`), so a copy is never
+ * live the moment it is made, and no `slugs` key means the copy has no
+ * address in any language - `EntryController::syncSlugs` only ever writes
+ * rows when the key is present, so two entries never fight over one slug the
+ * client never chose for either of them.
  */
 const BULK_REQUESTS = {
     delete: (api, module) => (id) => api.delete(`/modules/${module}/entries/${id}`),
+    copy: (api, module, entries) => (id) => {
+        const entry = (entries ?? []).find((one) => String(one.id) === String(id));
+
+        return api.post(`/modules/${module}/entries`, { data: entry?.data ?? {} });
+    },
 };
 
-export const bulkRequest = (action, api, module) => {
+export const bulkRequest = (action, api, module, entries) => {
     const build = BULK_REQUESTS[action];
 
     if (!build) {
         throw new Error(`bulkRequest: there is no bulk action named "${action}".`);
     }
 
-    return build(api, module);
+    return build(api, module, entries);
 };

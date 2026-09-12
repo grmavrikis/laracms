@@ -20,6 +20,14 @@ const stubNarrow = (isNarrow) => {
     });
 };
 
+// File-scoped rather than nested in the one `describe` that first needed it:
+// an `afterEach` inside a `describe` only cleans up after *that* block's own
+// tests, so a stub left behind by its last test was free to leak into
+// whichever describe came next in the file - silently switching that one
+// from the table to the card, or the other way round, depending on file
+// order rather than on what the test itself asked for.
+afterEach(() => { delete window.matchMedia; });
+
 const SCHEMA = [{ name: 'title', type: 'string', translatable: true }];
 
 const LANGUAGES = [
@@ -28,8 +36,20 @@ const LANGUAGES = [
 ];
 
 const ENTRIES = [
-    { id: 11, status: 'published', created_at: '2026-09-01T10:00:00Z', data: { title: { el: 'Σουίτα', en: 'Suite' } } },
-    { id: 12, status: 'draft', created_at: '2026-09-02T10:00:00Z', data: { title: { el: 'Στούντιο', en: 'Studio' } } },
+    {
+        id: 11,
+        status: 'published',
+        created_at: '2026-09-01T10:00:00Z',
+        updated_at: '2026-09-05T10:00:00Z',
+        data: { title: { el: 'Σουίτα', en: 'Suite' } },
+    },
+    {
+        id: 12,
+        status: 'draft',
+        created_at: '2026-09-02T10:00:00Z',
+        updated_at: '2026-09-02T10:00:00Z',
+        data: { title: { el: 'Στούντιο', en: 'Studio' } },
+    },
 ];
 
 const draw = (props = {}) => {
@@ -57,6 +77,7 @@ const draw = (props = {}) => {
 };
 
 const rowFor = (id) => screen.getByRole('row', { name: new RegExp(`#${id}`) });
+const cardFor = (id) => screen.getByText(`#${id}`).closest('li');
 
 describe('EntriesTable, choosing rows', () => {
     // Each box is one of several identical controls in a column, so the row it
@@ -397,10 +418,6 @@ describe('EntriesTable, what was already there', () => {
 // table gives way entirely to a stack of cards, so nothing is ever reached by
 // scrolling sideways.
 describe('EntriesTable, on a narrow screen', () => {
-    afterEach(() => { delete window.matchMedia; });
-
-    const cardFor = (id) => screen.getByText(`#${id}`).closest('li');
-
     it('lays entries out as cards instead of a table', () => {
         stubNarrow(true);
         draw();
@@ -482,5 +499,142 @@ describe('EntriesTable, the actions column', () => {
 
         expect(cell.className).toMatch(/\bsticky\b/);
         expect(cell.className).toMatch(/\bright-0\b/);
+    });
+});
+
+// Reported live: the table showed one date with no way to tell whether it was
+// when the entry was written or when it was last touched, and only one of the
+// two was shown at all.
+describe('EntriesTable, Created and Updated', () => {
+    it('names both dates in the table, each under its own column', () => {
+        draw();
+
+        expect(screen.getByRole('columnheader', { name: 'Created' })).toBeInTheDocument();
+        expect(screen.getByRole('columnheader', { name: 'Updated' })).toBeInTheDocument();
+        expect(within(rowFor(11)).getByText('Sep 1, 2026')).toBeInTheDocument();
+        expect(within(rowFor(11)).getByText('Sep 5, 2026')).toBeInTheDocument();
+    });
+
+    // The narrow card has no column headers to carry the label - #135's own
+    // fix for a schema field applies here too, since a bare date is exactly
+    // as unlabelled as a bare value was.
+    it('labels both dates on the narrow card', () => {
+        stubNarrow(true);
+        draw();
+
+        const card = within(cardFor(11));
+
+        expect(card.getByText('Created:')).toBeInTheDocument();
+        expect(card.getByText('Updated:')).toBeInTheDocument();
+        expect(card.getByText('Sep 1, 2026')).toBeInTheDocument();
+        expect(card.getByText('Sep 5, 2026')).toBeInTheDocument();
+    });
+});
+
+// #136: opening the public page needs that page's own address, and the
+// entries list has no way to know it yet - `EntryController::index` never
+// loads `slugs`. Drawn so the shape of the row is right, disabled and
+// explained so pressing it promises nothing the panel cannot do.
+describe('EntriesTable, the Preview control', () => {
+    it('is drawn next to Edit, disabled, and says why', () => {
+        draw();
+
+        const preview = within(rowFor(11)).getByRole('button', { name: /Preview/ });
+
+        expect(preview).toBeDisabled();
+        expect(preview).toHaveAccessibleName(expect.stringContaining('not wired yet'));
+    });
+
+    it('is drawn on the narrow card too', () => {
+        stubNarrow(true);
+        draw();
+
+        expect(within(cardFor(11)).getByRole('button', { name: /Preview/ })).toBeDisabled();
+    });
+});
+
+describe('EntriesTable, copying entries', () => {
+    it('offers Copy selected alongside Delete, and it is not disabled', () => {
+        draw({ selected: [11] });
+
+        const copy = screen.getByRole('button', { name: 'Copy selected' });
+
+        expect(copy).toBeInTheDocument();
+        expect(copy).not.toBeDisabled();
+    });
+
+    // Unlike delete, nothing existing is touched by a copy - so it fires at
+    // once rather than asking first.
+    it('fires immediately, with no confirmation step', async () => {
+        const user = userEvent.setup();
+        const onBulkAction = vi.fn();
+        draw({ selected: [11, 12], onBulkAction });
+
+        await user.click(screen.getByRole('button', { name: 'Copy selected' }));
+
+        expect(onBulkAction).toHaveBeenCalledWith('copy', [11, 12]);
+    });
+});
+
+// The checkbox is a small target; the row (desktop) or the card (mobile)
+// around it is the "block" it was reported that a click should work from
+// anywhere in.
+describe('EntriesTable, clicking the row or card to select it', () => {
+    it('toggles selection from a click anywhere in the row that is not a control', async () => {
+        const user = userEvent.setup();
+        const { onSelectionChange } = draw();
+
+        // The cell holding the entry's own title - not the checkbox, not a
+        // button.
+        await user.click(within(rowFor(11)).getByText('Σουίτα'));
+
+        expect(onSelectionChange).toHaveBeenCalledTimes(1);
+        expect(onSelectionChange).toHaveBeenCalledWith([11]);
+    });
+
+    // A click that lands on the checkbox must not *also* fire the row's own
+    // handler - that would toggle it twice and cancel itself out.
+    it('does not double-toggle when the click lands on the checkbox itself', async () => {
+        const user = userEvent.setup();
+        const { onSelectionChange } = draw();
+
+        await user.click(screen.getByRole('checkbox', { name: 'Select entry 11' }));
+
+        expect(onSelectionChange).toHaveBeenCalledTimes(1);
+        expect(onSelectionChange).toHaveBeenCalledWith([11]);
+    });
+
+    // Nor when it lands on Edit or a reorder arrow - each keeps doing only
+    // its own job.
+    it('does not toggle selection when the click opens the entry for editing', async () => {
+        const user = userEvent.setup();
+        const { onEdit, onSelectionChange } = draw();
+
+        await user.click(within(rowFor(11)).getByRole('button', { name: /Edit/ }));
+
+        expect(onEdit).toHaveBeenCalledWith(expect.objectContaining({ id: 11 }));
+        expect(onSelectionChange).not.toHaveBeenCalled();
+    });
+
+    it('toggles selection from a click anywhere on the narrow card that is not a control', async () => {
+        stubNarrow(true);
+        const user = userEvent.setup();
+        const { onSelectionChange } = draw();
+
+        await user.click(within(cardFor(12)).getByText('Στούντιο'));
+
+        expect(onSelectionChange).toHaveBeenCalledTimes(1);
+        expect(onSelectionChange).toHaveBeenCalledWith([12]);
+    });
+
+    it('does not double-toggle a narrow card from a click on its own checkbox', async () => {
+        stubNarrow(true);
+        const user = userEvent.setup();
+        const { onSelectionChange } = draw();
+
+        await user.click(within(cardFor(12)).getByRole('checkbox', { name: 'Select entry 12' }));
+
+        expect(onSelectionChange).toHaveBeenCalledTimes(1);
+        expect(onSelectionChange).toHaveBeenCalledWith([12]);
     });
 });

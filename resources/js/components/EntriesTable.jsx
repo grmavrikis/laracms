@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { ChevronUp, ChevronDown, Pencil, Inbox, Trash2, Eye, EyeOff, ArrowUpDown } from 'lucide-react';
+import { ChevronUp, ChevronDown, Pencil, Inbox, Trash2, Eye, EyeOff, ArrowUpDown, ExternalLink, Copy } from 'lucide-react';
 import { isRichTextField, docToText } from '../lib/richText';
 import { isGalleryField, galleryPreview } from '../lib/gallery';
 import { getLangCode } from '../lib/languages';
@@ -55,6 +55,20 @@ function PageCheckbox({ indeterminate, ...rest }) {
 }
 
 const Empty = () => <span className="text-fg-subtle">—</span>;
+
+/**
+ * Whether a click landed on a control with its own job - the checkbox, an
+ * icon button, a link - rather than on the row or card around it.
+ *
+ * Shared by the row-click and card-click handlers below: both toggle
+ * selection when the reader clicks anywhere that is *not* one of these, so
+ * the whole row (desktop) or the whole block (mobile) is a second way to
+ * reach the same one action the checkbox already performs, rather than a
+ * competing one. The checkbox itself still works exactly as it did - this
+ * only stops a click from *also* firing the row handler once the checkbox's
+ * own `onChange` has already done so.
+ */
+const clickedControl = (event) => !!event.target.closest('input, button, a, select, textarea');
 
 /**
  * One schema field's value, in the language on show - computed once and
@@ -113,6 +127,21 @@ function fieldValue(field, entry, currentLangCode) {
     return { wide: false, node: text ? (text.length > 50 ? `${text.slice(0, 50)}…` : text) : <Empty /> };
 }
 
+/**
+ * One label and its value, on a single line, for the narrow layout - a
+ * schema field, or one of the two dates every entry carries regardless of
+ * its schema. Shared so the three read as one list rather than a field list
+ * with two unrelated lines bolted on the end.
+ */
+function FieldRow({ label, children }) {
+    return (
+        <div className="flex flex-wrap items-baseline gap-x-1.5">
+            <dt className="shrink-0 text-xs font-medium text-fg-subtle">{label}:</dt>
+            <dd className="text-sm text-fg-muted">{children}</dd>
+        </div>
+    );
+}
+
 /** One schema field's value, as a table cell. */
 function Cell({ field, entry, currentLangCode }) {
     const { wide, node } = fieldValue(field, entry, currentLangCode);
@@ -154,6 +183,19 @@ function RowActions({ entry, at, orderIds, onReorder, onEdit }) {
                     />
                 </>
             )}
+            {/* Drawn and disabled, not left out (#136): opening the public
+                page needs that page's own address, and the entries list has
+                no way to know it - `EntryController::index` never loads
+                `slugs`, unlike `show()`. One line of PHP
+                (`->with('slugs')` on the index query) plus reading
+                `entry.slugs`/`module.slugs` here for the current language is
+                what turns this on; nothing about the button itself changes. */}
+            <IconButton
+                icon={ExternalLink}
+                label={`${t('Preview')} — ${t('not wired yet')}`}
+                disabled
+                className="h-8 w-8 disabled:cursor-not-allowed disabled:opacity-30"
+            />
             {/* Named per entry, not just "Edit" - several identical buttons
                 with the same accessible name is the checkbox column's own
                 defect (see its comment below), and this control has the
@@ -180,7 +222,16 @@ function RowActions({ entry, at, orderIds, onReorder, onEdit }) {
  */
 function MobileEntryCard({ entry, schema, currentLangCode, at, orderIds, onReorder, onEdit, checked, onToggle }) {
     return (
-        <li className="rounded-xl border border-line bg-surface p-4">
+        // A click anywhere that is not one of the card's own controls
+        // toggles selection, the same as clicking the checkbox does - the
+        // checkbox is a small target and the card around it is the "block"
+        // the whole thing is meant to be tappable as. `clickedControl` is
+        // what keeps Edit, the reorder arrows and the checkbox's own click
+        // doing only their own job rather than also flipping the tick.
+        <li
+            onClick={(event) => { if (!clickedControl(event)) onToggle(); }}
+            className="cursor-pointer rounded-xl border border-line bg-surface p-4 transition-colors hover:border-line-strong active:bg-surface-muted"
+        >
             <div className="flex items-start justify-between gap-3">
                 <div className="flex items-center gap-3">
                     <Checkbox
@@ -197,33 +248,26 @@ function MobileEntryCard({ entry, schema, currentLangCode, at, orderIds, onReord
                 <RowActions entry={entry} at={at} orderIds={orderIds} onReorder={onReorder} onEdit={onEdit} />
             </div>
 
-            {schema.length > 0 && (
-                // One line per field, label beside its value - not a
-                // two-column grid (a `col-span-2` rule for the wide fields
-                // earns its keep on a fixed-width table column but only left
-                // a gap here, next to whichever narrow field happened to land
-                // beside a wide one) and not the label stacked above the
-                // value either, which spent two lines on a fact most schemas
-                // answer in three or four words. `flex-wrap` lets a genuinely
-                // long value (a rich text excerpt, several photos) drop to
-                // its own line under the label rather than being squeezed.
-                <dl className="mt-3 flex flex-col gap-2 border-t border-line pt-3">
-                    {schema.map((field) => {
-                        const { node } = fieldValue(field, entry, currentLangCode);
+            {/* One line per field, label beside its value - not a two-column
+                grid (a `col-span-2` rule for the wide fields earns its keep
+                on a fixed-width table column but only left a gap here, next
+                to whichever narrow field happened to land beside a wide one)
+                and not the label stacked above the value either, which spent
+                two lines on a fact most schemas answer in three or four
+                words. `flex-wrap` lets a genuinely long value (a rich text
+                excerpt, several photos) drop to its own line under the label
+                rather than being squeezed. Created/Updated close the list
+                unconditionally - every entry has both regardless of what its
+                schema holds, unlike the fields above them. */}
+            <dl className="mt-3 flex flex-col gap-2 border-t border-line pt-3">
+                {schema.map((field) => {
+                    const { node } = fieldValue(field, entry, currentLangCode);
 
-                        return (
-                            <div key={field.name} className="flex flex-wrap items-baseline gap-x-1.5">
-                                <dt className="shrink-0 text-xs font-medium text-fg-subtle">{field.name}:</dt>
-                                <dd className="text-sm text-fg-muted">{node}</dd>
-                            </div>
-                        );
-                    })}
-                </dl>
-            )}
-
-            <p className="mt-3 text-xs text-fg-subtle">
-                {formatDate(entry.created_at) ?? <Empty />}
-            </p>
+                    return <FieldRow key={field.name} label={field.name}>{node}</FieldRow>;
+                })}
+                <FieldRow label={t('Created')}>{formatDate(entry.created_at) ?? <Empty />}</FieldRow>
+                <FieldRow label={t('Updated')}>{formatDate(entry.updated_at) ?? <Empty />}</FieldRow>
+            </dl>
         </li>
     );
 }
@@ -415,6 +459,16 @@ export default function EntriesTable({
                             */}
                             <BulkButton icon={Eye} label={t('Publish selected')} disabled note={t('not wired yet')} />
                             <BulkButton icon={EyeOff} label={t('Unpublish selected')} disabled note={t('not wired yet')} />
+                            {/* A duplicate is a fresh `POST` carrying the
+                                original's own `data` - see `bulk.js` for why
+                                that needs the loaded entries rather than the
+                                id alone. No confirmation: unlike delete,
+                                nothing existing is touched. */}
+                            <BulkButton
+                                icon={Copy}
+                                label={t('Copy selected')}
+                                onClick={() => onBulkAction?.('copy', selected)}
+                            />
                             <BulkButton icon={Trash2} label={t('Delete selected')} tone="danger" onClick={() => setConfirming(true)} />
                             <button
                                 type="button"
@@ -513,6 +567,9 @@ export default function EntriesTable({
                                 <th scope="col" className="hidden px-4 py-3 font-semibold text-fg md:table-cell">
                                     {t('Created')}
                                 </th>
+                                <th scope="col" className="hidden px-4 py-3 font-semibold text-fg lg:table-cell">
+                                    {t('Updated')}
+                                </th>
                                 {/* Pinned to the right edge of the scroll box
                                     rather than riding off with the schema
                                     columns - a module with several fields made
@@ -535,7 +592,21 @@ export default function EntriesTable({
                                 const at = positionInOrder(orderIds, entry.id);
 
                                 return (
-                                    <tr key={entry.id} className="group transition-colors hover:bg-surface-muted/60">
+                                    // A click anywhere in the row that is not
+                                    // one of its own controls toggles
+                                    // selection, the same as the checkbox
+                                    // does - see `clickedControl`'s own
+                                    // comment for why that does not also
+                                    // double-toggle a click that landed on
+                                    // the checkbox itself.
+                                    <tr
+                                        key={entry.id}
+                                        onClick={(event) => {
+                                            if (clickedControl(event)) return;
+                                            onSelectionChange?.(toggle(selected, entry.id));
+                                        }}
+                                        className="group cursor-pointer transition-colors hover:bg-surface-muted/60"
+                                    >
                                         <td className="w-px px-4 py-3 sm:pl-6">
                                             {/* Named by the entry it ticks: one
                                                 of several identical controls in
@@ -571,6 +642,10 @@ export default function EntriesTable({
                                                 Greek panel on an English
                                                 Windows printed 9/10/2026. */}
                                             {formatDate(entry.created_at) ?? <Empty />}
+                                        </td>
+
+                                        <td className="hidden whitespace-nowrap px-4 py-3 text-fg-muted lg:table-cell">
+                                            {formatDate(entry.updated_at) ?? <Empty />}
                                         </td>
 
                                         {/* Sticky, so it stays reachable

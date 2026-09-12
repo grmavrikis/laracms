@@ -1251,6 +1251,48 @@ migrations, so a choice follows the person to their second **tab** rather than
 their second machine. Two columns and a save; the panel's own half already
 resolves both against an allow-list before applying them.
 
+### 137. A second date, a drawn Preview, a bulk Copy, and a bigger checkbox — DONE (CHANGELOG §58)
+
+Four reports at once. Both of an entry's dates are now shown and labelled
+(`Created`/`Updated`, table columns at `md:`/`lg:`, labelled rows on the
+narrow card) rather than one bare, nameless date. A `Copy selected` bulk
+action duplicates the ticked rows - a `POST` carrying each one's own `data`
+with `status` and `slugs` both left out of the body on purpose, so a copy is
+always a draft with no address in any language and never fights the
+original for a slug neither of them chose (see #136 for the Preview control
+drawn alongside it, which needs backend work this did not). And a click
+anywhere in a table row, or anywhere on a narrow card, that is not one of
+that row's own controls now toggles selection - `clickedControl()` is the
+one guard both layouts share, so a click on the checkbox, Edit, Preview or a
+reorder arrow still does only that control's own job.
+
+Twenty new tests, all confirmed to fail against the pre-change code first.
+One real bug found in the process, in the test file rather than the
+component: the narrow-screen `describe`'s own `afterEach` resetting
+`window.matchMedia` was scoped to that one block, so a stub it left behind
+could leak into whichever `describe` ran next and silently flip that one
+from the table to the card depending on file order. Moved to a file-scoped
+`afterEach`.
+
+### 136. Preview is drawn and waiting on one line of PHP
+
+`RowActions` (`EntriesTable.jsx`) draws a disabled Preview button between the
+reorder arrows and Edit, `ExternalLink` icon, accessible name
+`Preview — not wired yet` - the same idiom the two disabled bulk-publish
+controls have used since #117. It cannot do anything yet because opening
+`/{lang}/{module-slug}/{entry-slug}` needs that entry's own slugs, and
+`EntryController::index` never loads them - `show()` calls
+`->load('slugs')`, `index()` does not.
+
+**What turns it on**: `index()` needs `->with('slugs')` (or `withSlugs()`,
+which `Entry` already defines for the public side) added to its query, so
+each row in the paginated response carries its `slugs` array the way `show()`
+already does. The panel side is then reading `entry.slugFor
+(currentLangCode)` and `module.slugs` (already loaded, per `lib/modules.js`)
+for the module's own segment, composing the two into a link, and swapping
+`disabled` for a real `href` opening in a new tab. Nothing about the button
+itself needs to change - only what it is given to work with.
+
 ### 135. The narrow entry card stacked a label above its value for no reason — DONE (CHANGELOG §57)
 
 One instruction left over from #133: `title` and its value each had their own

@@ -226,7 +226,7 @@ both — write `t('…')` literally, as `FIELD_TYPE_LABELS` does.
 
 ```bash
 php artisan test                    # 531 tests
-npm test                            # 818 tests
+npm test                            # 832 tests
 npm run build
 php artisan schema:sync-field-types # after changing field type constants
 php artisan pages:warm              # bake the public site to files (#97) - THE DEPLOY STEP
@@ -297,7 +297,20 @@ Started from a repo that would not boot (eight files of merge conflicts).
 Worked through a prioritised list; every item is either done or recorded in
 `CHANGELOG.md` with its reasoning.
 
-- **531 PHP tests, 818 JS tests**, all passing. Build clean.
+- **531 PHP tests, 832 JS tests**, all passing. Build clean.
+- **#137, four more entries-screen reports, is DONE** (CHANGELOG §58) — both
+  of an entry's dates are now shown and labelled (`Created`/`Updated`), not
+  one bare and nameless. `Copy selected` duplicates the ticked rows via a
+  `POST` carrying each one's own `data` with `status` and `slugs` both left
+  out on purpose, so a copy is always a draft with no address in any
+  language. A click anywhere in a row (desktop) or a card (mobile) that is
+  not one of its own controls now toggles selection, the same action the
+  checkbox performs from a target the width of the screen rather than
+  sixteen pixels — `clickedControl()` is the one guard both layouts share.
+  **#136, a Preview control, is drawn and disabled** next to Edit
+  (`Preview — not wired yet`) — it needs `EntryController::index` to load
+  `slugs` before it can open an entry's public page, which `show()` already
+  does and `index()` does not; one line of PHP, not done this pass.
 - **#135, the narrow entry card's field layout, is DONE** (CHANGELOG §57) —
   a label stacked above its value spent two lines on a fact most schemas
   answer in a word or two. `flex flex-wrap items-baseline` puts `title:`

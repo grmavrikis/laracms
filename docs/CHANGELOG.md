@@ -5978,3 +5978,104 @@ than being crushed beside the label, and the desktop table at 1100px is
 unaffected - the label/value layout only exists below 640px.
 
 531 PHP tests, 818 JS tests, build clean.
+
+---
+
+## 58. A second date, a drawn Preview, a bulk Copy, and a bigger checkbox
+
+Four reports at once, all about the entries screen.
+
+### The date had no name, and only one of two
+
+The table's one date column read as a bare number under a header that said
+nothing about which of an entry's two real dates it was - `created_at` had
+been the only one shown since the column existed, with nothing to say so.
+**Both are shown now**, each under its own header - `Created` at `md:`,
+`Updated` at `lg:`, so a medium screen keeps one and a wide one gets both
+rather than the table growing wider than the schema alone already made it.
+The narrow card, which lost its column headers along with the table back in
+§56, gets the same two lines explicitly labelled instead of the one bare,
+nameless date it drew before.
+
+### Preview, drawn and disabled rather than left out
+
+Asked for alongside Edit. It cannot open anything yet: the public address of
+one entry - `/{lang}/{module-slug}/{entry-slug}` - needs that entry's own
+slugs, and `EntryController::index` has never loaded them (`show()` does,
+`index()` does not). Rather than build it against data the list does not
+have, or skip it and leave the row looking unfinished, it is drawn exactly
+where it will live - between the reorder arrows and Edit, an `ExternalLink`
+icon - and disabled with its reason in its own accessible name
+(`Preview — not wired yet`), the same idiom already carrying the two disabled
+bulk-publish controls since #117. `TASKS.md` #136 names the one line of PHP
+this is waiting on.
+
+### Copy, actually wired - because nothing about it needed to wait
+
+Unlike Preview, a duplicate needs no address of its own to be created: a
+`POST` carrying an existing row's `data`, the same shape the create form
+already sends, with **`status` and `slugs` both left out of the body on
+purpose** - the column's own default (`draft`) applies when `status` is
+absent, and `EntryController::syncSlugs` never writes a row unless the
+`slugs` key is present at all. A copy is therefore always a draft and always
+without an address in any language, so two entries never end up fighting
+over a slug the client never chose for either of them. `bulk.js`'s
+`BULK_REQUESTS` gains a `copy` entry that reads the loaded `entries` array to
+find the row by id - the one bulk action that needs more than the id alone,
+since `delete` never had to look at what it was deleting. No confirmation
+step: unlike delete, nothing existing is touched.
+
+### The checkbox was a small target; the row and the card are the target now
+
+A click anywhere in a table row, or anywhere on a narrow card, that is **not**
+one of that row's own controls now toggles selection - the same action the
+checkbox already performs, reached from a target the width of the screen
+rather than sixteen pixels. `clickedControl()` is the one check both the row
+and the card handler share: `event.target.closest('input, button, a,
+select, textarea')` - a click that lands on the checkbox, Edit, Preview or a
+reorder arrow does only that control's own job, because the row/card handler
+declines to also fire for it. Without that guard a click on the checkbox
+would have toggled the tick twice - once from its own `onChange`, once from
+the row it bubbles through - and cancelled itself out.
+
+### Checked
+
+Twenty new assertions across `EntriesTable.test.jsx` and `bulk.test.js`, all
+confirmed to fail for the right reason against the pre-change code first (a
+real `git stash` on each component, not an inline mutation) before being
+trusted:
+
+- both dates named under their own header in the table, and both labelled on
+  the narrow card;
+- Preview present next to Edit on both layouts, disabled, its accessible name
+  containing "not wired yet";
+- `bulk.js`'s `copy` posts the ticked row's own `data`, with neither `status`
+  nor `slugs` in the body, matched by id as a string the same way the
+  checkbox itself does;
+- `Copy selected` present and not disabled, firing at once with no
+  confirmation, unlike Delete;
+- a click on a non-control part of a row or card toggles selection exactly
+  once; a click on the checkbox, Edit or a reorder arrow does not also
+  toggle it a second time.
+
+**One real bug found while writing the click tests, in the test file rather
+than the component**: the narrow-screen `describe` block's `afterEach` that
+resets `window.matchMedia` was scoped to that one `describe`, so a stub left
+behind by its last test could leak into whichever `describe` ran next in the
+file - silently switching *that* block's tests from the table to the card
+depending on file order rather than on what each test itself asked for. Three
+of this change's own new tests actually hit it, failing with "no row found"
+because the table they expected had quietly become a card stack. Moved to a
+file-scoped `afterEach` so every test cleans up after itself regardless of
+which `describe` it sits in.
+
+Verified live: copied a Rooms entry through the real bulk bar and confirmed
+the duplicate by reading it back over the API (`status: draft`, no `slugs`
+row), then deleted it again as a diagnostic artefact rather than sample data.
+Clicked a table cell and a card's own field text with `element.click()` and
+confirmed the right checkbox ticked after a moment for React to re-render -
+an immediate synchronous read after the click was still holding the
+pre-click value, which is a timing artefact of the test method rather than
+anything the app got wrong. Checked in both themes.
+
+531 PHP tests, 832 JS tests, build clean.

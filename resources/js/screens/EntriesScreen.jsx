@@ -113,15 +113,16 @@ export default function EntriesScreen({ module }) {
     /**
      * One action, applied to every ticked entry (#117 item 19).
      *
-     * **Delete only, and that is deliberate.** `DELETE` needs no body, so it is
-     * n requests and no new PHP - the same rule that kept the dashboard's
-     * counts real. Publishing in bulk would need `PUT { status }` to be
-     * accepted, and `SchemaRuleBuilder::build()` hard-codes `data` as
-     * `required` for both entry requests, so it answers 422 with *The data
-     * field is required*. Posting the whole document back instead would re-post
-     * everything the listing happened to be holding, which is #86's defect
-     * pointing the other way. Those two controls are drawn, disabled and
-     * explained in `EntriesTable`.
+     * **`delete` and `copy`, and no others, deliberately.** Both need no more
+     * than `store()`/`destroy()` already accept, so they are n requests and no
+     * new PHP - the same rule that kept the dashboard's counts real. Publishing
+     * in bulk would need `PUT { status }` to be accepted, and
+     * `SchemaRuleBuilder::build()` hard-codes `data` as `required` for both
+     * entry requests, so it answers 422 with *The data field is required*.
+     * Posting the whole document back instead would re-post everything the
+     * listing happened to be holding, which is #86's defect pointing the other
+     * way. Those two controls are drawn, disabled and explained in
+     * `EntriesTable`.
      *
      * The listing endpoint is the other thing that cannot help - it takes a
      * page and nothing else - which is why sort and filter are marked too.
@@ -130,8 +131,9 @@ export default function EntriesScreen({ module }) {
         setBulkError(null);
 
         // Throws for an action it does not know, rather than returning quietly
-        // - the rule `app.jsx` settled for the route table.
-        const result = await applyToEach(ids, bulkRequest(action, api, module.slug));
+        // - the rule `app.jsx` settled for the route table. `entries` is only
+        // read by `copy`, which needs a row's own `data` to duplicate it.
+        const result = await applyToEach(ids, bulkRequest(action, api, module.slug, entries));
         const summary = bulkSummary(result);
 
         if (summary) {
