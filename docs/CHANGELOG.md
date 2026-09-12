@@ -5366,3 +5366,72 @@ confirms the ordinary close still fires afterwards, from the same pointer
 actually leaving.
 
 531 PHP tests, 791 JS tests, build clean.
+---
+
+## 49. A click still flickered, and its colour still lagged
+
+Not closing the flyout on navigation (§48) was not the end of it either. The
+owner described a plain click on a hovered row two ways: a brief flicker
+during the press itself, and then, after release, the flyout going on showing
+its *unselected* colour - correct only after moving the mouse away and back.
+
+### The flicker: a click focuses the row it lands on
+
+Clicking a link moves focus to it in most browsers - the mousedown that starts
+a click does this before the click event itself fires. `SidebarLink` wires
+both a hover and a focus to the same open, for the keyboard's sake, and the two
+sit right next to each other on a click: `mouseenter` opens the flyout, and the
+focus that follows a few milliseconds later opens it **again**, for the exact
+same row.
+
+`openFlyout` did not know the difference between that and a genuinely new row.
+Every call ran the same sequence - `setShow(false)`, then two nested
+`requestAnimationFrame`s to raise it again - so the second call cut the label
+to invisible for a frame before the browser had a chance to paint the two
+`raf`s' result, which is a real flicker with nothing behind it worth
+transitioning through.
+
+Fixed with an `openElement` ref recording which row's DOM node currently owns
+the flyout. A second open for that same element merges its (possibly updated)
+label and colour into the existing state without touching `show` at all; only
+an open for a *different* element restarts the entrance.
+
+### The colour: nothing ever told the flyout it had just been chosen
+
+`flyout.active` was set once, from the row's `active` prop at the moment the
+hover that opened it began - `false`, since the row was not yet the current
+screen. Clicking it changed the *route*, which by §48 no longer closes the
+flyout, and nothing else was watching to update that stored value. The row
+underneath finished its own `transition-colors` into `bg-accent` invisibly,
+hidden under an opaque box with no reason to reopen, and the box went on
+answering `false` until the reader moved away and back - a fresh hover being
+the only thing that ever asked again.
+
+`activateFlyout()` answers this directly: `SidebarLink` calls it at the moment
+a row is navigated, alongside the actual `onNavigate`, because clicking a link
+in this rail *is* choosing it - there is no route to consult, and no reason to
+wait for one to change. The flyout's background now also transitions on that
+change (`transition-[opacity,background-color,color]`, one rule for all three),
+so the colour slides into `bg-accent` rather than snapping.
+
+### Checked
+
+Two tests. One hovers a row, waits (via `waitFor`, polling rather than a fixed
+sleep - the entrance is driven by `requestAnimationFrame`, and how many
+milliseconds that actually takes is not this test's business to assert) for
+the entrance to finish, then fires a `focus` on the same element and asserts
+the class **synchronously**, with no wait at all: an unguarded second open
+would have written `opacity-0` before either `raf` had a chance to run, which
+is exactly the frame this catches. The other clicks a hovered row and asserts
+`bg-accent` appears without ever leaving.
+
+Verified live with genuine clicks through the automation backend rather than
+dispatched events, since a script-dispatched `MouseEvent` does not carry a
+browser's default actions (`isTrusted` is `false`, and a manually constructed
+one is not `cancelable` unless told to be, so `preventDefault()` inside `Link`
+does nothing and the anchor's real `href` takes over - found by watching a
+scripted click cause an actual page navigation mid-test). A real click showed
+the flyout going straight from its unselected grey to `bg-accent` with no
+further interaction, on three different rows.
+
+531 PHP tests, 793 JS tests, build clean.

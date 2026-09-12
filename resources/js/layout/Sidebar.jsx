@@ -86,7 +86,7 @@ const writeCollapsed = (collapsed) => {
  * readers, and one CSS change away from nothing at all. The name is text now,
  * and hidden with `sr-only`, which is what the flyout in `Sidebar` reveals.
  */
-function SidebarLink({ href, icon: Icon, letter, label, active, collapsed, nested, onNavigate, onFlyout }) {
+function SidebarLink({ href, icon: Icon, letter, label, active, collapsed, nested, onNavigate, onFlyout, onActivate }) {
     // Only while narrow. At full width the label is right there, and a flyout
     // repeating a word the reader is already looking at is noise. The letter
     // never travels into it - a module has no icon, and the whole point of the
@@ -100,11 +100,19 @@ function SidebarLink({ href, icon: Icon, letter, label, active, collapsed, neste
         }
         : {};
 
+    // Clicking a row *is* choosing it - told to the flyout directly, rather
+    // than waiting for the route to say so once navigation settles, because
+    // nothing else was going to ask again while the pointer stayed put.
+    const handleNavigate = () => {
+        if (collapsed) onActivate?.();
+        onNavigate?.();
+    };
+
     return (
         <li>
             <Link
                 href={href}
-                onNavigate={onNavigate}
+                onNavigate={handleNavigate}
                 // `page` rather than `true`: this is the address on show, which
                 // is what a screen reader announces as the current location.
                 aria-current={active ? 'page' : undefined}
@@ -221,6 +229,15 @@ export default function Sidebar({ open = false, onClose }) {
     // scheduled unmount arrive after the new one has already opened.
     const closeTimer = useRef(null);
 
+    // Which row's element currently owns the flyout, so a second open for the
+    // *same* row can be told apart from a genuinely new one. Clicking a link
+    // focuses it in most browsers - the mousedown that starts a click moves
+    // focus there before the click itself fires - and this component wires
+    // both a hover and a focus to the same open, for the keyboard's sake. Sat
+    // beside each other, hovering then clicking the same row fires open
+    // twice, a few milliseconds apart, for the one row.
+    const openElement = useRef(null);
+
     const viewLangCode = contentLangCode(languages, locale);
 
     /**
@@ -248,8 +265,17 @@ export default function Sidebar({ open = false, onClose }) {
      * the flyout vanished in the same frame the clicked row's own background
      * began sliding into `bg-accent`, so a smooth colour change sat right next
      * to a hard cut a few pixels away. Now both are the same kind of motion.
+     *
+     * **Opening what is already open updates it in place, rather than
+     * restarting the entrance.** Without `openElement`, the focus a click
+     * moves onto an already-hovered row called this a second time - same
+     * label, same element - and `setShow(false)` at the top of it dropped the
+     * box to invisible for one frame before the two `raf`s brought it back,
+     * which is a flicker with no state actually worth transitioning through.
+     * A second open for the same row now only refreshes its position.
      */
     const closeFlyout = useCallback(() => {
+        openElement.current = null;
         setShow(false);
         clearTimeout(closeTimer.current);
         closeTimer.current = setTimeout(() => setFlyout(null), FLYOUT_CLOSE_MS);
@@ -264,6 +290,13 @@ export default function Sidebar({ open = false, onClose }) {
             return;
         }
 
+        if (openElement.current === element) {
+            setFlyout((previous) => (previous ? { ...previous, ...meta } : previous));
+
+            return;
+        }
+
+        openElement.current = element;
         setFlyout({ ...meta, rect: element.getBoundingClientRect() });
         setShow(false);
 
@@ -275,6 +308,23 @@ export default function Sidebar({ open = false, onClose }) {
             requestAnimationFrame(() => setShow(true));
         });
     }, [closeFlyout]);
+
+    /**
+     * Told directly, at the moment a row is clicked, that it is about to
+     * become the active one - clicking a nav row *is* choosing it, so this
+     * needs no route to consult.
+     *
+     * Without it, `flyout.active` stayed whatever it was when the hover that
+     * opened the box began: `false`, since the row was not the active screen
+     * yet. Nothing after the click ever revisited it - the row underneath
+     * finished its own transition into `bg-accent` invisibly, hidden under an
+     * opaque box that had no reason to open again - so the flyout went on
+     * showing its unselected colour until the reader moved away and back,
+     * which is what re-opened it with a fresh, correct value.
+     */
+    const activateFlyout = useCallback(() => {
+        setFlyout((previous) => (previous ? { ...previous, active: true } : previous));
+    }, []);
 
     // Only widening the rail closes the flyout on its own - the labels are
     // inline once it does, so a floating one left over would duplicate a name
@@ -381,6 +431,7 @@ export default function Sidebar({ open = false, onClose }) {
                         collapsed={rail}
                         onNavigate={() => navigate('dashboard')}
                         onFlyout={openFlyout}
+                        onActivate={activateFlyout}
                     />
                     <SidebarLink
                         href={hrefFor('analytics')}
@@ -390,6 +441,7 @@ export default function Sidebar({ open = false, onClose }) {
                         collapsed={rail}
                         onNavigate={() => navigate('analytics')}
                         onFlyout={openFlyout}
+                        onActivate={activateFlyout}
                     />
                 </Section>
 
@@ -415,6 +467,7 @@ export default function Sidebar({ open = false, onClose }) {
                                 collapsed={rail}
                                 onNavigate={() => navigate('entries', { module: module.slug })}
                                 onFlyout={openFlyout}
+                                onActivate={activateFlyout}
                             />
                         );
                     })}
@@ -435,6 +488,7 @@ export default function Sidebar({ open = false, onClose }) {
                         collapsed={rail}
                         onNavigate={() => navigate('enquiries')}
                         onFlyout={openFlyout}
+                        onActivate={activateFlyout}
                     />
                     <SidebarLink
                         href={hrefFor('modules')}
@@ -444,6 +498,7 @@ export default function Sidebar({ open = false, onClose }) {
                         collapsed={rail}
                         onNavigate={() => navigate('modules')}
                         onFlyout={openFlyout}
+                        onActivate={activateFlyout}
                     />
                     <SidebarLink
                         href={hrefFor('settings')}
@@ -453,6 +508,7 @@ export default function Sidebar({ open = false, onClose }) {
                         collapsed={rail}
                         onNavigate={() => navigate('settings')}
                         onFlyout={openFlyout}
+                        onActivate={activateFlyout}
                     />
                 </Section>
             </nav>
@@ -479,7 +535,13 @@ export default function Sidebar({ open = false, onClose }) {
                 rather than both snapping in together. No icon travels into
                 the box for a module row (`Icon` is undefined there), which is
                 the whole point: the initial is what the flyout replaces, not
-                what it repeats beside the name. */}
+                what it repeats beside the name.
+
+                **The background transitions too, not only the opacity** -
+                `activateFlyout` flips `flyout.active` the instant a row is
+                clicked, so the box slides from its unselected colour into
+                `bg-accent` right then, rather than sitting stale until the
+                pointer leaves and returns. */}
             {flyout && createPortal(
                 <div
                     id={FLYOUT_ID}
@@ -490,7 +552,7 @@ export default function Sidebar({ open = false, onClose }) {
                         height: flyout.rect.height,
                         maxWidth: Math.min(FLYOUT_MAX_WIDTH, window.innerWidth - flyout.rect.left - 16),
                     }}
-                    className={`pointer-events-none fixed z-50 flex items-center gap-3 overflow-hidden whitespace-nowrap rounded-lg px-3 transition-opacity duration-100 ease-out motion-reduce:transition-none ${
+                    className={`pointer-events-none fixed z-50 flex items-center gap-3 overflow-hidden whitespace-nowrap rounded-lg px-3 transition-[opacity,background-color,color] duration-100 ease-out motion-reduce:transition-none ${
                         show ? 'opacity-100' : 'opacity-0'
                     } ${
                         flyout.active

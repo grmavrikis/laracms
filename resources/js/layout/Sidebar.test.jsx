@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, within, fireEvent, waitForElementToBeRemoved } from '@testing-library/react';
+import { render, screen, within, fireEvent, waitFor, waitForElementToBeRemoved } from '@testing-library/react';
 import Sidebar from './Sidebar';
 import { RouterProvider } from '../hooks/useRoute';
 import { forgetModules } from '../lib/moduleStore';
@@ -230,5 +230,54 @@ describe('the rail, collapsed to 68px', () => {
         // It still answers to the pointer actually leaving, same as ever.
         fireEvent.mouseLeave(row);
         await waitForElementToBeRemoved(() => document.getElementById('rail-flyout'));
+    });
+
+    // Clicking a link focuses it in most browsers - the mousedown a click
+    // starts moves focus there before the click itself fires - and this rail
+    // wires both a hover and a focus to the same open, for the keyboard's
+    // sake. Sat right next to each other on an already-hovered row, that is a
+    // second open arriving a few milliseconds after the first, for the exact
+    // same element.
+    it('does not restart its entrance when a click focuses a row it is already open for', async () => {
+        draw({ collapsed: true });
+        const row = await rooms();
+
+        fireEvent.mouseEnter(row);
+
+        // Let the entrance actually settle before the second open arrives -
+        // this is what the raw `false` written by an unguarded second open
+        // would be interrupting. Polled rather than a fixed sleep: the
+        // entrance is driven by two nested `requestAnimationFrame`s, and how
+        // long those actually take to fire is not this test's business to
+        // guess at.
+        await waitFor(() => {
+            expect(document.getElementById('rail-flyout').className).toContain('opacity-100');
+        });
+
+        fireEvent.focus(row);
+
+        // Checked with no wait at all: a second open treated as brand new
+        // writes `show(false)` synchronously, before the two
+        // `requestAnimationFrame`s that would eventually raise it again ever
+        // run - which is a real, paintable frame of the label vanishing. This
+        // is the instant that frame would show up in.
+        expect(document.getElementById('rail-flyout').className).toContain('opacity-100');
+    });
+
+    // Root cause of the "stale colour" the owner described: `flyout.active`
+    // was whatever the row's `active` prop was at the moment the hover that
+    // opened the box began - `false`, since the row was not yet the current
+    // screen - and nothing ever revisited it once the click that changed that
+    // had fired.
+    it('recolours as active the instant the row is clicked, not on the next hover', async () => {
+        draw({ collapsed: true });
+        const row = await rooms();
+
+        fireEvent.mouseEnter(row);
+        expect(document.getElementById('rail-flyout').className).toContain('bg-sidebar-hover');
+
+        fireEvent.click(row);
+
+        expect(document.getElementById('rail-flyout').className).toContain('bg-accent');
     });
 });

@@ -1251,6 +1251,25 @@ migrations, so a choice follows the person to their second **tab** rather than
 their second machine. Two columns and a save; the panel's own half already
 resolves both against an allow-list before applying them.
 
+### 127. A click on the flyout still flickered, and its colour still lagged — DONE (CHANGELOG §49)
+
+Not closing on navigation (#126) was not the end of it. Two things left,
+described by the owner as a small flicker during the press and a stale colour
+after release.
+
+The flicker: clicking a link focuses it in most browsers, a few milliseconds
+after the hover that already opened the flyout - the same open running twice
+for one row, each time resetting the entrance to invisible before its two
+`requestAnimationFrame`s could raise it again. Fixed by tracking which element
+currently owns the flyout, so a second open for the same one merges in place
+rather than restarting.
+
+The colour: `flyout.active` was set once at hover-time, before the click that
+would make the row actually current. Nothing revisited it afterwards - the
+route no longer closes the flyout, and the row's own transition into
+`bg-accent` ran invisibly underneath. Fixed with an explicit `activateFlyout()`
+called at the moment of navigating, since a click on this rail *is* the choice.
+
 ### 126. Closing the rail's flyout on a click still wasn't smooth — DONE (CHANGELOG §48)
 
 The fade added for #124 fixed the abrupt cut, and the owner still saw something

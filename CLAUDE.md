@@ -226,7 +226,7 @@ both — write `t('…')` literally, as `FIELD_TYPE_LABELS` does.
 
 ```bash
 php artisan test                    # 531 tests
-npm test                            # 791 tests
+npm test                            # 793 tests
 npm run build
 php artisan schema:sync-field-types # after changing field type constants
 php artisan pages:warm              # bake the public site to files (#97) - THE DEPLOY STEP
@@ -297,7 +297,14 @@ Started from a repo that would not boot (eight files of merge conflicts).
 Worked through a prioritised list; every item is either done or recorded in
 `CHANGELOG.md` with its reasoning.
 
-- **531 PHP tests, 791 JS tests**, all passing. Build clean.
+- **531 PHP tests, 793 JS tests**, all passing. Build clean.
+- **#127, a click on the flyout still flickered, is DONE** (CHANGELOG §49) —
+  clicking a link focuses it in most browsers, a beat after the hover that
+  already opened the flyout, and the same open running twice for one row
+  restarted its entrance. Fixed by tracking which element owns it, so a repeat
+  open for the same one merges in place. Its colour was also frozen at
+  hover-time, correct only after a fresh hover; `activateFlyout()` now updates
+  it the instant a row is clicked, since a click on this rail *is* the choice.
 - **#126, the rail's flyout on click, is DONE** (CHANGELOG §48) — closing it on
   a route change raced the clicked row's own colour transition into
   `bg-accent`, two motions of different lengths on the same pixels. Fixed by
