@@ -5435,3 +5435,83 @@ the flyout going straight from its unselected grey to `bg-accent` with no
 further interaction, on three different rows.
 
 531 PHP tests, 793 JS tests, build clean.
+---
+
+## 50. The flyout's own hit-area was narrower than what it showed
+
+Three more reports, described precisely: a flicker on a plain press before
+release; a wrong colour flashing briefly while the pointer crossed from an
+active row to an inactive one; and a label a mouse could not click all the way
+along, losing hover near the end of a visible word.
+
+### The row was always 44px, however wide the label grew
+
+The third report is the one with a plain, checkable cause. The flyout is
+**portalled**, positioned over the row, and until now carried
+`pointer-events-none` - it was painted to be looked at, not touched. The row
+underneath stayed exactly 44px wide even once the box beside it had grown to
+show a name like *Facilities*. A mouse aimed at the middle of the visible word
+was, for most of that word's width, past the real row's edge entirely -
+resting on whatever the sidebar happens to sit over, not on anything that
+keeps the flyout open. That is why the label could not be clicked along its
+whole length, and it is the same boundary the other two reports sit on: it ran
+well inside text that reads as one solid, hoverable pill.
+
+### The fix makes the flyout itself the thing being hovered
+
+It is a real `Link` now, reusing the row's own `href` and navigate callback
+rather than inventing a second way to reach the same place - `aria-hidden`
+stays, paired with `tabIndex={-1}` so a real `<a href>`, which is focusable by
+default, does not become a second, silent stop a screen reader skips and a
+keyboard can still land on. Its own `onMouseEnter` cancels whatever close the
+row's leave scheduled; its own `onMouseLeave` schedules one exactly as the row
+does. Moving from the icon onto the full width of the name it grew into is now
+one continuous hover, covered by two elements instead of contained by one.
+
+**A short grace period, not zero, sits under the hand-off.** Leaving the row
+and entering the flyout are two separate elements' events, not one state
+inside a single one, and reacting to the leave the instant it arrives cannot
+know whether the flyout's own enter is a moment behind it. `FLYOUT_LEAVE_GRACE_MS`
+(50ms) is what gives that a window to arrive and cancel the close before
+anything closes visibly - tried at zero first, which assumed the two always
+land in the same tick, a guarantee nothing here actually gives.
+
+### What this changes about the other two reports
+
+Reports one and two were never fully pinned to a single, provable mechanism -
+a live probe run for this section (inserting a `pointer-events: auto` overlay
+over a genuinely hovered row and watching for a synthetic `mouseout`) did not
+reproduce one on demand, so a specific browser-internal cause is not claimed.
+What is true regardless: the interactive boundary sat *inside* visible,
+inviting-looking text, well within the ordinary wobble of a real hand doing
+anything near it - clicking, or simply passing across it toward an adjacent
+row - and that is now the flyout's own edge, considerably further out. The
+grace period added alongside it is a defensive margin for the hand-off this
+item is actually about, not a claim about what was causing the other two.
+
+### Checked
+
+Two new tests, alongside the two the previous section already had. One drives
+the exact hand-off: hover the row, let the entrance settle, leave the row and
+enter the flyout, and confirm it is still open and fully visible **250ms**
+later - past both the grace period and the close delay that would otherwise
+have removed it. The other confirms the flyout is a real anchor and that
+clicking it lands on the same address the row's own click does. Both fail
+against the code without this change - the first because the row's leave was
+never cancelled, the second because there was nothing to click.
+
+One existing test needed correcting rather than merely updating: it asserted
+`opacity-0` immediately after `mouseLeave` and passed - but only because the
+entrance had not yet had a chance to finish, so the box was already at
+`opacity-0` for a reason that had nothing to do with leaving. Rewritten to
+let the entrance settle first, so the assertion means what it says.
+
+**Live verification of the hover hand-off itself was inconclusive**, and that
+is recorded rather than papered over. The Browser pane's coordinate mapping for
+this specific rail could not be made to land reliably on an intended row this
+session, across three viewport sizes and both ref- and coordinate-based
+targeting - confirmed structurally instead (a real `<a>` of the right size in
+the right place) and via the mutation-tested unit tests above, which exercise
+the same code without depending on pixel-perfect automation.
+
+531 PHP tests, 795 JS tests, build clean.

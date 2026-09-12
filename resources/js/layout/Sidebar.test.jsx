@@ -168,19 +168,29 @@ describe('the rail, collapsed to 68px', () => {
         const row = await rooms();
 
         fireEvent.mouseEnter(row);
+
+        // Let the entrance genuinely finish first - checking straight after
+        // `mouseLeave` with no entrance to interrupt proves nothing, since a
+        // box that has not yet faded *in* already reads `opacity-0` for a
+        // reason that has nothing to do with leaving.
+        await waitFor(() => {
+            expect(document.getElementById('rail-flyout').className).toContain('opacity-100');
+        });
+
         fireEvent.mouseLeave(row);
 
-        // Still in the document immediately after `mouseLeave`, and already
-        // carrying the class that starts its fade - closing plays the same
-        // transition backwards rather than unmounting on the spot. Clicking a
-        // row used to cut straight to unmount, right as the clicked row's own
-        // background began sliding smoothly into `bg-accent`, so a fade sat
-        // next to a hard cut a few pixels away.
-        const flyout = document.getElementById('rail-flyout');
+        // Still fully visible right after - a leave gets a short grace period
+        // before it is believed (`FLYOUT_LEAVE_GRACE_MS`), which is what
+        // survives the browser's own hover recalculation the instant the
+        // flyout itself appears on top of the row it describes.
+        expect(document.getElementById('rail-flyout').className).toContain('opacity-100');
 
-        expect(flyout).not.toBeNull();
-        expect(flyout.className).toContain('opacity-0');
+        // Once that grace period has passed, the fade genuinely starts...
+        await waitFor(() => {
+            expect(document.getElementById('rail-flyout').className).toContain('opacity-0');
+        });
 
+        // ...and the box is gone once it has had time to finish.
         await waitForElementToBeRemoved(() => document.getElementById('rail-flyout'));
     });
 
@@ -279,5 +289,49 @@ describe('the rail, collapsed to 68px', () => {
         fireEvent.click(row);
 
         expect(document.getElementById('rail-flyout').className).toContain('bg-accent');
+    });
+
+    // The row underneath is 44px wide even once the flyout has grown to show
+    // a name like "Facilities" - so a mouse resting on the *visible* label,
+    // past that 44px, is not resting on the row at all. Moving there must not
+    // read as leaving.
+    it('stays open when the pointer moves onto the flyout itself, not just the narrow row', async () => {
+        draw({ collapsed: true });
+        const row = await rooms();
+
+        fireEvent.mouseEnter(row);
+        await waitFor(() => {
+            expect(document.getElementById('rail-flyout').className).toContain('opacity-100');
+        });
+
+        // The row genuinely left, as it does the instant a mouse crosses from
+        // the icon onto the wider, visible part of the label.
+        fireEvent.mouseLeave(row);
+        fireEvent.mouseEnter(document.getElementById('rail-flyout'));
+
+        // Past both the leave's own grace period and the close delay it would
+        // otherwise have scheduled - still here, because the flyout's own
+        // hover cancelled it.
+        await new Promise((resolve) => { setTimeout(resolve, 250); });
+        expect(document.getElementById('rail-flyout')).not.toBeNull();
+        expect(document.getElementById('rail-flyout').className).toContain('opacity-100');
+    });
+
+    // The whole point of extending the hover zone: a visible label a mouse
+    // cannot act on is worse than a narrow one, since it looks clickable and
+    // is not. The flyout is a real `Link`, reusing the row's own address and
+    // navigate callback rather than inventing a second way to get there.
+    it('is itself clickable, reaching the same place the row does', async () => {
+        draw({ collapsed: true });
+        const row = await rooms();
+
+        fireEvent.mouseEnter(row);
+
+        const flyout = document.getElementById('rail-flyout');
+
+        expect(flyout.tagName).toBe('A');
+        fireEvent.click(flyout);
+
+        expect(window.location.pathname).toBe('/admin/content/rooms');
     });
 });

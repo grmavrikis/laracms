@@ -1251,6 +1251,25 @@ migrations, so a choice follows the person to their second **tab** rather than
 their second machine. Two columns and a save; the panel's own half already
 resolves both against an allow-list before applying them.
 
+### 128. The flyout's own hit-area was narrower than what it showed — DONE (CHANGELOG §50)
+
+The row stayed 44px wide even once the flyout beside it had grown to show a
+name like *Facilities* - so a mouse aimed at the middle of the visible label
+was, for most of its width, past the real row's edge and on whatever the
+sidebar sits over. That is why the label could not be clicked along its whole
+length, and it is the boundary reports of a flicker on press and a wrong
+colour flashing between rows both sat on too, though neither was pinned to one
+provable cause - a live probe for a browser-internal hover recalculation did
+not reproduce one on demand.
+
+Fixed by making the flyout a real `Link`, reusing the row's own address and
+navigate callback, with its own `onMouseEnter`/`onMouseLeave` extending the
+same open/close state the row's do - `aria-hidden` plus `tabIndex={-1}`, since
+a real `<a href>` is focusable by default and a hidden-but-reachable element is
+the anti-pattern that pairing exists to avoid. A short grace period
+(`FLYOUT_LEAVE_GRACE_MS`) gives the flyout's own enter a window to cancel the
+row's leave before either closes anything.
+
 ### 127. A click on the flyout still flickered, and its colour still lagged — DONE (CHANGELOG §49)
 
 Not closing on navigation (#126) was not the end of it. Two things left,

@@ -226,7 +226,7 @@ both — write `t('…')` literally, as `FIELD_TYPE_LABELS` does.
 
 ```bash
 php artisan test                    # 531 tests
-npm test                            # 793 tests
+npm test                            # 795 tests
 npm run build
 php artisan schema:sync-field-types # after changing field type constants
 php artisan pages:warm              # bake the public site to files (#97) - THE DEPLOY STEP
@@ -297,7 +297,16 @@ Started from a repo that would not boot (eight files of merge conflicts).
 Worked through a prioritised list; every item is either done or recorded in
 `CHANGELOG.md` with its reasoning.
 
-- **531 PHP tests, 793 JS tests**, all passing. Build clean.
+- **531 PHP tests, 795 JS tests**, all passing. Build clean.
+- **#128, the flyout's hit-area, is DONE** (CHANGELOG §50) — the row stayed
+  44px wide even once the flyout beside it grew to show a name, so a mouse
+  aimed at the visible label was past the real row's edge for most of its
+  width. Fixed by making the flyout a real `Link` sharing the row's address,
+  with its own hover extending the same open/close state. Reports of a
+  press-flicker and a wrong colour flashing between rows sat on the same
+  boundary but were not pinned to one cause — a live probe for a browser-
+  internal hover recalculation did not reproduce one on demand, recorded as
+  such rather than claimed.
 - **#127, a click on the flyout still flickered, is DONE** (CHANGELOG §49) —
   clicking a link focuses it in most browsers, a beat after the hover that
   already opened the flyout, and the same open running twice for one row

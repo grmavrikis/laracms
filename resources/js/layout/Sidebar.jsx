@@ -50,6 +50,24 @@ const FLYOUT_MAX_WIDTH = 224;
 const FLYOUT_CLOSE_MS = 120;
 
 /**
+ * A short grace period before a "leave" is treated as real, so a genuine hand-
+ * off has time to complete before anything closes.
+ *
+ * The flyout now sits on top of the row that opened it as its own, separate,
+ * interactive element - so moving from "hovering the row" to "hovering the
+ * flyout" is a leave on one element followed by an enter on another, not one
+ * continuous state inside a single one. Reacting to the leave the instant it
+ * arrives cannot know yet whether the flyout's own enter is a moment behind
+ * it; this delay is what gives it room to arrive and cancel the close (via
+ * the same `clearTimeout` an open already does) before anything visible
+ * happens. Tried at zero first, on the assumption the two would always land
+ * in the same tick - not verified true for every path a real hand can take
+ * between them, so the margin stays rather than a bug depending on it being
+ * one.
+ */
+const FLYOUT_LEAVE_GRACE_MS = 50;
+
+/**
  * Guarded, like the theme's: a browser set to block site data throws on access
  * rather than answering null, and a rail that will not render is worse than one
  * that forgets how wide it was.
@@ -93,8 +111,8 @@ function SidebarLink({ href, icon: Icon, letter, label, active, collapsed, neste
     // flyout is to say the name once, not the initial and then the name.
     const flyoutHandlers = collapsed && onFlyout
         ? {
-            onMouseEnter: (event) => onFlyout({ label, active, Icon }, event.currentTarget),
-            onFocus: (event) => onFlyout({ label, active, Icon }, event.currentTarget),
+            onMouseEnter: (event) => onFlyout({ label, active, Icon, href, onNavigate }, event.currentTarget),
+            onFocus: (event) => onFlyout({ label, active, Icon, href, onNavigate }, event.currentTarget),
             onMouseLeave: () => onFlyout(null),
             onBlur: () => onFlyout(null),
         }
@@ -275,10 +293,18 @@ export default function Sidebar({ open = false, onClose }) {
      * A second open for the same row now only refreshes its position.
      */
     const closeFlyout = useCallback(() => {
-        openElement.current = null;
-        setShow(false);
         clearTimeout(closeTimer.current);
-        closeTimer.current = setTimeout(() => setFlyout(null), FLYOUT_CLOSE_MS);
+
+        // Nothing here happens synchronously - see `FLYOUT_LEAVE_GRACE_MS`.
+        // `openElement.current` is left exactly as it is until the grace
+        // period actually elapses, so a same-row open arriving during it (the
+        // flyout's own `mouseenter` cancelling this, or a focus racing a
+        // click) still reads as "already open" rather than "new."
+        closeTimer.current = setTimeout(() => {
+            openElement.current = null;
+            setShow(false);
+            closeTimer.current = setTimeout(() => setFlyout(null), FLYOUT_CLOSE_MS);
+        }, FLYOUT_LEAVE_GRACE_MS);
     }, []);
 
     const openFlyout = useCallback((meta, element) => {
@@ -513,18 +539,39 @@ export default function Sidebar({ open = false, onClose }) {
                 </Section>
             </nav>
 
-            {/* `aria-hidden`, because the row it describes already carries the
-                same words as its accessible name and a reader announcing both
-                would say everything twice - the flyout stands in for the rest
-                of the row's own text, not a second control.
+            {/* `aria-hidden` plus `tabIndex={-1}`, because the row behind it
+                already carries the same words as its accessible name and is
+                already reachable by Tab - this is a **mouse-only** duplicate,
+                invisible to a screen reader and skipped in tab order, which is
+                what stops a focusable-but-hidden element becoming a second,
+                silent stop. Aria-hidden alone would not be enough: an
+                `<a href>` is focusable by default, and a hidden thing a
+                keyboard can still land on is the anti-pattern this pairing
+                exists to avoid.
+
+                **It is interactive, not decoration, and that is new.** It used
+                to be `pointer-events-none`, painted over the row only to be
+                looked at - but the row underneath is 44px wide even once the
+                box has grown to show a name like "Facilities", so the last
+                two thirds of what a reader can *see* were never part of what
+                they could *point at*. Aiming for the middle of a visible word
+                landed past the real row's edge, on whatever the sidebar sits
+                over - which is why a mouse could not click through the label
+                it had just been shown, and why the boundary between "hovering
+                the row" and "hovering nothing" sat well inside the visible
+                text, close enough to the everyday wobble of a real hand that
+                the box could flicker shut and reopen on its own. Rendering it
+                as a real `Link` closes both: `onMouseEnter` here cancels
+                whatever close the row's own `onMouseLeave` scheduled, so the
+                hand never has to stay inside 44px, and `onNavigate` performs
+                the exact same navigation the row's click does, reusing its
+                `href` and callback rather than inventing a second way to get
+                there.
 
                 Positioned at the row's own rect and **the same colour it
                 already has**: `bg-accent` for the active row, matching what
                 the owner saw on Dashboard, and `bg-sidebar-hover` for every
-                other one, matching its ordinary `:hover`. The real row is
-                still underneath and still receiving the pointer - this simply
-                paints over it at an identical position, so there is nothing to
-                mismatch.
+                other one, matching its ordinary `:hover`.
 
                 **The box mounts at its finished width and fades in; nothing
                 here animates `max-width`.** The first version did, and seen
@@ -543,16 +590,24 @@ export default function Sidebar({ open = false, onClose }) {
                 `bg-accent` right then, rather than sitting stale until the
                 pointer leaves and returns. */}
             {flyout && createPortal(
-                <div
+                <Link
                     id={FLYOUT_ID}
                     aria-hidden="true"
+                    tabIndex={-1}
+                    href={flyout.href}
+                    onNavigate={() => {
+                        activateFlyout();
+                        flyout.onNavigate?.();
+                    }}
+                    onMouseEnter={() => clearTimeout(closeTimer.current)}
+                    onMouseLeave={closeFlyout}
                     style={{
                         top: flyout.rect.top,
                         left: flyout.rect.left,
                         height: flyout.rect.height,
                         maxWidth: Math.min(FLYOUT_MAX_WIDTH, window.innerWidth - flyout.rect.left - 16),
                     }}
-                    className={`pointer-events-none fixed z-50 flex items-center gap-3 overflow-hidden whitespace-nowrap rounded-lg px-3 transition-[opacity,background-color,color] duration-100 ease-out motion-reduce:transition-none ${
+                    className={`fixed z-50 flex items-center gap-3 overflow-hidden whitespace-nowrap rounded-lg px-3 transition-[opacity,background-color,color] duration-100 ease-out motion-reduce:transition-none ${
                         show ? 'opacity-100' : 'opacity-0'
                     } ${
                         flyout.active
@@ -568,7 +623,7 @@ export default function Sidebar({ open = false, onClose }) {
                     >
                         {flyout.label}
                     </span>
-                </div>,
+                </Link>,
                 document.body,
             )}
         </aside>
