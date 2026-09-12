@@ -5924,3 +5924,57 @@ the real effect (navigated to the entry, selected both rows) rather than only
 a visual state. Checked in both themes.
 
 531 PHP tests, 817 JS tests, build clean.
+
+---
+
+## 57. §56's card stacked a label above its value for no reason
+
+One instruction left over from §56: a field's label and value each had their
+own line in the narrow layout's card, which spent two lines on a fact most
+schemas answer in three or four words - `sleeps: 2` does not need the height
+`sleeps` on one line and `2` on the next was giving it.
+
+Each field is now one row, `flex flex-wrap items-baseline gap-x-1.5` rather
+than a `<dt>`/`<dd>` stacked block: `title:` and its value sit side by side,
+and the next field starts on the line below. `flex-wrap` is what keeps this
+from breaking on a genuinely long value - a two-line rich text excerpt or a
+photo list still drops below the label rather than being squeezed onto one
+line with it, it just no longer *starts* a line of its own when it does not
+need one.
+
+### Checked
+
+One new test asserts the mechanism rather than an observed position, the same
+way the sticky-column tests already do: the row wrapping a field's `dt` and
+`dd` carries `flex` and `items-baseline`, and the value is found inside that
+same row. Confirmed it fails against the stacked markup first - `closest('div')`
+still found *a* div in the old layout, since `dt`/`dd` were siblings there
+too, but that div carried neither class.
+
+**Rooms had one entry and it was empty** (`#7146`, every field `—`), which is
+correct for exercising the empty state but nothing else - there was no
+content in the whole demo to look at while working on this screen. Three more
+entries were added directly to the database (`Entry::create()` plus their
+`entry_slugs` rows, the same shapes `EntryController::store()` writes,
+run from a scratchpad script rather than through the panel): two published,
+one draft, with real EL/EN/DE titles and descriptions and varied
+`sleeps`/`size_m2`/`price_from` numbers - #7146 was left exactly as it was,
+since an empty entry is still the honest fixture for that case.
+
+**Found while producing that data, not fixed**: the panel's own create-entry
+form was reported to error out on a French title and refuse to save. Checked
+as far as front-end-only scope allows - a direct API `POST` carrying French
+content alongside a filled default-language title saved without complaint
+(entry #7198, confirmed by reading it back, then deleted again as a
+diagnostic artefact) - so the block is somewhere in front of the API, not a
+backend rule rejecting the language. Logged as `TASKS.md` #134 rather than
+chased, since it surfaced mid a front-end session that had already been told
+explicitly to stay there.
+
+Verified live at `http://mini-cms.test/admin/content/rooms`, 375px: every
+field on Cozy Studio and Family Garden Room reads label-then-value on one
+line, `description:` wraps its two-line excerpt onto the next line rather
+than being crushed beside the label, and the desktop table at 1100px is
+unaffected - the label/value layout only exists below 640px.
+
+531 PHP tests, 818 JS tests, build clean.

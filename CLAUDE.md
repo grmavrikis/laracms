@@ -226,7 +226,7 @@ both — write `t('…')` literally, as `FIELD_TYPE_LABELS` does.
 
 ```bash
 php artisan test                    # 531 tests
-npm test                            # 817 tests
+npm test                            # 818 tests
 npm run build
 php artisan schema:sync-field-types # after changing field type constants
 php artisan pages:warm              # bake the public site to files (#97) - THE DEPLOY STEP
@@ -297,7 +297,17 @@ Started from a repo that would not boot (eight files of merge conflicts).
 Worked through a prioritised list; every item is either done or recorded in
 `CHANGELOG.md` with its reasoning.
 
-- **531 PHP tests, 817 JS tests**, all passing. Build clean.
+- **531 PHP tests, 818 JS tests**, all passing. Build clean.
+- **#135, the narrow entry card's field layout, is DONE** (CHANGELOG §57) —
+  a label stacked above its value spent two lines on a fact most schemas
+  answer in a word or two. `flex flex-wrap items-baseline` puts `title:`
+  beside its value instead, wrapping only when a value is genuinely long.
+  Rooms also got three real sample entries (two published, one draft, real
+  EL/EN/DE content), written straight to the database rather than through the
+  panel, since the create-entry form was found to reportedly error on French
+  mid-session — checked as far as front-end scope allows (a direct API
+  `POST` with French content saves fine), logged as **#134** rather than
+  chased.
 - **#133, the entries table rebuilt for mobile, is DONE** (CHANGELOG §56) —
   §132's pin was judged live and lost on looks, not function: a bordered,
   shadowed strip read as a patch rather than part of the table. The word
@@ -460,7 +470,12 @@ Worked through a prioritised list; every item is either done or recorded in
   #116 and #69. **Read `TASKS.md` → Phase 2 and #62 before touching it**, which
   now carries the demo's state: the development database was emptied of its
   fifteen test modules on 2026-09-07, German was added and French switched off,
-  and six modules exist with their schemas and no content.
+  and six modules exist with their schemas and no content. **Rooms is the
+  exception as of 2026-09-13**: four sample entries (one still empty, three
+  with real EL/EN/DE content and varied statuses), written straight to the
+  database rather than through the panel - see #134, the create-entry form's
+  own reported bug - so there was visual material for front-end work on the
+  entries screens without waiting on that fix.
   **One claim in this item was wrong and is corrected there.** Rooms and
   facilities need no engineering — they are modules with their own listing
   pages. The home-page slider does: `theme::home` is handed `$modules` and the

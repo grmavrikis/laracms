@@ -1251,6 +1251,47 @@ migrations, so a choice follows the person to their second **tab** rather than
 their second machine. Two columns and a save; the panel's own half already
 resolves both against an allow-list before applying them.
 
+### 135. The narrow entry card stacked a label above its value for no reason — DONE (CHANGELOG §57)
+
+One instruction left over from #133: `title` and its value each had their own
+line in the card, spending two lines on a fact most schemas answer in a word
+or two. Each field is now one row (`flex flex-wrap items-baseline`), label
+beside value, wrapping only when a value is genuinely long (a rich text
+excerpt, a photo list). One new test asserts the mechanism - `flex` and
+`items-baseline` on the row - since JSDOM cannot observe an actual position,
+confirmed to fail against the stacked markup first.
+
+Rooms also gained three real sample entries (two published, one draft, real
+EL/EN/DE content) written straight to the database, since the module had
+exactly one entry and it was empty - no material to look at while working on
+this screen. See #134, found while producing that data.
+
+### 134. The entry-creation form reportedly errors on French — unresolved, noted rather than fixed
+
+Reported live on 2026-09-13: entering a French title in a new Rooms entry and
+saving produced an error that blocked the save. Front-end work was already in
+progress in the same session, and the instruction was explicit - note it as a
+task, do not chase it now.
+
+Checked as far as "front end only" allows without opening the form's own
+code: a direct `POST /api/modules/rooms/entries` carrying `data.title.fr`
+alongside a filled `data.title.el` (the required default language) **saved
+correctly** - entry #7198, `title.fr` read back as `"Chambre Test"` afterwards,
+then deleted again as a diagnostic artefact rather than sample data. So the
+backend accepts French content without complaint; whatever blocked the owner
+was in front of that.
+
+The two most likely shapes, neither confirmed: `EntryForm`'s own client-side
+validation treating French as required when only the default language
+(`el`) actually is, or a stale error surviving a language-tab switch and
+being read as caused by the tab now showing rather than the one that
+actually failed - the same class of bug `TASKS.md` #94 already names for
+this screen's component wiring. Reproducing it needs someone clicking
+through the real form; a synthetic value set through the DOM (this
+session's own method for driving inputs without a working `key` action)
+does not obviously rule either shape in or out, since it does not resemble
+typing closely enough to trust a negative result from it.
+
 ### 133. §55 pinned the column; the owner wanted the table rebuilt — DONE (CHANGELOG §56)
 
 Checked live, §55's pin was judged on how it looked, not just whether it

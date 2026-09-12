@@ -198,18 +198,23 @@ function MobileEntryCard({ entry, schema, currentLangCode, at, orderIds, onReord
             </div>
 
             {schema.length > 0 && (
-                // Stacked, not a two-column grid: a grid needed a `col-span-2`
-                // rule for the wide fields, and that rule earns its keep on a
-                // fixed-width table column but only leaves a gap here, next to
-                // whichever narrow field happened to land beside a wide one.
-                <dl className="mt-3 flex flex-col gap-3 border-t border-line pt-3">
+                // One line per field, label beside its value - not a
+                // two-column grid (a `col-span-2` rule for the wide fields
+                // earns its keep on a fixed-width table column but only left
+                // a gap here, next to whichever narrow field happened to land
+                // beside a wide one) and not the label stacked above the
+                // value either, which spent two lines on a fact most schemas
+                // answer in three or four words. `flex-wrap` lets a genuinely
+                // long value (a rich text excerpt, several photos) drop to
+                // its own line under the label rather than being squeezed.
+                <dl className="mt-3 flex flex-col gap-2 border-t border-line pt-3">
                     {schema.map((field) => {
                         const { node } = fieldValue(field, entry, currentLangCode);
 
                         return (
-                            <div key={field.name}>
-                                <dt className="text-xs font-medium text-fg-subtle">{field.name}</dt>
-                                <dd className="mt-0.5 text-sm text-fg-muted">{node}</dd>
+                            <div key={field.name} className="flex flex-wrap items-baseline gap-x-1.5">
+                                <dt className="shrink-0 text-xs font-medium text-fg-subtle">{field.name}:</dt>
+                                <dd className="text-sm text-fg-muted">{node}</dd>
                             </div>
                         );
                     })}

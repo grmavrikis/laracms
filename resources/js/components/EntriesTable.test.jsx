@@ -415,9 +415,25 @@ describe('EntriesTable, on a narrow screen', () => {
 
         const card = within(cardFor(11));
 
-        expect(card.getByText('title')).toBeInTheDocument();
+        expect(card.getByText('title:')).toBeInTheDocument();
         expect(card.getByText('Σουίτα')).toBeInTheDocument();
         expect(card.getByText('Published')).toBeInTheDocument();
+    });
+
+    // A label stacked above its value spent two lines on a fact most schemas
+    // answer in three or four words. JSDOM does not lay out a page, so this
+    // asserts the flex/baseline classes that put them on one line rather than
+    // an observed position.
+    it('puts a field\'s label beside its value instead of stacking them', () => {
+        stubNarrow(true);
+        draw();
+
+        const card = within(cardFor(11));
+        const row = card.getByText('title:').closest('div');
+
+        expect(row.className).toMatch(/\bflex\b/);
+        expect(row.className).toMatch(/\bitems-baseline\b/);
+        expect(within(row).getByText('Σουίτα')).toBeInTheDocument();
     });
 
     it('still edits and reorders from the card, with nothing to scroll past', async () => {
