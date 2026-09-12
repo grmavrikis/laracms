@@ -99,7 +99,10 @@ describe('the rail, wide', () => {
 /**
  * At 68px there is no room for a hierarchy and the label is not rendered, so
  * the initial **is** the icon - which is the reason it was written, and it
- * stays. What replaces the browser's native `title` is a tooltip of our own.
+ * stays. Hovering or focusing a row no longer summons a chip beside it: the
+ * row's own background grows in place to carry the label, replacing the
+ * initial rather than sitting next to it - so a module never reads its first
+ * letter twice.
  */
 describe('the rail, collapsed to 68px', () => {
     it('still shows each module by its initial', async () => {
@@ -118,28 +121,46 @@ describe('the rail, collapsed to 68px', () => {
         expect(await rooms()).not.toHaveAttribute('title');
     });
 
-    it('reveals the full name on hover, outside the rail that would clip it', async () => {
+    it('grows into the full name on hover, showing it once and not beside the initial', async () => {
         draw({ collapsed: true });
         fireEvent.mouseEnter(await rooms());
 
-        const tip = document.getElementById('rail-tip');
+        const flyout = document.getElementById('rail-flyout');
 
-        expect(tip).not.toBeNull();
-        expect(tip).toHaveTextContent('Rooms');
+        expect(flyout).not.toBeNull();
+
+        // Exact equality, not a substring: the defect this replaces read
+        // "RRooms", because the initial and the flyout's label both matched a
+        // substring query happily. A module carries no icon of its own, so
+        // nothing precedes the name here.
+        expect(flyout.textContent).toBe('Rooms');
 
         // Measured live before this was written: `nav` computes
         // `overflow-x: auto`, forced by its `overflow-y-auto`, and a probe
         // positioned past the 68px edge is clipped - `elementFromPoint` over it
-        // answers the dashboard behind. The tooltip is therefore portalled, and
+        // answers the dashboard behind. The flyout is therefore portalled, and
         // this is what says so.
-        expect(document.querySelector('aside')?.contains(tip)).toBe(false);
+        expect(document.querySelector('aside')?.contains(flyout)).toBe(false);
+    });
+
+    it('carries the row icon into the flyout for a screen we ship', async () => {
+        draw({ collapsed: true });
+        fireEvent.mouseEnter(await screen.findByRole('link', { name: 'Dashboard' }));
+
+        const flyout = document.getElementById('rail-flyout');
+
+        // Unlike a module, Dashboard has an icon of its own, and the owner
+        // asked for it specifically: the icon stays in place while the row
+        // widens beside it, rather than the icon being swapped for text.
+        expect(flyout.querySelector('svg')).not.toBeNull();
+        expect(flyout).toHaveTextContent('Dashboard');
     });
 
     it('reveals it on keyboard focus too', async () => {
         draw({ collapsed: true });
         fireEvent.focus(await rooms());
 
-        expect(document.getElementById('rail-tip')).toHaveTextContent('Rooms');
+        expect(document.getElementById('rail-flyout')).toHaveTextContent('Rooms');
     });
 
     it('takes it away again', async () => {
@@ -149,6 +170,6 @@ describe('the rail, collapsed to 68px', () => {
         fireEvent.mouseEnter(row);
         fireEvent.mouseLeave(row);
 
-        expect(document.getElementById('rail-tip')).toBeNull();
+        expect(document.getElementById('rail-flyout')).toBeNull();
     });
 });

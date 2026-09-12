@@ -1265,14 +1265,18 @@ Two things came out of doing it, and both are the reason this is worth a number:
 
 - **`title` was the only thing naming a collapsed row.** It is a real accessible
   name, last in the computation, which is what made it comfortable to leave
-  there — and replacing it with a tooltip would have removed the name with it.
+  there — and replacing it with a flyout would have removed the name with it.
   The label is rendered `sr-only` now. ARCHITECTURE → *Naming controls*.
 - **The group headings were at 3.56:1.** `text-sidebar-fg-muted/70` writes a
   colour the token does not name, so the file whose entire subject is measured
   contrast could not see it. The guard is general: no `text-` utility in the
   panel carries an opacity modifier.
+- **The obvious animation for the flyout was the wrong one.** Growing its width
+  open, seen live, read as a progress bar rather than a name appearing. It
+  mounts at its finished size and fades in instead, the label a beat behind the
+  highlight — CHANGELOG §46 has the numbers.
 
-`Sidebar.jsx` had no test at all before this and has one now.
+`Sidebar.jsx` had no test at all before this and has eight now.
 
 ### 123. `--ui-surface-raised` is measured against nothing — P2
 

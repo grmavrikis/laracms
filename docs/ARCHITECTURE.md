@@ -1252,8 +1252,11 @@ falls back to its initial, which is the only glyph it has.
 
 The name a narrow row hovers is a **portalled** element, not a `title`. `nav`
 computes `overflow-x: auto`, forced by its `overflow-y-auto`, so anything
-positioned past the 68px edge is clipped - measured, with a probe. See *Naming
-controls* for the half of this that is not decoration.
+positioned past the 68px edge is clipped - measured, with a probe. It paints in
+the row's own colour rather than a chip beside it, and fades in at its finished
+size rather than growing open - a first attempt animated width and read live as
+a progress bar, not a name appearing (CHANGELOG.md #46). See *Naming controls*
+for the half of this that is not decoration.
 
 **Screens, in `resources/js/screens/`**, reached by name from the table in
 `app.jsx`. A name that table does not know is a **throw**, not a default -

@@ -5191,42 +5191,57 @@ were arithmetic and not taste.
 
 ### `title` was the only thing naming a collapsed row
 
-Replacing the browser's native tooltip is what the owner asked for. Reading the
-file to do it turned up why it could not simply be deleted: the collapsed row
-rendered `{!collapsed && <span>{label}</span>}`, so **`title` was carrying the
-accessible name** — last in the name computation, but a name, which is precisely
-what made it comfortable to leave there.
+The owner also asked for the browser's native tooltip to go. Reading the file to
+do it turned up why it could not simply be deleted: the collapsed row rendered
+`{!collapsed && <span>{label}</span>}`, so **`title` was carrying the accessible
+name** — last in the name computation, but a name, which is precisely what made
+it comfortable to leave there.
 
 So the name was fixed first. The label is always rendered and merely `sr-only`
-when narrow; `title` is gone; the tooltip is `aria-hidden` decoration. Verified
-live: all eleven collapsed rows carry a real label, `display: block`,
-`visibility: visible`, clipped to 1px.
+when narrow; `title` is gone. Verified live: all eleven collapsed rows carry a
+real label, `display: block`, `visibility: visible`, clipped to 1px.
 
 > The rule this adds to *Naming controls*: **a control named only by `title` has
 > no name of its own.** A collapsed rail is where that hides, because the state
 > that removes the text is the state nobody screenshots.
 
-### The tooltip is portalled, and that was measured
+### A flyout, not a tooltip beside the row — and two attempts to get its motion right
 
-`nav` computes `overflow-x: auto` — forced by its own `overflow-y-auto` — with
-its right edge at **67.2px**. A probe positioned absolutely at 185px is clipped:
-`elementFromPoint` over it answers the dashboard behind. A `fixed` child does
-escape today, because the rail's computed `transform` is `none` at `lg`, but that
-holds by accident of the current classes and the failure mode of losing it is a
-tooltip nobody can see and nobody reports. `createPortal` into `document.body` is
-five lines and is unconditionally correct.
+What replaces `title` is not a chip floating off to the side. Hovering or
+focusing a collapsed row raises a flyout painted at the **row's own position**,
+in the **row's own colour** — `bg-accent` for the active row, `bg-sidebar-hover`
+for every other one, exactly what each already shows — so it reads as the row
+itself producing its label rather than a second control appearing beside it. A
+module's letter does not travel into it: the flyout's `Icon` is whatever the row
+was given, which is `undefined` for a module, so the initial is **replaced**, not
+repeated next to the name it stands for.
 
-The surface is `bg-surface`, not the `bg-surface-raised` the appearance menu
-uses: that pair is one `theme.css.test.js` already measures and the raised
-surface is not on its list (logged as #123). The **edge** is `line-strong` rather
-than `line`, and that came out of looking at it: a tooltip flies over the content
-area, where a card is `bg-surface` too, so at the ordinary border weight the only
-thing separating the two was a hairline of `#e2e8f0` on `#fff`.
+It is **portalled**, not laid over the row with `absolute` — measured before it
+was written rather than assumed. `nav` computes `overflow-x: auto`, forced by its
+own `overflow-y-auto`, with its right edge at **67.2px**, and a probe positioned
+past that is clipped: `elementFromPoint` over it answers the dashboard behind
+rather than the probe. `createPortal` into `document.body` is unconditionally
+correct regardless of what the rail's own transform happens to be.
 
-The entrance is `--animate-rail-tip` in `app.css` with `motion-reduce:animate-none`.
-It animates `translate` rather than `transform`, which is the property Tailwind
-v4's own translate utilities set — animating the other one leaves both applied
-and drops the tooltip half its height.
+**The first version of the motion was wrong, and it took seeing it live to know
+it.** It animated `max-width` from the row's own size up to the label's — the
+box mounting at icon width and growing open. Checked in the browser, that read as
+a progress bar sliding across rather than a menu naming itself; the owner's own
+word for it was *slider*, and the final state — a wider, coloured row carrying a
+name — was exactly right the whole time. The defect was in what moved, not in
+what the row ends up showing.
+
+**The second version separates the box from its content.** The box mounts
+already at its finished width — nothing animates a dimension at all — and fades
+in as a whole over 100ms. The label carries its own `-translate-x-1` and its own
+75ms delay before a 150ms fade-and-slide of its own, so it settles a beat after
+the highlight rather than both snapping into place together. Measured live by
+sampling the flyout every 20ms through the transition: the box's width never
+changes, its opacity ramps 0→1 in the first hundred milliseconds, and the
+label's opacity and `translate` continue for another 150ms after that — a
+highlight appearing, then a name arriving in it, rather than a bar opening to
+reveal one. `motion-reduce:transition-none` and `motion-reduce:delay-0` turn
+both off for a reader who has said so.
 
 ### The group headings were failing AA, and nothing could see it
 
@@ -5246,17 +5261,22 @@ than a readability one — and the rule does not touch them.
 ### Checked
 
 `Sidebar.jsx` had **no test at all**, which TASKS.md #94 says is where six
-defects in a row have been. It has one now, and four of its seven assertions
-failed before the change: the row read `"RRooms"`, it carried a `title`, and
-nothing appeared on hover or on focus. Two mutations afterwards, because two of
-the seven would have passed against the old code as well: restoring the letter
-tile fails the submenu assertion, and swallowing `onMouseLeave` fails the one
-that says the tooltip goes away.
+defects in a row have been. It has eight now. Five of them failed before the
+change, each for its own reason: the row read `"RRooms"`, it carried a `title`,
+and nothing appeared on hover or on focus. Mutations afterwards proved the two
+that would have passed against the old code as well — restoring the letter next
+to the flyout's label fails the exact-text assertion, and dropping the icon from
+an icon row's flyout fails the one that checks it carries through. None of the
+eight assert anything about the transition's timing, which is a browser
+question; that half was checked live instead, by sampling.
 
 Verified live at 1024px and at 375px, in both themes: hover and keyboard focus
-both raise it, `mouseout` and `blur` both take it away, it sits at the rail's
-right edge plus 8 and centred on its row to the pixel, and the phone drawer gets
-the submenu rather than the letters — collapsing is a desktop idea and
-`rail = collapsed && isDesktop` already said so.
+both raise the flyout at the row's own colour, `mouseout` and `blur` take it away
+immediately with no exit animation, `document.hasFocus()` on the automated pane
+is `false` so a programmatic `.focus()` does not fire a trusted event there —
+confirmed by dispatching `focusin`/`focusout` by hand instead, which is what a
+real Tab key produces — and the phone drawer gets the submenu rather than the
+letters, since collapsing is a desktop idea and `rail = collapsed && isDesktop`
+already said so.
 
-531 PHP tests, 787 JS tests, build clean.
+531 PHP tests, 788 JS tests, build clean.

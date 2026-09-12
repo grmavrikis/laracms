@@ -24,8 +24,18 @@ import IconButton from '../ui/IconButton';
 
 const STORAGE_KEY = 'miniCms.sidebar';
 
-/** Referenced by the test, and by nothing else - the tooltip has no role. */
-const TIP_ID = 'rail-tip';
+/** Referenced by the test, and by nothing else - the flyout has no role. */
+const FLYOUT_ID = 'rail-flyout';
+
+/**
+ * A cap on how wide the flyout may sit, not something it grows into - the box
+ * mounts at its finished size, so this only guards a label long enough to
+ * matter. Generous rather than measured: every label in the rail is a handful
+ * of words, `max-width` lets the box shrink-wrap to whatever is actually
+ * shorter than this, and the same cap for every row is one number instead of
+ * a `ResizeObserver` per label.
+ */
+const FLYOUT_MAX_WIDTH = 224;
 
 /**
  * Guarded, like the theme's: a browser set to block site data throws on access
@@ -62,17 +72,19 @@ const writeCollapsed = (collapsed) => {
  * computation, which is exactly what made that comfortable. It should not have
  * been: it was the only thing naming the row, announced inconsistently between
  * readers, and one CSS change away from nothing at all. The name is text now,
- * and the tooltip below is decoration.
+ * and hidden with `sr-only`, which is what the flyout in `Sidebar` reveals.
  */
-function SidebarLink({ href, icon: Icon, letter, label, active, collapsed, nested, onNavigate, onTip }) {
-    // Only while narrow. At full width the label is right there, and a tooltip
-    // repeating a word the reader is already looking at is noise.
-    const tipHandlers = collapsed && onTip
+function SidebarLink({ href, icon: Icon, letter, label, active, collapsed, nested, onNavigate, onFlyout }) {
+    // Only while narrow. At full width the label is right there, and a flyout
+    // repeating a word the reader is already looking at is noise. The letter
+    // never travels into it - a module has no icon, and the whole point of the
+    // flyout is to say the name once, not the initial and then the name.
+    const flyoutHandlers = collapsed && onFlyout
         ? {
-            onMouseEnter: (event) => onTip(label, event.currentTarget),
-            onFocus: (event) => onTip(label, event.currentTarget),
-            onMouseLeave: () => onTip(null),
-            onBlur: () => onTip(null),
+            onMouseEnter: (event) => onFlyout({ label, active, Icon }, event.currentTarget),
+            onFocus: (event) => onFlyout({ label, active, Icon }, event.currentTarget),
+            onMouseLeave: () => onFlyout(null),
+            onBlur: () => onFlyout(null),
         }
         : {};
 
@@ -84,7 +96,7 @@ function SidebarLink({ href, icon: Icon, letter, label, active, collapsed, neste
                 // `page` rather than `true`: this is the address on show, which
                 // is what a screen reader announces as the current location.
                 aria-current={active ? 'page' : undefined}
-                {...tipHandlers}
+                {...flyoutHandlers}
                 className={`group flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ${
                     active
                         ? 'bg-accent text-accent-fg font-semibold'
@@ -181,43 +193,62 @@ export default function Sidebar({ open = false, onClose }) {
     const [modules, setModules] = useState([]);
     const [languages, setLanguages] = useState([]);
     const [modulesFailed, setModulesFailed] = useState(false);
-    const [tip, setTip] = useState(null);
+
+    // Two states rather than one, because a fade needs a frame to fade *from*:
+    // `flyout` mounts the box already at its full, final size - nothing here
+    // animates width any more - and `show` is flipped a frame later so the
+    // browser has an opacity/transform to transition between. A single
+    // boolean would either skip the transition (mount already shown) or never
+    // play it (nothing here to trigger a re-render).
+    const [flyout, setFlyout] = useState(null);
+    const [show, setShow] = useState(false);
 
     const viewLangCode = contentLangCode(languages, locale);
 
     /**
-     * Where the hovered row's name is shown, and it is **portalled**.
+     * The collapsed rail's rows read as icons; hovering or focusing one
+     * reveals its label beside it, which is what stands in for the rest of
+     * the row's own text. It is **portalled**, not laid over the row it
+     * describes with `absolute` - measured before it was written rather than
+     * assumed, `nav` computes `overflow-x: auto`, forced by its own
+     * `overflow-y-auto`, with its right edge at 67.2px, and a probe positioned
+     * past that is clipped, with `elementFromPoint` over it answering the page
+     * behind rather than the probe.
      *
-     * Measured before it was written rather than assumed: `nav` computes
-     * `overflow-x: auto` - forced by its own `overflow-y-auto` - with its right
-     * edge at 67.2px, and a probe positioned past that is clipped, with
-     * `elementFromPoint` over it answering the page behind. A `fixed` child
-     * happens to escape today because the rail's computed `transform` is
-     * `none`, but that holds by accident of the current classes and the failure
-     * mode of losing it is a tooltip nobody can see and nobody reports.
+     * **A fade and a slide, not a width grown open.** The first attempt here
+     * animated `max-width` from the row's own size up to the label's, and
+     * seen live it read as a progress bar sliding across rather than a menu
+     * revealing a name - the owner's word for it was *slider*. The box now
+     * mounts at its finished size and fades in as a whole; the label carries
+     * its own short delay and its own small `translate-x`, so it settles a
+     * beat after the highlight does rather than both arriving at once.
      */
-    const showTip = useCallback((label, element) => {
-        if (label === null) {
-            setTip(null);
+    const openFlyout = useCallback((meta, element) => {
+        if (meta === null) {
+            setFlyout(null);
+            setShow(false);
 
             return;
         }
 
-        const row = element.getBoundingClientRect();
-        const aside = element.closest('aside')?.getBoundingClientRect();
+        setFlyout({ ...meta, rect: element.getBoundingClientRect() });
+        setShow(false);
 
-        setTip({
-            label,
-            top: row.top + row.height / 2,
-            left: (aside?.right ?? row.right) + 8,
+        // Two frames, not one: the first commits the hidden state to the
+        // page, the second flips the class that reveals it. A single `raf`
+        // here was still asking to animate from a state the browser had not
+        // yet painted, on the machine this was checked on.
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => setShow(true));
         });
     }, []);
 
-    // Anything that moves the rows out from under the pointer takes the tooltip
-    // with them: following a link, and widening the rail so the labels are
-    // there anyway.
+    // Anything that moves the rows out from under the pointer closes the
+    // flyout with them: following a link, and widening the rail so the labels
+    // are there anyway.
     useEffect(() => {
-        setTip(null);
+        setFlyout(null);
+        setShow(false);
     }, [route, rail]);
 
     const fetchModules = useCallback(() => {
@@ -303,7 +334,7 @@ export default function Sidebar({ open = false, onClose }) {
                         active={isAt('dashboard')}
                         collapsed={rail}
                         onNavigate={() => navigate('dashboard')}
-                        onTip={showTip}
+                        onFlyout={openFlyout}
                     />
                     <SidebarLink
                         href={hrefFor('analytics')}
@@ -312,7 +343,7 @@ export default function Sidebar({ open = false, onClose }) {
                         active={isAt('analytics')}
                         collapsed={rail}
                         onNavigate={() => navigate('analytics')}
-                        onTip={showTip}
+                        onFlyout={openFlyout}
                     />
                 </Section>
 
@@ -337,7 +368,7 @@ export default function Sidebar({ open = false, onClose }) {
                                     || isAt('entryCreate', { module: module.slug })}
                                 collapsed={rail}
                                 onNavigate={() => navigate('entries', { module: module.slug })}
-                                onTip={showTip}
+                                onFlyout={openFlyout}
                             />
                         );
                     })}
@@ -357,7 +388,7 @@ export default function Sidebar({ open = false, onClose }) {
                         active={isAt('enquiries')}
                         collapsed={rail}
                         onNavigate={() => navigate('enquiries')}
-                        onTip={showTip}
+                        onFlyout={openFlyout}
                     />
                     <SidebarLink
                         href={hrefFor('modules')}
@@ -366,7 +397,7 @@ export default function Sidebar({ open = false, onClose }) {
                         active={isAt('modules') || isAt('moduleCreate') || route.name === 'moduleEdit'}
                         collapsed={rail}
                         onNavigate={() => navigate('modules')}
-                        onTip={showTip}
+                        onFlyout={openFlyout}
                     />
                     <SidebarLink
                         href={hrefFor('settings')}
@@ -375,29 +406,60 @@ export default function Sidebar({ open = false, onClose }) {
                         active={isAt('settings')}
                         collapsed={rail}
                         onNavigate={() => navigate('settings')}
-                        onTip={showTip}
+                        onFlyout={openFlyout}
                     />
                 </Section>
             </nav>
 
             {/* `aria-hidden`, because the row it describes already carries the
                 same words as its accessible name and a reader announcing both
-                would say everything twice. `bg-surface` rather than the
-                `bg-surface-raised` the appearance menu uses: this ink is
-                measured against that ground in `theme.css.test.js` and the
-                raised surface is not on its list. The edge is `line-strong`
-                rather than `line`, measured in both themes: a tooltip lands
-                over the content area, where a card is `bg-surface` too, so at
-                the ordinary border weight the only thing separating the two was
-                a hairline of #e2e8f0 on #fff. */}
-            {tip && createPortal(
+                would say everything twice - the flyout stands in for the rest
+                of the row's own text, not a second control.
+
+                Positioned at the row's own rect and **the same colour it
+                already has**: `bg-accent` for the active row, matching what
+                the owner saw on Dashboard, and `bg-sidebar-hover` for every
+                other one, matching its ordinary `:hover`. The real row is
+                still underneath and still receiving the pointer - this simply
+                paints over it at an identical position, so there is nothing to
+                mismatch.
+
+                **The box mounts at its finished width and fades in; nothing
+                here animates `max-width`.** The first version did, and seen
+                live it read as a progress bar sliding open rather than a name
+                appearing - animating the *clip* rather than the *content* is
+                what a slider is. The label carries its own short delay and its
+                own `-translate-x-1`, so it settles a beat after the highlight
+                rather than both snapping in together. No icon travels into
+                the box for a module row (`Icon` is undefined there), which is
+                the whole point: the initial is what the flyout replaces, not
+                what it repeats beside the name. */}
+            {flyout && createPortal(
                 <div
-                    id={TIP_ID}
+                    id={FLYOUT_ID}
                     aria-hidden="true"
-                    style={{ top: tip.top, left: tip.left }}
-                    className="pointer-events-none fixed z-50 -translate-y-1/2 animate-rail-tip whitespace-nowrap rounded-lg border border-line-strong bg-surface px-2.5 py-1.5 text-sm text-fg shadow-lg motion-reduce:animate-none"
+                    style={{
+                        top: flyout.rect.top,
+                        left: flyout.rect.left,
+                        height: flyout.rect.height,
+                        maxWidth: Math.min(FLYOUT_MAX_WIDTH, window.innerWidth - flyout.rect.left - 16),
+                    }}
+                    className={`pointer-events-none fixed z-50 flex items-center gap-3 overflow-hidden whitespace-nowrap rounded-lg px-3 transition-opacity duration-100 ease-out motion-reduce:transition-none ${
+                        show ? 'opacity-100' : 'opacity-0'
+                    } ${
+                        flyout.active
+                            ? 'bg-accent text-accent-fg font-semibold'
+                            : 'bg-sidebar-hover text-sidebar-fg'
+                    }`}
                 >
-                    {tip.label}
+                    {flyout.Icon && <flyout.Icon className="h-[18px] w-[18px] shrink-0" aria-hidden="true" />}
+                    <span
+                        className={`transition-[opacity,translate] delay-75 duration-150 ease-out motion-reduce:transition-none motion-reduce:delay-0 ${
+                            show ? 'translate-x-0 opacity-100' : '-translate-x-1 opacity-0'
+                        }`}
+                    >
+                        {flyout.label}
+                    </span>
                 </div>,
                 document.body,
             )}

@@ -226,7 +226,7 @@ both — write `t('…')` literally, as `FIELD_TYPE_LABELS` does.
 
 ```bash
 php artisan test                    # 531 tests
-npm test                            # 787 tests
+npm test                            # 788 tests
 npm run build
 php artisan schema:sync-field-types # after changing field type constants
 php artisan pages:warm              # bake the public site to files (#97) - THE DEPLOY STEP
@@ -297,7 +297,7 @@ Started from a repo that would not boot (eight files of merge conflicts).
 Worked through a prioritised list; every item is either done or recorded in
 `CHANGELOG.md` with its reasoning.
 
-- **531 PHP tests, 787 JS tests**, all passing. Build clean.
+- **531 PHP tests, 788 JS tests**, all passing. Build clean.
 - **#124, the rail's Content group, is DONE** (CHANGELOG §46) — the modules read
   as a submenu of *Content* rather than as a column of lettered tiles, and the
   tiles survive only at 68px where the initial is the only glyph a module has.

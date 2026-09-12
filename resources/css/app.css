@@ -286,13 +286,6 @@
     --color-fg-muted: var(--ui-fg-muted);
     --color-fg-subtle: var(--ui-fg-subtle);
 
-    /* The rail's tooltip. Declared here rather than written inline because
-       `@theme` is what turns a keyframe into a utility Tailwind will emit:
-       `--animate-*` produces `animate-rail-tip`, and the keyframes below carry
-       the `-50%` the resting `-translate-y-1/2` also sets, so the animation
-       does not fight the class that centres it on its row. */
-    --animate-rail-tip: rail-tip 120ms ease-out;
-
     --color-accent: var(--ui-accent);
     --color-accent-hover: var(--ui-accent-hover);
     --color-accent-fg: var(--ui-accent-fg);
@@ -422,17 +415,3 @@
     padding: 0.1rem 0.3rem;
 }
 
-/* Paired with `--animate-rail-tip` above. `translate` rather than `transform`,
-   which is the property Tailwind v4's own translate utilities set - animating
-   the other one would leave both applied and the tooltip 50% too low. */
-@keyframes rail-tip {
-    from {
-        opacity: 0;
-        translate: -4px -50%;
-    }
-
-    to {
-        opacity: 1;
-        translate: 0 -50%;
-    }
-}
