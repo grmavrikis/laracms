@@ -39,11 +39,14 @@ final class TranslatedLiterals
      */
     public static function everywhereCoreTranslates(): array
     {
-        return array_merge(
-            self::inPhp(app_path()),
-            self::inBlade(resource_path('views')),
-            self::inJavaScript(resource_path('js'))
-        );
+        // `+`, not `array_merge`: the value is the file to name when the
+        // assertion fails, and `array_merge` would hand a string translated in
+        // both PHP and the panel to whichever scan ran last. Each scan already
+        // keeps its own first sighting with `??=`; this keeps that rule across
+        // the three of them.
+        return self::inPhp(app_path())
+            + self::inBlade(resource_path('views'))
+            + self::inJavaScript(resource_path('js'));
     }
 
     /**
@@ -118,22 +121,28 @@ final class TranslatedLiterals
 
         foreach (self::filesIn($directory, ['js', 'jsx']) as $file)
         {
-            if (str_ends_with($file, '.test.js'))
+            // Neither extension. The skip list was written when only one
+            // direction existed, where a stray literal in a test was merely
+            // demanded of the catalogue; now that `CatalogueHasNoOrphansTest`
+            // reads the same scan, a call in a test would keep a dead key
+            // alive. A test is not a call site that ships.
+            if (str_ends_with($file, '.test.js') || str_ends_with($file, '.test.jsx'))
             {
                 continue;
             }
 
             // Comments, for the same reason PHP is read as tokens.
             //
-            // **A comment opener has to look like one.** Without the leading
-            // character class, a file picker's `accept` attribute - which ends
-            // in a slash and a star - opened a block that ran to the next real
-            // terminator: 4,700 characters of `GalleryEditor.jsx`, and every
-            // translated string inside them, read by nothing. A real comment
-            // follows a line start, whitespace, or the brace of a JSX comment;
-            // a mime pattern follows a letter.
+            // **The question is whether the slash is part of a word**, not what
+            // happens to precede it. A file picker's `accept` attribute ends in
+            // a slash and a star, and reading that as a comment opener threw
+            // away 4,700 characters of `GalleryEditor.jsx` and every translated
+            // string inside them. The first fix asked for whitespace or a brace
+            // in front, which left every comment following punctuation in place
+            // - so a commented-out call counted as a real one. A mime pattern's
+            // slash follows a letter; a comment's never does.
             $source = preg_replace(
-                ['#(^|[\s{])/\*.*?\*/#s', '#(^|\s)//[^\n]*#'],
+                ['#(?<![\w/])/\*.*?\*/#s', '#(?<![\w:])//[^\n]*#'],
                 '',
                 File::get($file)
             );

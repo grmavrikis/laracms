@@ -7,6 +7,54 @@
  * of them was reachable by a test while it lived inside a component.
  */
 
+import fieldTypes from './fieldTypes.json';
+import { t } from './i18n';
+
+/** Which types a field may be, in the order the backend declares them. */
+export const FIELD_TYPES = fieldTypes.supported;
+
+/**
+ * What each of them is called, in the reader's own language.
+ *
+ * **Which types exist stays the backend's decision** - the list above is
+ * generated from the PHP constant, and this map only says what each one is
+ * called. `moduleFields.test.js` fails if the two disagree, so a type added in
+ * PHP cannot quietly appear unnamed.
+ *
+ * They were labelled by capitalising the key, so a Greek panel read *String*,
+ * *Gallery*, *Boolean* while `lang/el.json` held a real Greek word for every
+ * one of the nine. `CatalogueHasNoOrphansTest` is what found it: nine keys
+ * nothing asked for.
+ *
+ * Literal calls rather than `t(label)`, because a key reached only through a
+ * variable is invisible to the catalogue scan - which is how a string reaches
+ * a client untranslated in the first place.
+ */
+export const FIELD_TYPE_LABELS = {
+    string: () => t('String'),
+    text: () => t('Text'),
+    integer: () => t('Integer'),
+    boolean: () => t('Boolean'),
+    date: () => t('Date'),
+    datetime: () => t('Datetime'),
+    select: () => t('Select'),
+    image: () => t('Image'),
+    gallery: () => t('Gallery'),
+};
+
+/**
+ * One type's name, falling back to the key itself.
+ *
+ * **A missing label is a missing translation, not a dead screen.** Reading the
+ * map and calling the result meant a type present in the generated file and
+ * absent here threw during render, taking both screens that create a field to
+ * the ErrorBoundary - and `fieldTypes.json` is rewritten by an artisan
+ * command, so the two can part company outside CI. The test is the
+ * enforcement; this is what happens before it has run.
+ */
+export const fieldTypeLabel = (type) =>
+    (FIELD_TYPE_LABELS[type] ?? (() => type.charAt(0).toUpperCase() + type.slice(1)))();
+
 /** A row nobody has filled in yet. */
 export const emptyField = (id) => ({
     _id: id,

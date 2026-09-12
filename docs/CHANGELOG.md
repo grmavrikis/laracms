@@ -5089,3 +5089,62 @@ items out of date.
 **#117 is complete: all twenty items.**
 
 523 PHP tests, 717 JS tests, build clean.
+
+## 45. The stripper that was too narrow, and a map in the wrong file (§44's review)
+
+Eight findings against the commit above. Five were in the scanner that the item
+had just fixed, which is the honest shape of this kind of work: a tool that
+reads source text has more edge cases than the bug that exposed it.
+
+### The fix asked the wrong question
+
+`accept="image/*"` was read as a comment opener, so §44 required whitespace or a
+JSX brace in front of one. That fixed the mime pattern and broke the opposite
+case: every comment following punctuation was left in place — `foo(/* … */)`,
+`const a =/* … */ 1`, `foo(1,/* … */ 2)` — so a **commented-out** call counted as
+a real one. In the covers direction that demands a key nothing renders; in the
+orphan direction it keeps a dead key alive. The narrower rule was wrong in the
+direction that costs a translation fee.
+
+The question is not what precedes the slash but **whether the slash is part of a
+word**: a mime pattern's follows a letter, a URL's follows a colon, a comment's
+never does. `(?<![\w/])/\*` and `(?<![\w:])//`. A data provider pins the four
+punctuation forms, and all four were red first.
+
+### A scanner that reads too little reports success either way
+
+That is §44's lesson, and the review found it applied to the tests as well: all
+six cases exercised `inJavaScript`, while `inPhp` — the subtlest of the three,
+walking `token_get_all` and unescaping single- and double-quoted literals by
+different rules — and `inBlade` had moved files with no direct coverage. Both
+have their own tests now, including a call written in a comment on each side and
+a variable argument that must not be guessed at.
+
+Two smaller ones: the skip list covered `.test.js` but not `.test.jsx`, which
+mattered once the orphan check began reading the same scan — a test is not a
+call site that ships; and `everywhereCoreTranslates` used `array_merge`, so a
+string translated in both PHP and the panel was attributed to whichever scan ran
+last, when the value in that map exists only to name the file in the failure
+message. `+` keeps the first sighting, as each scan already does internally.
+
+### A missing label was a dead screen
+
+`FIELD_TYPE_LABELS` shipped in §44 as a map read directly and called:
+`FIELD_TYPE_LABELS[type]()`. For a type present in `fieldTypes.json` and absent
+from the map that is `undefined()`, which takes both screens that create a field
+to the ErrorBoundary. The generated file is rewritten by an artisan command, so
+the two can part company outside CI — and what the old code did in that case was
+show the capitalised key, an English word in a Greek panel.
+
+`fieldTypeLabel()` falls back to exactly that. **A missing label is a missing
+translation, not a dead screen**: the test that compares the two lists stays the
+enforcement, and this is what happens before it has run.
+
+It moved to `lib/moduleFields.js` with the rest of the field-row logic while it
+was open. Which types exist and what they are called is a data question, and
+asking it of a component meant importing lucide and two `ui/` primitives into a
+jsdom test to answer it; the two assertions about the map now run in the node
+environment beside the map, and what stayed in the component's test is the half
+that needs a rendered select.
+
+531 PHP tests, 719 JS tests, build clean.

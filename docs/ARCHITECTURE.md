@@ -897,6 +897,36 @@ the settings screen's *Serve pages from files* label was in no catalogue at all,
 and one key had been reworded in its *value* rather than rekeyed, leaving the
 code asking for a sentence about a slug that #114 had moved.
 
+**Both directions are checked** (#117 item 20), and both read the code through
+`tests/Support/TranslatedLiterals`: `CatalogueCoversTheCodeTest` fails on a
+string the catalogue lacks, `CatalogueHasNoOrphansTest` on a key nothing asks
+for. An orphan is not untidiness - `BUSINESS.md` prices adding a language as a
+billable service, so it is a sentence somebody is paid to translate into a
+language nobody reads it in, and they arrive in ordinary work: three came from
+one item of the panel redesign, when two labels were reworded.
+
+One scanner rather than two, because a scan that reads less than it thinks
+reports success **either way**. That is not hypothetical: `accept="image/*"`
+ends in a slash and a star, the comment stripper read it as a block opener, and
+three files with an image picker were being scanned at a third of their length
+while the covers test passed on them. The rule it now follows is that a comment
+opener is a slash that is **not part of a word** - a mime pattern's follows a
+letter, a URL's a colon - and `TranslatedLiteralsTest` pins both that and the
+opposite mistake, a comment following `(`, `,`, `=` or `;`.
+
+Two rules for calling code follow from the scan being textual:
+
+- **Write `t('…')` and `__('…')` with a literal single-quoted key.** A key
+  reached through a variable is invisible to both directions, which is how a
+  string reaches a client untranslated - and the dropdown of field types is
+  what proved it: nine names in the catalogue that the code never asked for,
+  because it labelled its options by capitalising a generated key.
+- **A table of translated names needs a fallback.** `fieldTypeLabel()` in
+  `lib/moduleFields.js` answers with the capitalised key for a type its map
+  does not carry: the generated `fieldTypes.json` and a hand-written map can
+  part company outside CI, and a missing label is a missing translation, not a
+  screen that throws.
+
 **The honeypot's label is deliberately not translated** (#110). Its wording is a
 defence rather than a design choice, and a translator handed *Website* in the
 catalogue has no way to know it should be left alone. A literal keeps it out of

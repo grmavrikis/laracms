@@ -3,8 +3,8 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import ModuleFields, { FIELD_TYPE_LABELS } from './ModuleFields';
-import fieldTypes from '../lib/fieldTypes.json';
+import ModuleFields from './ModuleFields';
+import { FIELD_TYPES, FIELD_TYPE_LABELS } from '../lib/moduleFields';
 import { emptyField, fieldsFromSchema } from '../lib/moduleFields';
 
 const draw = (fields, props = {}) => {
@@ -186,37 +186,23 @@ describe('ModuleFields, editing', () => {
 /**
  * **The type names were translated and never asked for.**
  *
- * The options were labelled by capitalising the generated key -
- * `type.charAt(0).toUpperCase() + type.slice(1)` - so a Greek panel read
- * *String*, *Gallery*, *Boolean*, while `lang/el.json` held a real Greek word
- * for each of the nine. `CatalogueHasNoOrphansTest` is what surfaced it: nine
- * keys nothing asked for.
+ * The options were labelled by capitalising the generated key, so a Greek
+ * panel read *String*, *Gallery*, *Boolean* while `lang/el.json` held a real
+ * Greek word for each of the nine.
  *
- * The map is literal calls rather than `t(label)` so the catalogue scan can see
- * them - a key reached only through a variable is invisible to it, which is how
- * a string reaches a client untranslated.
+ * What the map holds is `lib/moduleFields.test.js`'s to check; this is the
+ * half that needs a rendered select - that the dropdown is labelled *from* the
+ * map rather than from the key.
  */
 describe('the field types a module may use', () => {
-    it('gives every generated type a word of its own', () => {
-        expect(Object.keys(FIELD_TYPE_LABELS).sort()).toEqual([...fieldTypes.supported].sort());
-    });
-
     it('labels the dropdown from that map, not from the key', () => {
         draw([blank()]);
 
         const select = within(row(1)).getByLabelText('Type');
 
-        for (const type of fieldTypes.supported) {
+        for (const type of FIELD_TYPES) {
             expect(within(select).getByRole('option', { name: FIELD_TYPE_LABELS[type]() }))
                 .toHaveValue(type);
-        }
-    });
-
-    // `fieldTypes.json` stays the source of *which* types exist (it is
-    // generated from the PHP constant); this map only says what each is called.
-    it('does not invent a type the backend has not declared', () => {
-        for (const type of Object.keys(FIELD_TYPE_LABELS)) {
-            expect(fieldTypes.supported).toContain(type);
         }
     });
 });

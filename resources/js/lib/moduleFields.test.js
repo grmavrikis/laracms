@@ -5,6 +5,9 @@ import {
     nextFieldId,
     applyFieldChange,
     schemaPayload,
+    FIELD_TYPES,
+    FIELD_TYPE_LABELS,
+    fieldTypeLabel,
 } from './moduleFields';
 
 const schema = [
@@ -130,5 +133,48 @@ describe('a gallery cannot be translatable', () => {
         fields = applyFieldChange(fields, 0, 'type', 'text', isGallery);
 
         expect(fields[0].translatable).toBe(true);
+    });
+});
+
+/**
+ * **The type names were translated and never asked for.**
+ *
+ * The options were labelled by capitalising the generated key, so a Greek panel
+ * read *String*, *Gallery*, *Boolean* while `lang/el.json` held a real Greek
+ * word for each of the nine. `CatalogueHasNoOrphansTest` is what surfaced it:
+ * nine keys nothing asked for.
+ *
+ * These live beside the rest of the field-row logic rather than in the
+ * component, for the reason the file's docblock gives - and because what a type
+ * is called is not a rendering decision.
+ */
+describe('the field types a module may use', () => {
+    test('gives every generated type a word of its own', () => {
+        expect(Object.keys(FIELD_TYPE_LABELS).sort()).toEqual([...FIELD_TYPES].sort());
+    });
+
+    // `fieldTypes.json` stays the source of *which* types exist (it is
+    // generated from the PHP constant); this map only says what each is called.
+    test('does not invent a type the backend has not declared', () => {
+        for (const type of Object.keys(FIELD_TYPE_LABELS)) {
+            expect(FIELD_TYPES).toContain(type);
+        }
+    });
+
+    test('names a type from the map', () => {
+        expect(fieldTypeLabel('string')).toBe('String');
+        expect(fieldTypeLabel('gallery')).toBe('Gallery');
+    });
+
+    /**
+     * **A missing label is a missing translation, not a dead screen.** Reading
+     * the map and calling the result meant a type present in the generated file
+     * and absent here threw during render, taking both screens that create a
+     * field to the ErrorBoundary - and `fieldTypes.json` is rewritten by an
+     * artisan command, so the two can part company outside CI. The test above
+     * is the enforcement; this is what happens before it has run.
+     */
+    test('falls back to the key for a type nobody has named', () => {
+        expect(fieldTypeLabel('geopoint')).toBe('Geopoint');
     });
 });

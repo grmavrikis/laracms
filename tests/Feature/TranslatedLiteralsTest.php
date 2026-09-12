@@ -36,7 +36,10 @@ class TranslatedLiteralsTest extends TestCase
     {
         parent::setUp();
 
-        $this->directory = storage_path('framework/testing/literals');
+        // Per process: `php artisan test --parallel` runs classes in separate
+        // processes against the same storage path, and `tearDown` deletes the
+        // directory - one of them mid-scan for another.
+        $this->directory = storage_path('framework/testing/literals-' . getmypid());
         File::ensureDirectoryExists($this->directory);
         File::cleanDirectory($this->directory);
     }
@@ -97,6 +100,40 @@ class TranslatedLiteralsTest extends TestCase
         $this->assertArrayNotHasKey('Only On A Line', $found);
     }
 
+    /**
+     * The gap the first fix left.
+     *
+     * Requiring whitespace or a brace before a comment opener fixed the mime
+     * pattern and broke every comment that follows punctuation - `foo(/* … *\/)`,
+     * `const a =/* … *\/ 1`, `foo(1,/* … *\/ 2)` were all left in place, so a
+     * commented-out call counted as a real one. The rule is not "what precedes
+     * it" but "is this slash part of a word": a mime pattern's is, a comment's
+     * is not.
+     *
+     * @param  string  $opener  the character a real comment can follow
+     */
+    #[\PHPUnit\Framework\Attributes\DataProvider('punctuationBeforeAComment')]
+    public function test_a_comment_following_punctuation_is_still_a_comment(string $opener): void
+    {
+        $this->write('Punctuated.jsx', "foo({$opener}/* t('Only In A Comment') */); const a = t('Real Call');");
+
+        $found = TranslatedLiterals::inJavaScript($this->directory);
+
+        $this->assertArrayHasKey('Real Call', $found);
+        $this->assertArrayNotHasKey('Only In A Comment', $found);
+    }
+
+    /** @return array<string, array{string}> */
+    public static function punctuationBeforeAComment(): array
+    {
+        return [
+            'after an opening paren' => [''],
+            'after a comma' => ['1,'],
+            'after an equals' => ['x ='],
+            'after a semicolon' => ['x;'],
+        ];
+    }
+
     /** A URL is not a comment either. */
     public function test_a_url_does_not_swallow_the_line(): void
     {
@@ -111,6 +148,83 @@ class TranslatedLiteralsTest extends TestCase
         $this->write('Other.jsx', "const a = format('Not A Translation');");
 
         $this->assertArrayNotHasKey('Not A Translation', TranslatedLiterals::inJavaScript($this->directory));
+    }
+
+    /**
+     * `inPhp` is the subtlest of the three - it walks the token stream, skips
+     * whitespace and parentheses to reach the first argument, and unescapes
+     * single- and double-quoted literals by different rules - and it moved
+     * files with nothing exercising it directly.
+     */
+    public function test_it_reads_php_in_both_quote_styles(): void
+    {
+        $this->write('Messages.php', <<<'PHP'
+            <?php
+            $a = __('Single quoted');
+            $b = __("Double quoted");
+            $c = __('It\'s escaped');
+            $d = __("Line\nbreak");
+            $e = __($variable);
+            PHP);
+
+        $found = TranslatedLiterals::inPhp($this->directory);
+
+        $this->assertArrayHasKey('Single quoted', $found);
+        $this->assertArrayHasKey('Double quoted', $found);
+        $this->assertArrayHasKey("It's escaped", $found);
+        $this->assertArrayHasKey("Line\nbreak", $found);
+        $this->assertCount(4, $found, 'a variable argument cannot be read and must not be guessed at');
+    }
+
+    /** A comment mentioning a call is not a call - why PHP is read as tokens. */
+    public function test_it_ignores_a_php_call_written_in_a_comment(): void
+    {
+        $this->write('Commented.php', <<<'PHP'
+            <?php
+            // Explains the mechanism: __('Only In A PHP Comment')
+            /* and a block: __('Only In A PHP Block') */
+            $a = __('Actually Called In Php');
+            PHP);
+
+        $found = TranslatedLiterals::inPhp($this->directory);
+
+        $this->assertArrayHasKey('Actually Called In Php', $found);
+        $this->assertArrayNotHasKey('Only In A PHP Comment', $found);
+        $this->assertArrayNotHasKey('Only In A PHP Block', $found);
+    }
+
+    public function test_it_reads_a_blade_template_and_skips_its_comments(): void
+    {
+        $this->write('page.blade.php', <<<'BLADE'
+            {{-- A Blade comment: __('Only In A Blade Comment') --}}
+            <h1>{{ __('In A Template') }}</h1>
+            BLADE);
+
+        $found = TranslatedLiterals::inBlade($this->directory);
+
+        $this->assertArrayHasKey('In A Template', $found);
+        $this->assertArrayNotHasKey('Only In A Blade Comment', $found);
+    }
+
+    /**
+     * A test file is not a call site that ships.
+     *
+     * The skip list was written when only one direction existed, where a
+     * stray literal in a test was merely demanded of the catalogue. Now that
+     * the orphan check reads the same scan, a `t('…')` in a component test
+     * would keep a dead key alive.
+     */
+    public function test_it_ignores_test_files_whatever_their_extension(): void
+    {
+        $this->write('Thing.test.js', "const a = t('Only In A Js Test');");
+        $this->write('Thing.test.jsx', "const a = t('Only In A Jsx Test');");
+        $this->write('Thing.jsx', "const a = t('In The Panel');");
+
+        $found = TranslatedLiterals::inJavaScript($this->directory);
+
+        $this->assertArrayHasKey('In The Panel', $found);
+        $this->assertArrayNotHasKey('Only In A Js Test', $found);
+        $this->assertArrayNotHasKey('Only In A Jsx Test', $found);
     }
 
     /**

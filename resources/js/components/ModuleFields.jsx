@@ -1,46 +1,9 @@
 import { Plus, Trash2, Lock, Images } from 'lucide-react';
-import fieldTypes from '../lib/fieldTypes.json';
 import { isGalleryField } from '../lib/gallery';
+import { FIELD_TYPES, fieldTypeLabel } from '../lib/moduleFields';
 import { t } from '../lib/i18n';
 import { Input, Select, Checkbox, INPUT_LABEL_CLASSES } from '../ui/Input';
 import IconButton from '../ui/IconButton';
-
-/**
- * What each field type is called, in the reader's own language.
- *
- * **Which types exist stays the backend's decision** - the values come from
- * `fieldTypes.json`, generated from the PHP constant, and this map only says
- * what each one is called. `moduleFields.test.jsx` fails if the two lists ever
- * disagree, so a type added in PHP cannot quietly appear here unnamed.
- *
- * They were labelled by capitalising the key, so a Greek panel read *String*,
- * *Gallery*, *Boolean* while `lang/el.json` held a real Greek word for every
- * one of the nine. `CatalogueHasNoOrphansTest` is what found it: nine keys
- * nothing asked for.
- *
- * Literal calls rather than `t(label)`, because a key reached only through a
- * variable is invisible to the catalogue scan - which is how a string reaches a
- * client untranslated in the first place.
- */
-export const FIELD_TYPE_LABELS = {
-    string: () => t('String'),
-    text: () => t('Text'),
-    integer: () => t('Integer'),
-    boolean: () => t('Boolean'),
-    date: () => t('Date'),
-    datetime: () => t('Datetime'),
-    select: () => t('Select'),
-    image: () => t('Image'),
-    gallery: () => t('Gallery'),
-};
-
-// The callback parameter is `type`, not `t`: it used to shadow the translate
-// function for the length of the map, so a `t('…')` added inside this
-// expression would have called an option object.
-const FIELD_TYPES = fieldTypes.supported.map((type) => ({
-    value: type,
-    label: FIELD_TYPE_LABELS[type],
-}));
 
 /** Why a row is fixed, as text on the page rather than only a tooltip. */
 const Note = ({ icon: Icon, children }) => (
@@ -143,7 +106,7 @@ export default function ModuleFields({ fields, onChange, onAdd, onRemove }) {
                                         className="py-1.5 text-sm"
                                     >
                                         {FIELD_TYPES.map((type) => (
-                                            <option key={type.value} value={type.value}>{type.label()}</option>
+                                            <option key={type} value={type}>{fieldTypeLabel(type)}</option>
                                         ))}
                                     </Select>
                                 </div>

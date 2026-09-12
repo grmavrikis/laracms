@@ -1184,7 +1184,7 @@ just not by faking it.
 > The reset is the more valuable half. Remember me saves a login a week;
 > a reset saves a telephone call at an hour when nobody wants one.
 
-### 117. The panel redesign — IN PROGRESS (2026-09-10)
+### 117. The panel redesign — DONE (2026-09-10 → 2026-09-12, CHANGELOG §37–§45)
 
 See the Amendment above for **why**, which is a business argument rather than a
 visual one. This item records **how**, and the constraint that shapes it.
@@ -2046,7 +2046,32 @@ saying exactly that and naming this item.
   screens in a row got wrong. `CLAUDE.md`'s file tables and component list were
   four items out of date.
 
-  523 PHP tests, 717 JS tests.
+  **Its own review found eight, five of them in that scanner.** The comment
+  fix had asked the wrong question — *what precedes this slash* rather than *is
+  this slash part of a word* — so it stripped the mime pattern and stopped
+  stripping every comment that follows punctuation: `foo(/* … */)` counted a
+  commented-out call as a real one, which demands a key nothing renders and
+  keeps a dead one alive. `(?<![\w/])/\*` and `(?<![\w:])//` ask the right
+  question, and a data provider pins the four forms. The skip list covered
+  `.test.js` but not `.test.jsx`, which matters now that the orphan check reads
+  the same scan — a test is not a call site that ships. `inPhp` and `inBlade`
+  had no tests of their own, which is §44's own lesson applied to §44's own
+  work: a scanner reading too little reports success either way. And
+  `everywhereCoreTranslates` merged its three scans, so a string translated on
+  both sides was attributed to whichever ran last, when naming the file is the
+  map's whole purpose.
+
+  The eighth was in the fix itself: `FIELD_TYPE_LABELS[type]()` is `undefined()`
+  for a generated type the map does not name, so a field type added in PHP took
+  both screens that create a field to the ErrorBoundary — where the code it
+  replaced had merely shown an English word. `fieldTypeLabel()` falls back to
+  the capitalised key: **a missing label is a missing translation, not a dead
+  screen**, with the list-comparison test still the enforcement. It moved to
+  `lib/moduleFields.js` while it was open, because what a type is called is a
+  data question and answering it in a component meant importing lucide and two
+  `ui/` primitives into a jsdom test.
+
+  531 PHP tests, 719 JS tests.
 
 ### 119. The entry form offers a language the site has switched off — P2
 

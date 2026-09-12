@@ -103,7 +103,7 @@ The `lib/` helpers are pure functions and carry the interesting decisions:
 | `resources/js/lib/languages.js` | `getLangCode`, which language is the default, and `contentLangCode` — the content language a listing opens on, which **follows the panel's own language when the site has it** and falls back to the default when it does not (#116). |
 | `resources/js/lib/modules.js` | Which name a Module shows in a given language, falling back to the panel's own (#114, #116). Two screens ask; while each held its own expression, one was missed. |
 | `resources/js/lib/languageStore.js` | One `/api/languages` fetch per page load, shared by the five screens that want it. A rejection is not cached. |
-| `resources/js/lib/moduleFields.js` | The rows of a module's field editor and the payload they become (#115). Pure, because three defects in this logic shipped in one commit while it lived inside a component. A row carries its own `locked`; ids come from the rows; a stored `select` option survives a round trip. |
+| `resources/js/lib/moduleFields.js` | The rows of a module's field editor and the payload they become (#115). Pure, because three defects in this logic shipped in one commit while it lived inside a component. A row carries its own `locked`; ids come from the rows; a stored `select` option survives a round trip. It also owns **what a field type is called** - `fieldTypeLabel` falls back to the capitalised key, because a type in the generated file that this map does not name is a missing translation, not a screen that throws. |
 | `resources/js/lib/i18n.js` | `t()` — the panel's strings. The catalogue is **injected by the server** into `window.miniCms`, never bundled, so a new language needs no rebuild. `translate` mirrors PHP's `strtr`: one pass, longest name first. |
 | `resources/js/lib/api.js` | One axios client. `signIn()` owns the CSRF-then-credentials ordering; `uploadImage()` owns the upload contract, shared by both editors. |
 | `public/forms.js` | **Not part of the bundle and not built.** The public site's only JavaScript: one submitter any theme form opts into with `data-cms-form` (#97). Tested by `resources/js/public-forms.test.js`, which loads the shipped file into jsdom. |
@@ -225,8 +225,8 @@ both — write `t('…')` literally, as `FIELD_TYPE_LABELS` does.
 ## Commands
 
 ```bash
-php artisan test                    # 523 tests
-npm test                            # 717 tests
+php artisan test                    # 531 tests
+npm test                            # 719 tests
 npm run build
 php artisan schema:sync-field-types # after changing field type constants
 php artisan pages:warm              # bake the public site to files (#97) - THE DEPLOY STEP
@@ -297,7 +297,12 @@ Started from a repo that would not boot (eight files of merge conflicts).
 Worked through a prioritised list; every item is either done or recorded in
 `CHANGELOG.md` with its reasoning.
 
-- **523 PHP tests, 717 JS tests**, all passing. Build clean.
+- **531 PHP tests, 719 JS tests**, all passing. Build clean.
+- **#117, the panel redesign, is DONE** (2026-09-12) — all twenty items,
+  CHANGELOG §37–§45. Tokens, a hand-written router, the `ui/` vocabulary, every
+  screen restyled and named, and the catalogue checked in both directions. The
+  rule of that phase was **appearance only**: what needs PHP is drawn with
+  static data inside `ui/Preview`, with a TODO naming the endpoint it wants.
 - **The project has a commercial goal as of 2026-08-30**, and it now decides
   what gets worked on. A multilingual CMS that feeds client sites, owned
   outright, for a one-person web agency: **one installation per client site**,
