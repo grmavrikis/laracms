@@ -5586,3 +5586,50 @@ landing on the flyout instead of the row. All four fail against the
 code without their fix, confirmed by reverting each in turn.
 
 531 PHP tests, 799 JS tests, build clean.
+---
+
+## 52. §51 fixed a real bug, but not the one that was reported
+
+Checked again after §51 shipped, with the same words: the owner repeated the
+original report almost verbatim and said plainly it was not fixed. It was
+worth taking at face value rather than re-explaining why the fade-skip should
+have covered it - and live sampling agreed with the owner.
+
+§51's fix was correct and stayed: switching the flyout from one row to
+another no longer drops it to invisible and back, and that is real, checked
+behaviour - opacity holds at `1.0` throughout. What it was not is the whole
+story. The flyout still ran `background-color` alongside opacity in its
+`transition-` list, added in §49 so a click would slide into `bg-accent`
+rather than sitting stale. With opacity no longer the thing hiding the
+switch, the colour transition was now the **only** thing visible during a
+row-to-row hover, and interpolating between `--ui-accent` and
+`--ui-sidebar-hover` - a saturated green and a desaturated blue-grey - passes
+through an in-between that is neither: measured live, `rgb(4, 120, 87)` to
+`rgb(40, 53, 73)` by way of `rgb(20, 90, 81)`, `rgb(28, 74, 77)`,
+`rgb(38, 58, 74)`. A hundred milliseconds is long enough to see that on the
+way past, which is exactly the "green stays a moment on the wrong row" and
+"the dark one shows inside the active one" the owner described - a literal,
+correct account of a colour transition, not a flicker at all.
+
+**The colour itself no longer animates.** `transition-opacity` replaces the
+three-property list; `flyout.active` still flips the instant a row is clicked
+or swapped to, so the update is exactly as immediate as it was, only painted
+without the blend. Sampled the same way as before: at `t=0` the box reads
+`rgb(4, 120, 87)`; by the very next frame, `rgb(40, 53, 73)` - nothing between
+them, in either direction.
+
+### Checked
+
+One new test pins the absence directly: the flyout's class carries
+`transition-opacity` and nothing naming `background-color` or a bracketed
+property list including `color`. Confirmed failing against the reverted
+class. The four tests from §51 needed no change - none of them asserted
+anything about *how* the colour arrived, only that the right one did, which
+is still true.
+
+Verified live in both directions, sampled every ~10ms across the hover:
+Dashboard (active) to Rooms and back, opacity flat at `1.0` the whole time in
+both, and the background reading its new value on the very first sample after
+the switch with no interpolated value in between.
+
+531 PHP tests, 800 JS tests, build clean.

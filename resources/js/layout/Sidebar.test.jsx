@@ -336,6 +336,23 @@ describe('the rail, collapsed to 68px', () => {
         expect(document.getElementById('rail-flyout').className).toContain('bg-accent');
     });
 
+    // Measured live: transitioning `background-color` alongside opacity read
+    // as the two colours blending, since green and grey interpolate through a
+    // muddy in-between that is neither of them - and holding still for 100ms
+    // was long enough to see it on the way past. The colour itself has to
+    // snap, whatever else about the box is easing in or out.
+    it('changes colour instantly rather than easing into it', async () => {
+        draw({ collapsed: true });
+        const row = await rooms();
+
+        fireEvent.mouseEnter(row);
+
+        const flyout = document.getElementById('rail-flyout');
+
+        expect(flyout.className).toContain('transition-opacity');
+        expect(flyout.className).not.toMatch(/background-color|transition-\[.*color/);
+    });
+
     // The row underneath is 44px wide even once the flyout has grown to show
     // a name like "Facilities" - so a mouse resting on the *visible* label,
     // past that 44px, is not resting on the row at all. Moving there must not

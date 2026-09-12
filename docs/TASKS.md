@@ -1251,15 +1251,21 @@ migrations, so a choice follows the person to their second **tab** rather than
 their second machine. Two columns and a save; the panel's own half already
 resolves both against an allow-list before applying them.
 
-### 129. A colour bleed on hover, and a singleton's active row still clicked through — DONE (CHANGELOG §51)
+### 129. A colour bleed on hover, and a singleton's active row still clicked through — DONE (CHANGELOG §51, §52)
 
 Two precise reports. Moving the hover from an active row to an inactive one
-(or back) showed the wrong colour briefly on the wrong row - `openFlyout`
-always faded the box out and back in for a "new" row, even when it was
-already fully visible for a different one and never actually left the screen,
-so the outgoing and incoming `background-color` transitions ran at once.
-Fixed by skipping the fade entirely when a flyout is already showing; only a
-genuinely fresh open (nothing visible a moment ago) gets it.
+(or back) showed the wrong colour briefly on the wrong row.
+
+The first fix (§51) was real but incomplete: `openFlyout` faded the box out
+and back in for a "new" row even when it was already visible for a different
+one and never actually left the screen, and skipping that fade was worth
+doing on its own. It was not, though, what the owner was describing - checked
+again after shipping it, the report came back unchanged. The **colour's own**
+`background-color` transition (added in §49) was the actual cause: with
+nothing else hiding the switch, interpolating between the accent green and
+the sidebar's grey passes through an in-between that is neither, and 100ms is
+long enough to see it. §52 removed that transition entirely - the colour now
+snaps the instant `flyout.active` changes, painted rather than eased.
 
 Separately, a singleton's own sidebar row is `active` at `entryEdit` but its
 link always points at the module's listing - which redirects straight back
@@ -1268,10 +1274,12 @@ visible round trip: a navigation away, a *Loading…*, a fresh request, a
 redirect back. Fixed with one guard: a click on an already-active row does
 nothing, on the row and on its flyout both.
 
-Both measured live rather than assumed: sampling the flyout every 10ms
-through a hover swap showed opacity holding at 1.0 for the whole transition,
-and opening a singleton at its real `entryEdit` address, then clicking its own
-active row, left the address exactly where it was.
+All of it measured live rather than assumed: sampling the flyout every 10ms
+through a hover swap showed opacity holding at 1.0 throughout in §51, and
+after §52 the background reading its new value on the very next frame with
+nothing interpolated in between; opening a singleton at its real `entryEdit`
+address and clicking its own active row left the address exactly where it
+was.
 
 ### 128. The flyout's own hit-area was narrower than what it showed — DONE (CHANGELOG §50)
 

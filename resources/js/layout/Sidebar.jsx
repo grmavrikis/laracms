@@ -308,10 +308,12 @@ export default function Sidebar({ open = false, onClose }) {
      * fade entirely, for the same reason.** The box never actually leaves the
      * screen moving from one row's flyout straight to a neighbour's - it is
      * the same element, repositioned - so dropping it to invisible and back
-     * only opened a window for the outgoing colour and the incoming one to
-     * transition at once, mid-fade, which is what read as one bleeding into
-     * the other. `show` is only ever set to `false` when there was nothing
-     * visible a moment ago to begin with.
+     * bought nothing but a needless flash of nothing, right where the reader's
+     * pointer already was. `show` is only ever set to `false` when there was
+     * nothing visible a moment ago to begin with. See the colour's own note
+     * further down for the other half of this - the two used to compound,
+     * since the box was fading through invisibility *and* its colour was
+     * transitioning at the same time.
      */
     const closeFlyout = useCallback(() => {
         clearTimeout(closeTimer.current);
@@ -612,11 +614,16 @@ export default function Sidebar({ open = false, onClose }) {
                 the whole point: the initial is what the flyout replaces, not
                 what it repeats beside the name.
 
-                **The background transitions too, not only the opacity** -
-                `activateFlyout` flips `flyout.active` the instant a row is
-                clicked, so the box slides from its unselected colour into
-                `bg-accent` right then, rather than sitting stale until the
-                pointer leaves and returns. */}
+                **Only opacity animates - the colour itself snaps.** It tried
+                transitioning `background-color` alongside it once, so a click
+                would slide into `bg-accent` rather than sitting stale, and
+                measured live that read as the two colours blending: green and
+                grey interpolate through a muddy in-between that neither of
+                them is, and holding still for 100ms was long enough to see it
+                on the way past. `activateFlyout` and a swap to a different row
+                both still change `flyout.active`/`flyout.label` the instant
+                they happen - correctness was never the question - only the
+                paint of that change is now immediate rather than eased. */}
             {flyout && createPortal(
                 <Link
                     id={FLYOUT_ID}
@@ -637,7 +644,7 @@ export default function Sidebar({ open = false, onClose }) {
                         height: flyout.rect.height,
                         maxWidth: Math.min(FLYOUT_MAX_WIDTH, window.innerWidth - flyout.rect.left - 16),
                     }}
-                    className={`fixed z-50 flex items-center gap-3 overflow-hidden whitespace-nowrap rounded-lg px-3 transition-[opacity,background-color,color] duration-100 ease-out motion-reduce:transition-none ${
+                    className={`fixed z-50 flex items-center gap-3 overflow-hidden whitespace-nowrap rounded-lg px-3 transition-opacity duration-100 ease-out motion-reduce:transition-none ${
                         show ? 'opacity-100' : 'opacity-0'
                     } ${
                         flyout.active
