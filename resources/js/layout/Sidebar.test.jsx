@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, within, fireEvent } from '@testing-library/react';
+import { render, screen, within, fireEvent, waitForElementToBeRemoved } from '@testing-library/react';
 import Sidebar from './Sidebar';
 import { RouterProvider } from '../hooks/useRoute';
 import { forgetModules } from '../lib/moduleStore';
@@ -163,13 +163,72 @@ describe('the rail, collapsed to 68px', () => {
         expect(document.getElementById('rail-flyout')).toHaveTextContent('Rooms');
     });
 
-    it('takes it away again', async () => {
+    it('fades out rather than cutting, and is gone once the fade has had time to finish', async () => {
         draw({ collapsed: true });
         const row = await rooms();
 
         fireEvent.mouseEnter(row);
         fireEvent.mouseLeave(row);
 
-        expect(document.getElementById('rail-flyout')).toBeNull();
+        // Still in the document immediately after `mouseLeave`, and already
+        // carrying the class that starts its fade - closing plays the same
+        // transition backwards rather than unmounting on the spot. Clicking a
+        // row used to cut straight to unmount, right as the clicked row's own
+        // background began sliding smoothly into `bg-accent`, so a fade sat
+        // next to a hard cut a few pixels away.
+        const flyout = document.getElementById('rail-flyout');
+
+        expect(flyout).not.toBeNull();
+        expect(flyout.className).toContain('opacity-0');
+
+        await waitForElementToBeRemoved(() => document.getElementById('rail-flyout'));
+    });
+
+    it('cancels a pending close when the same row is hovered again first', async () => {
+        draw({ collapsed: true });
+        const row = await rooms();
+
+        fireEvent.mouseEnter(row);
+        fireEvent.mouseLeave(row);
+        fireEvent.mouseEnter(row);
+
+        // The row was re-entered before the scheduled unmount fired - it must
+        // not go on to remove a flyout that a later hover put back up.
+        await new Promise((resolve) => { setTimeout(resolve, 200); });
+
+        expect(document.getElementById('rail-flyout')).not.toBeNull();
+    });
+
+    // Measured live before this was written: clicking a hovered row closed the
+    // flyout by way of the route changing, at the exact moment the clicked
+    // row's own background began its own, differently-timed transition into
+    // `bg-accent` - a fade and a colour change racing each other on the same
+    // few pixels, which is what read as broken rather than smooth. The pointer
+    // never left the row, so there was nothing to close *for*.
+    it('stays open across the very navigation the click just started', async () => {
+        draw({ collapsed: true });
+        const row = await rooms();
+
+        fireEvent.mouseEnter(row);
+        expect(document.getElementById('rail-flyout')).not.toBeNull();
+
+        fireEvent.click(row);
+
+        // Prove the click actually navigated, or the rest of this test proves
+        // nothing.
+        expect(window.location.pathname).toBe('/admin/content/rooms');
+
+        // Past the close delay a route-triggered close would have used, not
+        // just the instant after the click - closing is scheduled behind a
+        // timer, so checking immediately would pass whether or not the route
+        // change closes it. The route is now `entries`/`rooms` - Rooms is the
+        // active screen - but the mouse is still exactly where it was, so the
+        // flyout it raised has no reason to go anywhere.
+        await new Promise((resolve) => { setTimeout(resolve, 200); });
+        expect(document.getElementById('rail-flyout')).not.toBeNull();
+
+        // It still answers to the pointer actually leaving, same as ever.
+        fireEvent.mouseLeave(row);
+        await waitForElementToBeRemoved(() => document.getElementById('rail-flyout'));
     });
 });

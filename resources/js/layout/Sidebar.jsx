@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import {
     LayoutDashboard,
@@ -36,6 +36,18 @@ const FLYOUT_ID = 'rail-flyout';
  * a `ResizeObserver` per label.
  */
 const FLYOUT_MAX_WIDTH = 224;
+
+/**
+ * How long to keep the flyout mounted after it starts fading out - long
+ * enough for the box's own 100ms opacity transition to finish, plus a little
+ * room for the browser to actually schedule that paint. Cutting it short is
+ * what closing on a click looked like before this existed: the row you had
+ * just clicked was becoming active, its own background sliding smoothly into
+ * `bg-accent` over its `transition-colors`, while the flyout sitting on top of
+ * it vanished in the very same frame - a clean fade fighting a hard cut,
+ * right where the reader had just put their pointer.
+ */
+const FLYOUT_CLOSE_MS = 120;
 
 /**
  * Guarded, like the theme's: a browser set to block site data throws on access
@@ -203,6 +215,12 @@ export default function Sidebar({ open = false, onClose }) {
     const [flyout, setFlyout] = useState(null);
     const [show, setShow] = useState(false);
 
+    // Cleared on every open and every close, so an open arriving while a
+    // previous close is still pending cancels it rather than racing it - a
+    // quick re-hover of a row that was on its way out must not have the
+    // scheduled unmount arrive after the new one has already opened.
+    const closeTimer = useRef(null);
+
     const viewLangCode = contentLangCode(languages, locale);
 
     /**
@@ -222,11 +240,26 @@ export default function Sidebar({ open = false, onClose }) {
      * mounts at its finished size and fades in as a whole; the label carries
      * its own short delay and its own small `translate-x`, so it settles a
      * beat after the highlight does rather than both arriving at once.
+     *
+     * **Closing plays the same fade backwards, rather than unmounting on the
+     * spot.** `show` drops first, which is the class toggle the box already
+     * transitions on, and the box itself is only removed once that transition
+     * has had time to finish. Clicking a row used to cut straight to unmount:
+     * the flyout vanished in the same frame the clicked row's own background
+     * began sliding into `bg-accent`, so a smooth colour change sat right next
+     * to a hard cut a few pixels away. Now both are the same kind of motion.
      */
+    const closeFlyout = useCallback(() => {
+        setShow(false);
+        clearTimeout(closeTimer.current);
+        closeTimer.current = setTimeout(() => setFlyout(null), FLYOUT_CLOSE_MS);
+    }, []);
+
     const openFlyout = useCallback((meta, element) => {
+        clearTimeout(closeTimer.current);
+
         if (meta === null) {
-            setFlyout(null);
-            setShow(false);
+            closeFlyout();
 
             return;
         }
@@ -241,15 +274,28 @@ export default function Sidebar({ open = false, onClose }) {
         requestAnimationFrame(() => {
             requestAnimationFrame(() => setShow(true));
         });
-    }, []);
+    }, [closeFlyout]);
 
-    // Anything that moves the rows out from under the pointer closes the
-    // flyout with them: following a link, and widening the rail so the labels
-    // are there anyway.
+    // Only widening the rail closes the flyout on its own - the labels are
+    // inline once it does, so a floating one left over would duplicate a name
+    // that is now sitting right there in the markup. A route change does
+    // **not** close it, and that took a live measurement to get right: the
+    // first version closed on navigation too, on the reasoning that a link
+    // just followed is a row just left. It measured as the opposite of smooth
+    // - clicking a hovered row started the flyout's own fade-out at the exact
+    // moment the *clicked* row's background began its own, differently-timed
+    // transition into `bg-accent`, two motions of different lengths racing on
+    // the same few pixels. The pointer had not gone anywhere, so there was
+    // nothing to close *for*. It answers to the pointer actually leaving
+    // (`onMouseLeave`/`onBlur`, wired on the row) exactly as before; this
+    // effect exists only for the one case neither of those covers.
     useEffect(() => {
-        setFlyout(null);
-        setShow(false);
-    }, [route, rail]);
+        if (rail) return undefined;
+
+        closeFlyout();
+
+        return () => clearTimeout(closeTimer.current);
+    }, [rail, closeFlyout]);
 
     const fetchModules = useCallback(() => {
         setModulesFailed(false);

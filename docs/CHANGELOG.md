@@ -5309,3 +5309,60 @@ name is the `heading` and *New entry* is not, written first and confirmed
 failing against the old order before the swap.
 
 531 PHP tests, 789 JS tests, build clean.
+
+---
+
+## 48. Closing on click still wasn't smooth, and the fix was to stop closing for it
+
+The previous section's fade-out was not the end of it. Checked live again after
+shipping it, on the owner's own description of clicking a hovered row: *«κρύβει
+την ολόκληρη λέξη, εμφανίζει μόνο το γράμμα και ξαναεμφανίζει τη λέξη, επίσης
+όταν το αφήσω το κλικ αλλάζει και χρώμα».*
+
+### What was actually happening, measured
+
+Sampling the flyout and the row underneath every 15ms through a real click:
+`route` changes almost immediately (2ms), and for the next ~35ms nothing moves
+- React's passive effects run after the commit, not inside the click handler.
+Then, starting at the same instant, **two independent transitions began on the
+same few pixels**: the flyout's own 100ms opacity fade-out (added in §47's
+close-with-a-fade), and the clicked row's `transition-colors` sliding its
+background from transparent to solid `bg-accent` over its own ~150ms. Different
+durations, different elements, layered on top of each other. A fade racing a
+colour change is what the owner's words were describing - not a literal
+word-letter-word sequence, but what that composite looks like to an eye
+watching it at normal speed.
+
+### The fix was smaller than the measurement
+
+Not a third animation. **A route change stopped closing the flyout at all.**
+The only thing that still does is the rail itself widening - `rail` becoming
+`false` - because that is the one case where the mechanism stops meaning
+anything: the label is inline in the markup at that point, and a flyout left
+open over it would be a name shown twice. `onMouseLeave` and `onBlur`, wired on
+the row since the flyout was built, are what a route change was standing in
+for, and they already do this correctly.
+
+The consequence, seen live: click a hovered row, and **nothing changes on
+screen from the pointer's point of view.** The new page loads underneath; the
+row's own colour transition still runs, invisibly, hidden under the still-open,
+still-opaque flyout; and only once the reader's mouse actually leaves - almost
+always true within a second, since they came here to look at the page they
+just opened - does the existing fade play, once, in isolation, revealing a row
+that finished changing colour a long time ago. Sampled the same way as before:
+the flyout sat at `opacity: 1` for 336ms of clicking and waiting, unmoved, and
+then faded cleanly to nothing the moment the pointer left - a single motion
+where there had been two fighting each other.
+
+### Checked
+
+Two tests. One proves the persistence directly - hover, click, assert the
+flyout is *still* there **past the 120ms the old close-on-route-change would
+have taken**, since checking immediately after the click would have passed
+either way: closing was already behind a timer, so an assertion with no wait
+could not tell the fixed code from the broken one. It failed against the
+un-fixed effect for exactly that reason once the wait was added. The other
+confirms the ordinary close still fires afterwards, from the same pointer
+actually leaving.
+
+531 PHP tests, 791 JS tests, build clean.

@@ -226,7 +226,7 @@ both — write `t('…')` literally, as `FIELD_TYPE_LABELS` does.
 
 ```bash
 php artisan test                    # 531 tests
-npm test                            # 789 tests
+npm test                            # 791 tests
 npm run build
 php artisan schema:sync-field-types # after changing field type constants
 php artisan pages:warm              # bake the public site to files (#97) - THE DEPLOY STEP
@@ -297,7 +297,12 @@ Started from a repo that would not boot (eight files of merge conflicts).
 Worked through a prioritised list; every item is either done or recorded in
 `CHANGELOG.md` with its reasoning.
 
-- **531 PHP tests, 789 JS tests**, all passing. Build clean.
+- **531 PHP tests, 791 JS tests**, all passing. Build clean.
+- **#126, the rail's flyout on click, is DONE** (CHANGELOG §48) — closing it on
+  a route change raced the clicked row's own colour transition into
+  `bg-accent`, two motions of different lengths on the same pixels. Fixed by
+  not closing it for navigation at all; only the rail widening still does,
+  since that is the one case a floating label would duplicate one now inline.
 - **#125, the entry form's heading, is DONE** (CHANGELOG §47) — `EntryEditScreen`
   had *New entry* in the big bold heading and the module's own name shrunk to
   the muted line under it, backwards from every other screen. Found opening

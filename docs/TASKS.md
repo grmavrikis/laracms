@@ -1251,6 +1251,21 @@ migrations, so a choice follows the person to their second **tab** rather than
 their second machine. Two columns and a save; the panel's own half already
 resolves both against an allow-list before applying them.
 
+### 126. Closing the rail's flyout on a click still wasn't smooth — DONE (CHANGELOG §48)
+
+The fade added for #124 fixed the abrupt cut, and the owner still saw something
+"weird" on a plain click. Measured live: closing on the route change made the
+flyout fade out at the exact moment the clicked row's own background began its
+own, differently-timed `transition-colors` into `bg-accent` - two motions of
+different lengths on the same pixels, which reads as broken even though neither
+one is, individually.
+
+The fix was to stop closing on navigation at all - only the rail itself
+widening still does, since that is the one case where a floating label would
+duplicate one now sitting inline. The pointer never left the row it clicked, so
+there was nothing to close *for*; `onMouseLeave`/`onBlur` already do this
+correctly and now carry the whole job.
+
 ### 125. The entry form's heading had the module's name backwards — DONE (CHANGELOG §47)
 
 Found by the owner opening Contact from the collapsed rail (#124): the heading
