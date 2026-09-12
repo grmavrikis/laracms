@@ -5633,3 +5633,69 @@ both, and the background reading its new value on the very first sample after
 the switch with no interpolated value in between.
 
 531 PHP tests, 800 JS tests, build clean.
+
+---
+
+## 53. The Modules screen, redrawn as cards
+
+Front-end only, on the owner's word: *«η σελίδα modules δεν μου αρέσει
+καθόλου»*. Not a defect - a dense table of module name, slug, languages and
+actions, one row each, was the same treatment a bookings ledger would get. A
+site's own six sections are not a record list; `TASKS.md` → Deferred already
+says as much for a different reason ("module grouping - no problem to solve at
+six modules"), and the same fact - a handful of items, never hundreds - is
+what makes a table the wrong shape here rather than the safe one.
+
+### What changed
+
+Each module is now a card: the same icon-tile `PageHeader` opens every screen
+with, its name and slug always visible (no more hiding the slug under `sm` and
+giving it a column above that width - a card has room for both at every
+size), its type and field count as a pair of badges, and the language-
+completeness badges - `All languages` or one named per language with no page
+- sitting under a divider rather than in a column that needed a legend to
+explain. The primary action (`Open` for a singleton, `Entries` for a list)
+anchors the bottom of the card; editing stays a separate, named icon button
+beside the title, exactly where it was.
+
+Six modules now read as a `sm:grid-cols-2 xl:grid-cols-3` grid rather than six
+mostly-empty table rows, and a phone gets one honest column instead of a
+horizontal scrollbar.
+
+### A bug found on the way, fixed because it would have shipped broken
+
+`ModulesList`'s error branch rendered `<Alert>` - never imported. Any failed
+`/api/modules` request would have taken the whole screen to the
+`ErrorBoundary` instead of showing the message and its retry button; nothing
+had ever exercised that branch, since the screen had no test at all before
+this. Fixed alongside the redesign, since leaving it in code being rewritten
+anyway is exactly the exception `CLAUDE.md` names for touching something
+beyond the ask.
+
+### Checked
+
+`ModulesList.jsx` had no test file. It has one now - ten tests, written first
+against the *existing* table and confirmed failing for the right reasons (six
+of them, on `data-module` not existing yet and on the `Alert` crash) before
+the rewrite, then passing after. Loading, error-with-retry, empty, populated,
+both action buttons wired to the right module, and the missing-language
+badges named rather than counted. `data-module` on each card exists for
+exactly this - scoping a query to *one* module's badges is meaningless once a
+second module can carry a different one.
+
+One assertion is new specifically because of the redesign: the screen's own
+title is an `h1` (`PageHeader`), and nothing on this page sits between it and
+a module's name - so each card names itself with an `h2`, not an `h3` that
+would skip a level a screen reader's heading list depends on being
+sequential. Confirmed failing against `h3`.
+
+Two new catalogue strings (`:count fields`) went into both `lang/en.json` and
+`lang/el.json`; the redesign also dropped the table's two column headers
+(`Slug`, `Languages`), which `CatalogueHasNoOrphansTest` correctly flagged the
+moment nothing called `t()` with them any more - removed from both files
+rather than left as sentences nobody is asked to translate.
+
+Verified live in both themes, at a phone width, and at three desktop widths
+(one/two/three columns); heading levels read `h1` → `h2` with nothing skipped.
+
+531 PHP tests, 810 JS tests, build clean.

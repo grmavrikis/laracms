@@ -1,6 +1,7 @@
 {
     "(optional)": "(optional)",
     ":count entries": ":count entries",
+    ":count fields": ":count fields",
     ":count guests": ":count guests",
     ":count selected": ":count selected",
     ":failed of :total could not be done.": ":failed of :total could not be done.",
@@ -127,7 +128,6 @@
     "Italic": "Italic",
     "Justify": "Justify",
     "Language this panel opens in": "Language this panel opens in",
-    "Languages": "Languages",
     "Latest enquiries": "Latest enquiries",
     "Left": "Left",
     "Light": "Light",
@@ -219,7 +219,6 @@
     "Sign in to manage your website’s content.": "Sign in to manage your website’s content.",
     "Signing in…": "Signing in…",
     "Single page": "Single page",
-    "Slug": "Slug",
     "Something went wrong.": "Something went wrong.",
     "Sort by": "Sort by",
     "Status": "Status",

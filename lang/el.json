@@ -1,6 +1,7 @@
 {
     "(optional)": "(προαιρετικό)",
     ":count entries": ":count εγγραφές",
+    ":count fields": ":count πεδία",
     ":count guests": ":count άτομα",
     ":count selected": ":count επιλεγμένα",
     ":failed of :total could not be done.": ":failed από :total δεν ήταν δυνατό να γίνουν.",
@@ -127,7 +128,6 @@
     "Italic": "Πλάγια",
     "Justify": "Πλήρης στοίχιση",
     "Language this panel opens in": "Γλώσσα που ανοίγει αυτός ο πίνακας",
-    "Languages": "Γλώσσες",
     "Latest enquiries": "Τελευταία αιτήματα",
     "Left": "Αριστερά",
     "Light": "Φωτεινό",
@@ -219,7 +219,6 @@
     "Sign in to manage your website’s content.": "Συνδεθείτε για να διαχειριστείτε το περιεχόμενο του ιστότοπού σας.",
     "Signing in…": "Γίνεται σύνδεση…",
     "Single page": "Μία σελίδα",
-    "Slug": "Slug",
     "Something went wrong.": "Κάτι πήγε στραβά.",
     "Sort by": "Ταξινόμηση κατά",
     "Status": "Κατάσταση",

@@ -1251,6 +1251,31 @@ migrations, so a choice follows the person to their second **tab** rather than
 their second machine. Two columns and a save; the panel's own half already
 resolves both against an allow-list before applying them.
 
+### 130. The Modules screen read as a table for six items — DONE (CHANGELOG §53)
+
+The owner's whole complaint was appearance, not behaviour: *«η σελίδα modules
+δεν μου αρέσει καθόλου»*. `ModulesList` drew a table - name, slug, languages,
+actions - for a screen that never holds more than a handful of rows; a client
+site's own sections are not a record list. Redrawn as a responsive card grid
+(`sm:grid-cols-2 xl:grid-cols-3`), one `ModuleCard` per module: an icon tile
+matching every other screen's `PageHeader`, name and slug both always visible,
+type and field-count badges, and the language-completeness badges (`All
+languages`, or one named per language with no page) under a divider instead of
+in a column needing a legend.
+
+Found and fixed on the way, as the one-line exception for code already being
+rewritten: the error branch called `<Alert>` without importing it, so a failed
+`/api/modules` request would have crashed to the `ErrorBoundary` instead of
+showing the retry button - untested until this pass, since the screen had no
+test file at all before it.
+
+`ModulesList.test.jsx` is new - ten tests, written against the old table first
+and confirmed failing for the right reasons. Heading levels corrected in the
+same pass: each card names itself with an `h2`, one level under the screen's
+own `h1`, not the `h3` it was first written with.
+
+531 PHP tests, 810 JS tests, build clean.
+
 ### 129. A colour bleed on hover, and a singleton's active row still clicked through — DONE (CHANGELOG §51, §52)
 
 Two precise reports. Moving the hover from an active row to an inactive one

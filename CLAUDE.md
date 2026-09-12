@@ -226,7 +226,7 @@ both — write `t('…')` literally, as `FIELD_TYPE_LABELS` does.
 
 ```bash
 php artisan test                    # 531 tests
-npm test                            # 800 tests
+npm test                            # 810 tests
 npm run build
 php artisan schema:sync-field-types # after changing field type constants
 php artisan pages:warm              # bake the public site to files (#97) - THE DEPLOY STEP
@@ -297,7 +297,17 @@ Started from a repo that would not boot (eight files of merge conflicts).
 Worked through a prioritised list; every item is either done or recorded in
 `CHANGELOG.md` with its reasoning.
 
-- **531 PHP tests, 800 JS tests**, all passing. Build clean.
+- **531 PHP tests, 810 JS tests**, all passing. Build clean.
+- **#130, the Modules screen redrawn as cards, is DONE** (CHANGELOG §53) — the
+  owner's whole complaint was appearance: a table of name/slug/languages/
+  actions for a screen that never holds more than a handful of rows. Replaced
+  with a responsive card grid, one `ModuleCard` per module, name and slug both
+  always visible, type and field-count badges, and the language-completeness
+  badges under a divider. Found on the way and fixed as the one-line exception
+  for code already being rewritten: the error branch called `<Alert>` without
+  importing it — untested until this pass, since the screen had no test file
+  at all before it. `ModulesList.test.jsx` is new, ten tests, written against
+  the old table first.
 - **#129, a colour bleed and a singleton's active click, is DONE**
   (CHANGELOG §51, §52) — moving the hover between an active and an inactive
   row faded the flyout out and back in for what was really the same,
