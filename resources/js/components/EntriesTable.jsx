@@ -7,6 +7,7 @@ import { t } from '../lib/i18n';
 import { formatDate } from '../lib/format';
 import { isPublished, reorderedIds, positionInOrder, sortByOrder, valueForLanguage } from '../lib/entries';
 import { toggle, toggleAll, allSelected, someSelected } from '../lib/selection';
+import useMediaQuery from '../hooks/useMediaQuery';
 import Badge from '../ui/Badge';
 import IconButton from '../ui/IconButton';
 import Preview from '../ui/Preview';
@@ -55,15 +56,26 @@ function PageCheckbox({ indeterminate, ...rest }) {
 
 const Empty = () => <span className="text-fg-subtle">—</span>;
 
-/** One schema field's value, in the language on show. */
-function Cell({ field, entry, currentLangCode }) {
+/**
+ * One schema field's value, in the language on show - computed once and
+ * shared between the table's own cell and the narrow layout's label/value
+ * pair (#133), so the rich text excerpt, the gallery preview and the boolean
+ * badge cannot drift apart between the two the way two independent branches
+ * eventually would.
+ *
+ * `wide` marks a value the table's own cell gives `max-w-xs` and room to wrap
+ * rather than `whitespace-nowrap` - a two-line excerpt or a photo list needs
+ * room, not a shelf. The narrow layout stacks every field regardless, so it
+ * has no use for the flag and reads only `node`.
+ */
+function fieldValue(field, entry, currentLangCode) {
     const rawValue = (entry.data && entry.data[field.name] !== undefined)
         ? entry.data[field.name]
         : entry[field.name];
 
-    // Only this language. An empty cell is the honest answer for a translation
-    // nobody has written, and it is what makes the table show at a glance which
-    // ones are still missing.
+    // Only this language. An empty value is the honest answer for a
+    // translation nobody has written, and it is what makes the table (or the
+    // card) show at a glance which ones are still missing.
     const value = field.translatable
         ? valueForLanguage(rawValue, currentLangCode)
         : rawValue;
@@ -73,42 +85,141 @@ function Cell({ field, entry, currentLangCode }) {
     if (isRichTextField(field)) {
         const excerpt = docToText(value);
 
-        return (
-            <td className="max-w-xs px-4 py-3 text-fg-muted">
-                <div className="line-clamp-2">{excerpt || <Empty />}</div>
-            </td>
-        );
+        return { wide: true, node: <div className="line-clamp-2">{excerpt || <Empty />}</div> };
     }
 
     // A gallery is a list of objects. Without its own branch it fell through to
     // String() below and the column read "[object Object],[object Object]".
     if (isGalleryField(field)) {
-        return (
-            <td className="whitespace-nowrap px-4 py-3 text-fg-muted">
-                {galleryPreview(value) || <Empty />}
-            </td>
-        );
+        return { wide: true, node: galleryPreview(value) || <Empty /> };
     }
 
     if (typeof value === 'boolean') {
-        return (
-            <td className="whitespace-nowrap px-4 py-3">
-                {/* `Yes` and `No` were written in English, outside `t()` - so
-                    `CatalogueCoversTheCodeTest` never demanded them and a Greek
-                    reader saw them untranslated in every boolean column. */}
+        return {
+            wide: false,
+            node: (
+                // `Yes` and `No` were written in English, outside `t()` - so
+                // `CatalogueCoversTheCodeTest` never demanded them and a Greek
+                // reader saw them untranslated in every boolean column.
                 <Badge tone={value ? 'success' : 'neutral'}>
                     {value ? t('Yes') : t('No')}
                 </Badge>
-            </td>
-        );
+            ),
+        };
     }
 
     const text = value === null || value === undefined ? '' : String(value);
 
+    return { wide: false, node: text ? (text.length > 50 ? `${text.slice(0, 50)}…` : text) : <Empty /> };
+}
+
+/** One schema field's value, as a table cell. */
+function Cell({ field, entry, currentLangCode }) {
+    const { wide, node } = fieldValue(field, entry, currentLangCode);
+
     return (
-        <td className="whitespace-nowrap px-4 py-3 text-fg-muted">
-            {text ? (text.length > 50 ? `${text.slice(0, 50)}…` : text) : <Empty />}
+        <td className={`px-4 py-3 text-fg-muted ${wide ? 'max-w-xs' : 'whitespace-nowrap'}`}>
+            {node}
         </td>
+    );
+}
+
+/**
+ * The reorder arrows and Edit, shared between the table's own actions cell
+ * and the narrow layout's card header (#133).
+ *
+ * **Icon-only**, unlike the button this replaced. A word beside the pencil on
+ * every row was the widest thing forcing this column to be pinned in the
+ * first place, and it said nothing the icon does not already say once it is
+ * the only pencil in the row.
+ */
+function RowActions({ entry, at, orderIds, onReorder, onEdit }) {
+    return (
+        <div className="flex items-center gap-1">
+            {onReorder && (
+                <>
+                    <IconButton
+                        icon={ChevronUp}
+                        label={t('Move up')}
+                        onClick={() => onReorder(reorderedIds(orderIds, entry.id, -1))}
+                        disabled={at <= 0}
+                        className="h-8 w-8 disabled:cursor-not-allowed disabled:opacity-30"
+                    />
+                    <IconButton
+                        icon={ChevronDown}
+                        label={t('Move down')}
+                        onClick={() => onReorder(reorderedIds(orderIds, entry.id, 1))}
+                        disabled={at < 0 || at === orderIds.length - 1}
+                        className="h-8 w-8 disabled:cursor-not-allowed disabled:opacity-30"
+                    />
+                </>
+            )}
+            {/* Named per entry, not just "Edit" - several identical buttons
+                with the same accessible name is the checkbox column's own
+                defect (see its comment below), and this control has the
+                same shape. */}
+            <IconButton
+                icon={Pencil}
+                label={t('Edit entry :id', { id: entry.id })}
+                onClick={() => onEdit(entry)}
+                className="h-8 w-8"
+            />
+        </div>
+    );
+}
+
+/**
+ * One entry, as a card rather than a table row (#133).
+ *
+ * A table with one column per schema field cannot work on a phone: horizontal
+ * scroll on a wide table is an acceptable desktop fallback for a schema with
+ * many fields and an unacceptable phone *default* - reaching Edit meant
+ * scrolling sideways past every field first, on the one device where sideways
+ * scrolling is easiest to trigger by accident and hardest to notice. Stacked
+ * vertically instead, so nothing here is ever reached by scrolling sideways.
+ */
+function MobileEntryCard({ entry, schema, currentLangCode, at, orderIds, onReorder, onEdit, checked, onToggle }) {
+    return (
+        <li className="rounded-xl border border-line bg-surface p-4">
+            <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-3">
+                    <Checkbox
+                        aria-label={t('Select entry :id', { id: entry.id })}
+                        checked={checked}
+                        onChange={onToggle}
+                    />
+                    <span className="font-medium text-fg">#{entry.id}</span>
+                    <Badge tone={isPublished(entry) ? 'success' : 'warning'}>
+                        {isPublished(entry) ? t('Published') : t('Draft')}
+                    </Badge>
+                </div>
+
+                <RowActions entry={entry} at={at} orderIds={orderIds} onReorder={onReorder} onEdit={onEdit} />
+            </div>
+
+            {schema.length > 0 && (
+                // Stacked, not a two-column grid: a grid needed a `col-span-2`
+                // rule for the wide fields, and that rule earns its keep on a
+                // fixed-width table column but only leaves a gap here, next to
+                // whichever narrow field happened to land beside a wide one.
+                <dl className="mt-3 flex flex-col gap-3 border-t border-line pt-3">
+                    {schema.map((field) => {
+                        const { node } = fieldValue(field, entry, currentLangCode);
+
+                        return (
+                            <div key={field.name}>
+                                <dt className="text-xs font-medium text-fg-subtle">{field.name}</dt>
+                                <dd className="mt-0.5 text-sm text-fg-muted">{node}</dd>
+                            </div>
+                        );
+                    })}
+                </dl>
+            )}
+
+            <p className="mt-3 text-xs text-fg-subtle">
+                {formatDate(entry.created_at) ?? <Empty />}
+            </p>
+        </li>
     );
 }
 
@@ -131,6 +242,13 @@ export default function EntriesTable({
     // otherwise this counted one page and labelled it the total.
     const total = pagination?.total ?? entries?.length ?? 0;
     const hasPages = (pagination?.lastPage ?? 1) > 1;
+
+    // Below this, the table gives way to a stack of cards (#133). The
+    // fallback with no `matchMedia` (jsdom, an old embedded browser) is
+    // `false` - the table - because it is the layout that keeps working
+    // however wide the schema turns out to be, without JavaScript deciding
+    // anything.
+    const isNarrow = useMediaQuery('(max-width: 639px)');
 
     // A reorder is applied to the id list before the server confirms it, so the
     // rows follow that rather than waiting for the refetch - otherwise pressing
@@ -313,6 +431,52 @@ export default function EntriesTable({
                         {t('Nothing has been written in this module.')}
                     </p>
                 </div>
+            ) : isNarrow ? (
+                <div className="flex flex-col gap-3">
+                    {/* The table's own header checkbox has no row of column
+                        headings to sit inside of down here, so it gets one
+                        line of its own instead of vanishing along with the
+                        rest of the header. */}
+                    <label className="flex items-center gap-2 rounded-xl border border-line bg-surface-muted px-4 py-2.5">
+                        {/* `aria-label` rather than leaning on the wrapping
+                            `<label>` alone - measured live, a checkbox with a
+                            sibling `<span>` inside its label read back with an
+                            accessible name of "on" (the input's own default
+                            `value`) rather than the label's text, in the exact
+                            browser this panel ships to. */}
+                        <PageCheckbox
+                            aria-label={t('Select every entry on this page')}
+                            checked={allSelected(selected, pageIds)}
+                            indeterminate={someSelected(selected, pageIds)}
+                            onChange={() => onSelectionChange?.(toggleAll(selected, pageIds))}
+                        />
+                        <span className="text-sm font-medium text-fg-muted" aria-hidden="true">
+                            {t('Select every entry on this page')}
+                        </span>
+                    </label>
+
+                    {/* `role="list"` because Tailwind's preflight resets
+                        `list-style` to `none`, and Safari drops the implicit
+                        list semantics the moment it does - Chrome and Firefox
+                        do not, which is exactly how this kind of gap survives
+                        unnoticed. */}
+                    <ul role="list" className="flex flex-col gap-3">
+                        {rows.map((entry) => (
+                            <MobileEntryCard
+                                key={entry.id}
+                                entry={entry}
+                                schema={schema}
+                                currentLangCode={currentLangCode}
+                                at={positionInOrder(orderIds, entry.id)}
+                                orderIds={orderIds}
+                                onReorder={onReorder}
+                                onEdit={onEdit}
+                                checked={selected.some((one) => String(one) === String(entry.id))}
+                                onToggle={() => onSelectionChange?.(toggle(selected, entry.id))}
+                            />
+                        ))}
+                    </ul>
+                </div>
             ) : (
                 // Scrolls inside its own box. The wrapper used to carry
                 // negative margins to escape the page padding, which now fights
@@ -348,8 +512,11 @@ export default function EntriesTable({
                                     rather than riding off with the schema
                                     columns - a module with several fields made
                                     this table wide enough that reaching Edit
-                                    meant scrolling all the way across first. */}
-                                <th scope="col" className="sticky right-0 z-10 border-l border-line bg-surface-muted px-4 py-3 text-right font-semibold text-fg sm:pr-6">
+                                    meant scrolling all the way across first.
+                                    Only reachable here at all: below 640px this
+                                    branch does not render, and the phone gets
+                                    the card list instead. */}
+                                <th scope="col" className="sticky right-0 z-10 bg-surface-muted px-4 py-3 text-right font-semibold text-fg shadow-[-8px_0_8px_-8px_rgb(0_0_0_/_0.12)] sm:pr-6">
                                     {t('Actions')}
                                 </th>
                             </tr>
@@ -402,51 +569,15 @@ export default function EntriesTable({
                                         </td>
 
                                         {/* Sticky, so it stays reachable
-                                            without scrolling - solid
-                                            backgrounds because a sticky cell
-                                            sits above the columns scrolling
-                                            underneath it, and the row's own
-                                            translucent hover would let them
-                                            show through. */}
-                                        <td className="sticky right-0 z-10 whitespace-nowrap border-l border-line bg-surface px-4 py-3 text-right transition-colors group-hover:bg-surface-muted sm:pr-6">
-                                            <div className="flex items-center justify-end gap-1">
-                                                {/* The whole order goes in one
-                                                    request, so a move is one
-                                                    round trip rather than two
-                                                    writes that could half-fail. */}
-                                                {onReorder && (
-                                                    <>
-                                                        <IconButton
-                                                            icon={ChevronUp}
-                                                            label={t('Move up')}
-                                                            onClick={() => onReorder(reorderedIds(orderIds, entry.id, -1))}
-                                                            disabled={at <= 0}
-                                                            className="h-8 w-8 disabled:cursor-not-allowed disabled:opacity-30"
-                                                        />
-                                                        <IconButton
-                                                            icon={ChevronDown}
-                                                            label={t('Move down')}
-                                                            onClick={() => onReorder(reorderedIds(orderIds, entry.id, 1))}
-                                                            disabled={at < 0 || at === orderIds.length - 1}
-                                                            className="h-8 w-8 disabled:cursor-not-allowed disabled:opacity-30"
-                                                        />
-                                                    </>
-                                                )}
-                                                {/* Always visible. It was
-                                                    `opacity-0 group-hover:…`,
-                                                    and a touch screen has no
-                                                    hover - so on a phone or a
-                                                    tablet the only way to open
-                                                    an entry was invisible. */}
-                                                <button
-                                                    type="button"
-                                                    onClick={() => onEdit(entry)}
-                                                    className="inline-flex cursor-pointer items-center gap-1 rounded-lg px-2.5 py-1.5 text-sm font-semibold text-accent-text transition-colors hover:bg-accent-soft focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring-accent"
-                                                >
-                                                    <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
-                                                    {t('Edit')}
-                                                </button>
-                                            </div>
+                                            without scrolling - a solid
+                                            background and a soft shadow rather
+                                            than a hard rule, because a sticky
+                                            cell sits above the columns
+                                            scrolling underneath it and the
+                                            row's own translucent hover would
+                                            let them show through. */}
+                                        <td className="sticky right-0 z-10 whitespace-nowrap bg-surface px-4 py-3 text-right shadow-[-8px_0_8px_-8px_rgb(0_0_0_/_0.12)] transition-colors group-hover:bg-surface-muted sm:pr-6">
+                                            <RowActions entry={entry} at={at} orderIds={orderIds} onReorder={onReorder} onEdit={onEdit} />
                                         </td>
                                     </tr>
                                 );

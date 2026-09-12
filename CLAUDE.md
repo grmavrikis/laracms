@@ -226,7 +226,7 @@ both — write `t('…')` literally, as `FIELD_TYPE_LABELS` does.
 
 ```bash
 php artisan test                    # 531 tests
-npm test                            # 812 tests
+npm test                            # 817 tests
 npm run build
 php artisan schema:sync-field-types # after changing field type constants
 php artisan pages:warm              # bake the public site to files (#97) - THE DEPLOY STEP
@@ -297,14 +297,28 @@ Started from a repo that would not boot (eight files of merge conflicts).
 Worked through a prioritised list; every item is either done or recorded in
 `CHANGELOG.md` with its reasoning.
 
-- **531 PHP tests, 812 JS tests**, all passing. Build clean.
+- **531 PHP tests, 817 JS tests**, all passing. Build clean.
+- **#133, the entries table rebuilt for mobile, is DONE** (CHANGELOG §56) —
+  §132's pin was judged live and lost on looks, not function: a bordered,
+  shadowed strip read as a patch rather than part of the table. The word
+  "Edit" is gone (icon-only, named per entry — `Edit entry :id`, matching the
+  checkbox's own `Select entry :id`), and **below 640px the table is replaced
+  entirely by a stack of cards** — a table with one column per schema field
+  cannot work on a phone at all, and horizontal scroll is a reasonable desktop
+  fallback but an unreasonable *default* below phone width. `useMediaQuery`
+  (already in the codebase for the rail's collapse/drawer switch) decides
+  which layout renders; `fieldValue()` computes a schema field's value once,
+  shared by the table's cell and the card's label/value pair, so the two
+  cannot quietly drift apart.
 - **#132, the entries table's Actions column, is DONE** (CHANGELOG §55) —
   `EntriesTable` draws one column per schema field, none hidden responsively,
   so a module with several fields (Rooms has six) built a table wider than an
   ordinary laptop viewport — reaching Edit meant scrolling sideways past every
   field first. Fixed by pinning Actions with `sticky right-0` on the header and
   every row's cell, opaque on hover rather than the row's translucent tint,
-  since a sticky cell sits above whatever scrolls underneath it.
+  since a sticky cell sits above whatever scrolls underneath it. **Superseded
+  by #133** — the pin worked but looked like a patch, and the owner wanted the
+  table rebuilt.
 - **#131, the Modules screen is a table again, is DONE** (CHANGELOG §54) —
   #130's card grid was checked against the owner's own eyes and lost: worse
   than the table it replaced, not better. Reverted, but not with a plain

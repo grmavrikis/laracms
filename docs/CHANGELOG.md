@@ -5810,3 +5810,117 @@ right with `scrollLeft = scrollWidth`, and Edit and the reorder arrows stayed
 in place, solid, with the border marking the pin - in both themes.
 
 531 PHP tests, 812 JS tests, build clean.
+
+---
+
+## 56. §55 pinned the column; the owner wanted the table rebuilt
+
+Checked live, §55's fix was judged on its own appearance rather than on
+whether it worked: *«δεν μου αρέσει καθόλου το αποτέλεσμα»* - a bordered,
+shadowed strip carrying a word-and-icon Edit button plus two arrows read as a
+patch bolted onto the side of the table, not as part of it. Two more
+instructions came with it: the word "Edit" is not needed - the pencil already
+says what it does - and the table wants a real redesign, one that "plays
+perfectly" on a phone too.
+
+### The word goes
+
+`Edit` sat beside the pencil on every row, in every module, and it was the
+widest thing forcing §55's column to be pinned in the first place. Replaced
+with an icon-only `IconButton`, matching every other icon control in the
+panel, and named **per entry** rather than once for the whole column -
+`t('Edit entry :id', { id: entry.id })` - the same reasoning the row's own
+checkbox already carries (`Select entry :id`): several identical buttons
+reading "Edit" to a screen reader are indistinguishable, and a table full of
+them was always going to be that shape once the visible word was gone. The
+now-orphaned `Edit` catalogue key is removed from both `lang/en.json` and
+`lang/el.json`; `Edit entry` (no id, the page heading's own mode label) and
+`Edit entry :id` are two different strings on purpose - the first is where
+a screen already is, the second is which row a control acts on.
+
+The reorder arrows and the pencil are pulled into one `RowActions` component,
+used by both layouts below, so there is exactly one definition of what a
+row's controls are rather than two that could drift.
+
+### A table with one column per schema field cannot work on a phone
+
+That is the actual finding under "needs a redesign, and must work on mobile":
+horizontal scroll on a wide table is a reasonable desktop fallback for a
+schema with many fields, and an unreasonable **default** for a phone, where
+sideways scrolling is the easiest gesture to trigger by accident and the
+hardest to notice happened. Pinning Actions (§55) treated the symptom; the
+table itself was still the wrong shape below a phone's width.
+
+**Below 640px, the table is replaced entirely by a stack of cards** - one per
+entry, each holding its checkbox, id, status, the reorder arrows and Edit at
+the top, then every schema field as a label above its value, stacked, and the
+created date at the foot. Nothing in it is ever reached by scrolling
+sideways, because nothing in it scrolls sideways at all.
+
+The switch is `useMediaQuery('(max-width: 639px)')` - already in the
+codebase (`hooks/useMediaQuery.js`, written for the rail's own collapse/drawer
+switch) rather than a new mechanism, and rather than a CSS-only
+`hidden sm:block` pair: **jsdom loads no stylesheet**, so two structures
+toggled purely by class name would both sit in the test DOM at once, and
+every query written against either one would need to be scoped to tell them
+apart. `useMediaQuery` answers `false` with no `matchMedia` (jsdom, an old
+embedded browser), so the table - the layout that works at any width via
+scrolling, needing no decision at all - is what renders absent a real
+measurement, and only a **confirmed** narrow width switches to cards. Tests
+that want the narrow branch stub `window.matchMedia`, the same way
+`Sidebar.test.jsx` already does for its own breakpoint.
+
+Both layouts read one schema field the same way: `fieldValue()` is the rich
+text excerpt, the gallery preview and the boolean-to-badge logic, pulled out
+of the table's own `Cell` so the card's label/value pair computes a value
+identically rather than through a second branch that could quietly diverge
+from the first the next time either one is touched.
+
+**A first cut used a two-column grid for the card's fields**, with rich text
+and gallery values spanning both columns. Seen live, that produced a visible
+gap: a `col-span-2` field forced to the next row leaves the cell beside the
+field above it empty, and a schema mixing wide and narrow fields showed it
+immediately. Replaced with a single stacked column - plainer, and it has no
+gap to produce, because nothing is ever asked to sit beside anything else.
+
+**The card list needs a "select all" of its own.** The table's page-checkbox
+lives in a `<thead>` a card list does not have, and dropping it would have
+been a real loss of the bulk-delete capability on the one device where a
+long list is most likely to need it. It sits above the cards, checkbox and
+caption together, with an explicit `aria-label` on the input rather than
+leaning on the wrapping `<label>` alone - measured live, a checkbox with a
+sibling `<span>` inside its own label read back with an accessible name of
+`"on"` (the input's own default `value`) instead of the label's text, in the
+exact browser this panel ships to. The caption itself is `aria-hidden`, so a
+screen reader hears the checkbox's name once rather than the same sentence
+twice.
+
+**`role="list"` on the card `<ul>`.** Tailwind's preflight resets
+`list-style` to `none` on every list, and Safari drops the implicit list
+semantics the moment it does; Chrome and Firefox do not, which is exactly how
+a gap like this survives unnoticed on the browser a developer happens to be
+using. Restored explicitly rather than found by accident later.
+
+### Checked
+
+Five new tests. One pins the icon-only Edit control's accessible name
+(`'Edit entry 11'`) and the absence of the visible word. Four cover the
+narrow layout: no `<table>` renders and two `listitem`s do; every field is
+readable from inside a card scoped by `.closest('li')`; Edit and reorder both
+still work from a card with nothing to scroll past; and the page-select
+checkbox still selects both ids with no table header row to hold it.
+Confirmed all five fail for the right reason against the pre-redesign
+component (real `git stash` on the component file, tests unchanged) before
+trusting them - the narrow-layout ones failed on `getByRole` finding nothing
+at all, since the DOM they queried did not exist yet.
+
+Verified live: `http://mini-cms.test/admin/content/rooms` at 1000px shows
+the full table, `Created` column included, Actions compact and unpinned since
+nothing overflows; the same page at 375px shows the card stack top to bottom
+with zero horizontal scroll anywhere on the page, `read_page` confirms every
+control's accessible name (`Edit entry 7146`, `Select every entry on this
+page`), and both `.click()` on the pencil and on the page-checkbox produced
+the real effect (navigated to the entry, selected both rows) rather than only
+a visual state. Checked in both themes.
+
+531 PHP tests, 817 JS tests, build clean.

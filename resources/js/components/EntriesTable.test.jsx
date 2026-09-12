@@ -1,9 +1,24 @@
 // @vitest-environment jsdom
 
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import EntriesTable from './EntriesTable';
+
+/**
+ * Below 640px the table gives way to a stack of cards (#133) - a table with
+ * one column per schema field cannot work on a phone. jsdom implements no
+ * `matchMedia` at all, so `useMediaQuery` answers `false` and the table
+ * renders unless a test stubs it, exactly as `Sidebar.test.jsx` already does
+ * for its own breakpoint.
+ */
+const stubNarrow = (isNarrow) => {
+    window.matchMedia = vi.fn().mockReturnValue({
+        matches: isNarrow,
+        addEventListener: () => {},
+        removeEventListener: () => {},
+    });
+};
 
 const SCHEMA = [{ name: 'title', type: 'string', translatable: true }];
 
@@ -362,6 +377,69 @@ describe('EntriesTable, what was already there', () => {
         await user.click(within(rowFor(12)).getByRole('button', { name: /Move up/ }));
 
         expect(onReorder).toHaveBeenCalledWith([12, 11]);
+    });
+
+    // #133: the word beside the pencil was the widest thing forcing the
+    // actions column to be pinned, and it said nothing the icon does not
+    // already say once it is the only pencil in the row. Named per entry in
+    // its accessible name instead, the same way the row's own checkbox is.
+    it('names Edit by the entry rather than printing the word on every row', () => {
+        draw();
+
+        expect(within(rowFor(11)).getByRole('button', { name: 'Edit entry 11' })).toBeInTheDocument();
+        expect(within(rowFor(11)).queryByText('Edit')).not.toBeInTheDocument();
+    });
+});
+
+// Below 640px a table with one column per schema field cannot work - reaching
+// Edit meant scrolling sideways past every field first, on the one device
+// where that is easiest to trigger by accident (#133). Below that width the
+// table gives way entirely to a stack of cards, so nothing is ever reached by
+// scrolling sideways.
+describe('EntriesTable, on a narrow screen', () => {
+    afterEach(() => { delete window.matchMedia; });
+
+    const cardFor = (id) => screen.getByText(`#${id}`).closest('li');
+
+    it('lays entries out as cards instead of a table', () => {
+        stubNarrow(true);
+        draw();
+
+        expect(screen.queryByRole('table')).not.toBeInTheDocument();
+        expect(screen.getAllByRole('listitem')).toHaveLength(2);
+    });
+
+    it('keeps every field readable without a row to hold it', () => {
+        stubNarrow(true);
+        draw();
+
+        const card = within(cardFor(11));
+
+        expect(card.getByText('title')).toBeInTheDocument();
+        expect(card.getByText('Σουίτα')).toBeInTheDocument();
+        expect(card.getByText('Published')).toBeInTheDocument();
+    });
+
+    it('still edits and reorders from the card, with nothing to scroll past', async () => {
+        stubNarrow(true);
+        const user = userEvent.setup();
+        const { onEdit, onReorder } = draw();
+
+        await user.click(within(cardFor(12)).getByRole('button', { name: /Edit/ }));
+        expect(onEdit).toHaveBeenCalledWith(expect.objectContaining({ id: 12 }));
+
+        await user.click(within(cardFor(12)).getByRole('button', { name: /Move up/ }));
+        expect(onReorder).toHaveBeenCalledWith([12, 11]);
+    });
+
+    it('still selects a whole page from one control, without the table header row to hold it', async () => {
+        stubNarrow(true);
+        const user = userEvent.setup();
+        const { onSelectionChange } = draw();
+
+        await user.click(screen.getByRole('checkbox', { name: 'Select every entry on this page' }));
+
+        expect(onSelectionChange).toHaveBeenCalledWith([11, 12]);
     });
 });
 

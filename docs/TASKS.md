@@ -1251,6 +1251,31 @@ migrations, so a choice follows the person to their second **tab** rather than
 their second machine. Two columns and a save; the panel's own half already
 resolves both against an allow-list before applying them.
 
+### 133. §55 pinned the column; the owner wanted the table rebuilt — DONE (CHANGELOG §56)
+
+Checked live, §55's pin was judged on how it looked, not just whether it
+worked, and lost: a bordered, shadowed strip carrying a word-and-icon Edit
+button plus two arrows read as a patch, not part of the table. Two more
+instructions came with it - drop the word "Edit" (the pencil already says
+it), and rebuild the table so it "plays perfectly" on a phone too.
+
+The word is gone: an icon-only `IconButton`, named **per entry**
+(`Edit entry :id`) rather than once for the whole column, matching the
+row's own checkbox (`Select entry :id`). The actual finding under "needs a
+redesign, must work on mobile": a table with one column per schema field
+cannot work on a phone at all - horizontal scroll is a reasonable desktop
+fallback for a wide schema and an unreasonable **default** below phone
+width, where sideways scrolling is the easiest gesture to trigger by
+accident. Below 640px the table is now replaced entirely by a stack of
+cards, one per entry, everything stacked vertically so nothing is ever
+reached by scrolling sideways. `useMediaQuery` (already in the codebase for
+the rail's own collapse/drawer switch) decides which layout renders, rather
+than a CSS-only pair that would leave both structures in the test DOM at
+once. `fieldValue()` computes a schema field's display value once, shared
+by the table's cell and the card's label/value pair. Five new tests, all
+confirmed to fail for the right reason against the pre-redesign component
+first.
+
 ### 132. An entries table wide enough to hide its own Edit button — DONE (CHANGELOG §55)
 
 `EntriesTable` draws one column per schema field with none hidden
