@@ -1251,6 +1251,28 @@ migrations, so a choice follows the person to their second **tab** rather than
 their second machine. Two columns and a save; the panel's own half already
 resolves both against an allow-list before applying them.
 
+### 129. A colour bleed on hover, and a singleton's active row still clicked through — DONE (CHANGELOG §51)
+
+Two precise reports. Moving the hover from an active row to an inactive one
+(or back) showed the wrong colour briefly on the wrong row - `openFlyout`
+always faded the box out and back in for a "new" row, even when it was
+already fully visible for a different one and never actually left the screen,
+so the outgoing and incoming `background-color` transitions ran at once.
+Fixed by skipping the fade entirely when a flyout is already showing; only a
+genuinely fresh open (nothing visible a moment ago) gets it.
+
+Separately, a singleton's own sidebar row is `active` at `entryEdit` but its
+link always points at the module's listing - which redirects straight back
+the moment it mounts (#60) - so clicking the already-active row was a real,
+visible round trip: a navigation away, a *Loading…*, a fresh request, a
+redirect back. Fixed with one guard: a click on an already-active row does
+nothing, on the row and on its flyout both.
+
+Both measured live rather than assumed: sampling the flyout every 10ms
+through a hover swap showed opacity holding at 1.0 for the whole transition,
+and opening a singleton at its real `entryEdit` address, then clicking its own
+active row, left the address exactly where it was.
+
 ### 128. The flyout's own hit-area was narrower than what it showed — DONE (CHANGELOG §50)
 
 The row stayed 44px wide even once the flyout beside it had grown to show a

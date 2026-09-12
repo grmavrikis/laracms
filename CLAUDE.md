@@ -226,7 +226,7 @@ both — write `t('…')` literally, as `FIELD_TYPE_LABELS` does.
 
 ```bash
 php artisan test                    # 531 tests
-npm test                            # 795 tests
+npm test                            # 799 tests
 npm run build
 php artisan schema:sync-field-types # after changing field type constants
 php artisan pages:warm              # bake the public site to files (#97) - THE DEPLOY STEP
@@ -297,7 +297,16 @@ Started from a repo that would not boot (eight files of merge conflicts).
 Worked through a prioritised list; every item is either done or recorded in
 `CHANGELOG.md` with its reasoning.
 
-- **531 PHP tests, 795 JS tests**, all passing. Build clean.
+- **531 PHP tests, 799 JS tests**, all passing. Build clean.
+- **#129, a colour bleed and a singleton's active click, is DONE**
+  (CHANGELOG §51) — moving the hover between an active and an inactive row
+  faded the flyout out and back in for what was really the same, still-visible
+  box, so the two rows' colours transitioned at once. Fixed by skipping the
+  fade when one is already showing. Separately, a singleton's own row is
+  active at `entryEdit` but its link points at the listing, which redirects
+  straight back — clicking it was a real, visible round trip. Fixed with one
+  guard: an already-active row's click does nothing. Both verified live,
+  including sampling the flyout every 10ms through a hover swap.
 - **#128, the flyout's hit-area, is DONE** (CHANGELOG §50) — the row stayed
   44px wide even once the flyout beside it grew to show a name, so a mouse
   aimed at the visible label was past the real row's edge for most of its

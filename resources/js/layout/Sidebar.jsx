@@ -121,7 +121,19 @@ function SidebarLink({ href, icon: Icon, letter, label, active, collapsed, neste
     // Clicking a row *is* choosing it - told to the flyout directly, rather
     // than waiting for the route to say so once navigation settles, because
     // nothing else was going to ask again while the pointer stayed put.
+    //
+    // **A click on the already-active row does nothing.** Most rows land here
+    // harmlessly - navigating to the address already on screen is a no-op, if
+    // a wasteful one. A singleton module is the one place it was not: its row
+    // is `active` while looking at the entry itself (`entryEdit`), but always
+    // points at the module's *listing* route, which does not exist for a
+    // singleton and immediately redirects back - so a second click sent the
+    // reader away from the entry they were editing only to be bounced
+    // straight back to it, reading as an unwanted refresh of the page they
+    // were already on.
     const handleNavigate = () => {
+        if (active) return;
+
         if (collapsed) onActivate?.();
         onNavigate?.();
     };
@@ -291,6 +303,15 @@ export default function Sidebar({ open = false, onClose }) {
      * box to invisible for one frame before the two `raf`s brought it back,
      * which is a flicker with no state actually worth transitioning through.
      * A second open for the same row now only refreshes its position.
+     *
+     * **Swapping to a *different* row while one is already showing skips the
+     * fade entirely, for the same reason.** The box never actually leaves the
+     * screen moving from one row's flyout straight to a neighbour's - it is
+     * the same element, repositioned - so dropping it to invisible and back
+     * only opened a window for the outgoing colour and the incoming one to
+     * transition at once, mid-fade, which is what read as one bleeding into
+     * the other. `show` is only ever set to `false` when there was nothing
+     * visible a moment ago to begin with.
      */
     const closeFlyout = useCallback(() => {
         clearTimeout(closeTimer.current);
@@ -324,6 +345,13 @@ export default function Sidebar({ open = false, onClose }) {
 
         openElement.current = element;
         setFlyout({ ...meta, rect: element.getBoundingClientRect() });
+
+        if (show) {
+            // Already showing, for a different row - swap in place. See the
+            // docblock above for why this does not touch `show` at all.
+            return;
+        }
+
         setShow(false);
 
         // Two frames, not one: the first commits the hidden state to the
@@ -333,7 +361,7 @@ export default function Sidebar({ open = false, onClose }) {
         requestAnimationFrame(() => {
             requestAnimationFrame(() => setShow(true));
         });
-    }, [closeFlyout]);
+    }, [closeFlyout, show]);
 
     /**
      * Told directly, at the moment a row is clicked, that it is about to
@@ -596,6 +624,8 @@ export default function Sidebar({ open = false, onClose }) {
                     tabIndex={-1}
                     href={flyout.href}
                     onNavigate={() => {
+                        if (flyout.active) return;
+
                         activateFlyout();
                         flyout.onNavigate?.();
                     }}

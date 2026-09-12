@@ -5515,3 +5515,74 @@ the right place) and via the mutation-tested unit tests above, which exercise
 the same code without depending on pixel-perfect automation.
 
 531 PHP tests, 795 JS tests, build clean.
+---
+
+## 51. Two more, both closed with a live measurement this time
+
+Two precise reports. Moving the hover between an active row and an inactive
+one showed the wrong colour bleeding briefly into the wrong row. And a
+singleton's own row, already active, still answered a click by sending the
+reader away and straight back - the "refresh" #50 had already named the shape
+of, now pinned to its actual trigger.
+
+### The colour bleed: swapping rows was still closing and reopening the box
+
+`openFlyout`'s "genuinely new row" branch always ran the same sequence -
+`setShow(false)`, then the double `requestAnimationFrame` back to `true` -
+whether the flyout was currently invisible, starting fresh, or **already on
+screen for a different row**. In the second case the box never actually left
+the screen; it is the same portalled element, only repositioned and
+recoloured. Dropping it to invisible and back anyway meant its
+`background-color` transition (added in #48, one rule alongside opacity) ran
+*while* opacity was also ramping down and back up - the outgoing green and the
+incoming grey both mid-transition at once, which is what read as one
+colour showing through the other, however briefly.
+
+Measured live, sampling every 10ms across a hover from Dashboard (active) to
+Rooms (not): `opacity` never left `1.0` for the full ~120ms window, the label
+switched to *Rooms* on the very next frame, and the background slid in one
+continuous run from `rgb(4, 120, 87)` to `rgb(40, 53, 73)` - a single
+crossfade, not two competing ones. `openFlyout` now checks `show` before doing
+any of that: already visible for a different row just swaps the content in
+place and returns, and only a flyout starting from nothing gets the fade-in
+sequence at all.
+
+### The click: a singleton's row is active at an address its own link does not point to
+
+A module's sidebar row carries one address - its listing,
+`/content/{module}` - and counts itself active there **and** at `entryEdit` /
+`entryCreate` for it (#60: a singleton has no list, so opening it always lands
+on the entry directly). Clicking the row while sitting at `entryEdit` was
+still a real navigation, to a route that is not where the reader was standing.
+`EntriesScreen` mounts, shows *Loading…*, requests the entry list fresh, and
+- finding the one entry a singleton always has - replaces straight back to
+`entryEdit` for it. Three real steps for a click that, from the reader's side,
+did nothing but interrupt them: the "refresh" both reports named.
+
+**Fixed at the one place every path through here has to pass regardless of
+which address the row's own link happens to carry**: `SidebarLink`'s navigate
+handler now does nothing at all when `active` is already true, mirrored on the
+flyout's own click for the same reason #50 gave it one - once a flyout is
+open, most clicks land on it rather than on the 44px row underneath.
+
+Verified live against the real defect rather than a synthetic one: opened
+Contact (a singleton), which sat at `entryEdit` and read `aria-current="page"`
+on its own sidebar row, and clicked that row directly. The address held
+exactly where it was; nothing loaded, nothing flashed.
+
+### Checked
+
+Four new tests. Two drive the colour swap - one confirms `opacity` reads
+`opacity-100` throughout a hover moved from an active row straight to an
+inactive one, with the new colour and label already in place; the existing
+entrance/exit tests are untouched, since a flyout starting from nothing still
+gets the fade they pin. Two drive the click: one opens a module at its
+`entryEdit` address and clicks its own now-active row, the other clicks
+Dashboard while already there - checked via a `pushState` spy rather than the
+address, since navigating to the address already on screen cannot move it
+either way, which is exactly why a missing guard is invisible to that
+assertion and needs a different one to catch. A fourth covers the same click
+landing on the flyout instead of the row. All four fail against the
+code without their fix, confirmed by reverting each in turn.
+
+531 PHP tests, 799 JS tests, build clean.

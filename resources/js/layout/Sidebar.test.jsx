@@ -97,6 +97,51 @@ describe('the rail, wide', () => {
 });
 
 /**
+ * A singleton's row is `active` while its one entry is open at `entryEdit`,
+ * but always points at the module's own *listing* route - which does not
+ * exist for a singleton, and redirects straight back the moment it mounts
+ * (`EntriesScreen`). Before this, clicking the already-open row sent the
+ * reader on that whole round trip: a real navigation away, a "Loading…" flash,
+ * a fresh request for the entry list, and a redirect back to exactly where
+ * they started - which read as the page refreshing itself for no reason.
+ */
+describe('clicking the row already open', () => {
+    it('does nothing, for a route the active check matches other than by an exact address', async () => {
+        // The address a singleton is actually open at - not the listing
+        // route the sidebar link itself carries, which is the mismatch this
+        // guards against.
+        window.history.replaceState({}, '', '/admin/content/rooms/7');
+        draw();
+
+        const room = await rooms();
+
+        expect(room).toHaveAttribute('aria-current', 'page');
+
+        fireEvent.click(room);
+
+        expect(window.location.pathname).toBe('/admin/content/rooms/7');
+    });
+
+    it('does nothing for the ordinary case either - the ready-active route itself', async () => {
+        // `/admin` is Dashboard's own address, the simplest case. Navigating
+        // there again would not move the URL either way - it is already
+        // there - so what a missing guard actually costs here is a redundant
+        // history entry: `pushState` fires even for the address already on
+        // screen, and that is the signal a spy can see that the address
+        // itself cannot.
+        draw();
+
+        const pushState = vi.spyOn(window.history, 'pushState');
+        const dashboard = await screen.findByRole('link', { name: 'Dashboard' });
+
+        fireEvent.click(dashboard);
+
+        expect(pushState).not.toHaveBeenCalled();
+        pushState.mockRestore();
+    });
+});
+
+/**
  * At 68px there is no room for a hierarchy and the label is not rendered, so
  * the initial **is** the icon - which is the reason it was written, and it
  * stays. Hovering or focusing a row no longer summons a chip beside it: the
@@ -333,5 +378,54 @@ describe('the rail, collapsed to 68px', () => {
         fireEvent.click(flyout);
 
         expect(window.location.pathname).toBe('/admin/content/rooms');
+    });
+
+    // The flyout mirrors the row's own click-does-nothing-when-active rule
+    // (see "clicking the row already open" below), since it is now the thing
+    // that actually receives a mouse click most of the time.
+    it('does nothing when the active row\'s own flyout is clicked', async () => {
+        window.history.replaceState({}, '', '/admin/content/rooms/7');
+        draw({ collapsed: true });
+        const room = await rooms();
+
+        expect(room).toHaveAttribute('aria-current', 'page');
+
+        fireEvent.mouseEnter(room);
+        fireEvent.click(document.getElementById('rail-flyout'));
+
+        expect(window.location.pathname).toBe('/admin/content/rooms/7');
+    });
+
+    // Moving straight from one row's flyout to a neighbour's must not drop to
+    // invisible and back - the box never actually leaves the screen, so doing
+    // that only opened a window for the outgoing colour and the incoming one
+    // to transition at once, which is what read as one bleeding into the
+    // other.
+    it('swaps directly to a different row without dropping to invisible and back', async () => {
+        draw({ collapsed: true });
+
+        // Dashboard is the active route by default in these tests (`/admin`).
+        const dashboard = await screen.findByRole('link', { name: 'Dashboard' });
+
+        fireEvent.mouseEnter(dashboard);
+        await waitFor(() => {
+            expect(document.getElementById('rail-flyout').className).toContain('opacity-100');
+        });
+        expect(document.getElementById('rail-flyout').className).toContain('bg-accent');
+
+        const room = await rooms();
+
+        fireEvent.mouseLeave(dashboard);
+        fireEvent.mouseEnter(room);
+
+        // Checked with no wait at all: dropping to invisible for the swap
+        // would have written `opacity-0` synchronously, right where the
+        // colour also changed - the two moving together is exactly what let
+        // one bleed into the other.
+        const flyout = document.getElementById('rail-flyout');
+
+        expect(flyout.className).toContain('opacity-100');
+        expect(flyout.className).toContain('bg-sidebar-hover');
+        expect(flyout.textContent).toBe('Rooms');
     });
 });
