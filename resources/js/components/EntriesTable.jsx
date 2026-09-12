@@ -344,7 +344,12 @@ export default function EntriesTable({
                                 <th scope="col" className="hidden px-4 py-3 font-semibold text-fg md:table-cell">
                                     {t('Created')}
                                 </th>
-                                <th scope="col" className="px-4 py-3 text-right font-semibold text-fg sm:pr-6">
+                                {/* Pinned to the right edge of the scroll box
+                                    rather than riding off with the schema
+                                    columns - a module with several fields made
+                                    this table wide enough that reaching Edit
+                                    meant scrolling all the way across first. */}
+                                <th scope="col" className="sticky right-0 z-10 border-l border-line bg-surface-muted px-4 py-3 text-right font-semibold text-fg sm:pr-6">
                                     {t('Actions')}
                                 </th>
                             </tr>
@@ -358,7 +363,7 @@ export default function EntriesTable({
                                 const at = positionInOrder(orderIds, entry.id);
 
                                 return (
-                                    <tr key={entry.id} className="transition-colors hover:bg-surface-muted/60">
+                                    <tr key={entry.id} className="group transition-colors hover:bg-surface-muted/60">
                                         <td className="w-px px-4 py-3 sm:pl-6">
                                             {/* Named by the entry it ticks: one
                                                 of several identical controls in
@@ -396,7 +401,14 @@ export default function EntriesTable({
                                             {formatDate(entry.created_at) ?? <Empty />}
                                         </td>
 
-                                        <td className="whitespace-nowrap px-4 py-3 text-right sm:pr-6">
+                                        {/* Sticky, so it stays reachable
+                                            without scrolling - solid
+                                            backgrounds because a sticky cell
+                                            sits above the columns scrolling
+                                            underneath it, and the row's own
+                                            translucent hover would let them
+                                            show through. */}
+                                        <td className="sticky right-0 z-10 whitespace-nowrap border-l border-line bg-surface px-4 py-3 text-right transition-colors group-hover:bg-surface-muted sm:pr-6">
                                             <div className="flex items-center justify-end gap-1">
                                                 {/* The whole order goes in one
                                                     request, so a move is one

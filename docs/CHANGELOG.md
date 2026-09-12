@@ -5765,3 +5765,48 @@ the table narrowing to name-and-actions-only on a phone with the slug riding
 under the name, and both themes.
 
 531 PHP tests, 810 JS tests, build clean.
+
+---
+
+## 55. An entries table wide enough to hide its own Edit button
+
+Reported precisely: opening a module's entries and scrolling the table
+sideways, the Actions column - the up/down arrows and Edit - travelled off
+with everything else instead of staying reachable. Every schema field draws
+its own column in `EntriesTable`, always visible, none hidden responsively
+except `Created`; a module with six fields, like Rooms in the demo data,
+built a table wide enough on an ordinary laptop width that reaching Edit
+meant scrolling across `title`, `description`, `photos`, `sleeps`, `size_m2`
+and `price_from` first. Measured live at 700px: the scroll box held 873px of
+table against 650px of visible width, and Actions sat past the far edge of
+that gap.
+
+Not a phone-only problem, and not fixable by hiding more columns responsively
+either - a schema is the client's own, arbitrarily wide, and the columns it
+draws are the reason to open this screen at all.
+
+**The Actions column is now pinned**, `sticky right-0` on both the header
+cell and every row's cell, so it stays in view regardless of scroll position
+or how many fields a module's schema adds. A sticky cell sits above whatever
+scrolls underneath it, so it needs a solid background rather than the row's
+own translucent hover tint (`hover:bg-surface-muted/60`) - painted instead
+with `group` on the row and `group-hover:bg-surface-muted` (opaque) on the
+sticky cell, so hovering still highlights it without letting scrolled content
+show through. A `border-l` marks where it is pinned, since without one the
+column reads as an ordinary part of the table until the reader tries to
+scroll past it.
+
+### Checked
+
+Two new tests assert the CSS contract directly - `sticky` and `right-0` on
+the header cell and on a row's actions cell - since JSDOM does not lay out or
+scroll a page and cannot observe an actual pinned position. Confirmed both
+fail for the right reason against the pre-fix markup (`toMatch(/\bsticky\b/)`
+against a className with neither) before trusting them.
+
+Verified live at `http://mini-cms.test/admin/content/rooms`, 700px wide,
+which is exactly where this was reported: scrolled the table fully to the
+right with `scrollLeft = scrollWidth`, and Edit and the reorder arrows stayed
+in place, solid, with the border marking the pin - in both themes.
+
+531 PHP tests, 812 JS tests, build clean.

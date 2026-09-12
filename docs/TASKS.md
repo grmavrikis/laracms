@@ -1251,6 +1251,19 @@ migrations, so a choice follows the person to their second **tab** rather than
 their second machine. Two columns and a save; the panel's own half already
 resolves both against an allow-list before applying them.
 
+### 132. An entries table wide enough to hide its own Edit button — DONE (CHANGELOG §55)
+
+`EntriesTable` draws one column per schema field with none hidden
+responsively, so a module with several fields (Rooms has six) built a table
+wider than an ordinary laptop viewport - reaching the Actions column meant
+scrolling sideways past every field first. Measured live at 700px: 873px of
+table against 650px of visible width. Fixed by pinning Actions with
+`sticky right-0` on both the header and every row's cell, opaque
+(`group-hover:bg-surface-muted`, not the row's translucent hover tint) since
+a sticky cell sits above whatever scrolls underneath it, with a `border-l`
+marking where it is pinned. Two tests assert the CSS contract (`sticky`,
+`right-0`) directly, since JSDOM does not lay out or scroll a page.
+
 ### 131. The card grid didn't land; the Modules screen is a table again, improved — DONE (CHANGELOG §54)
 
 §130's card grid was checked against the owner's own eyes and lost: the cards

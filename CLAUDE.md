@@ -226,7 +226,7 @@ both — write `t('…')` literally, as `FIELD_TYPE_LABELS` does.
 
 ```bash
 php artisan test                    # 531 tests
-npm test                            # 810 tests
+npm test                            # 812 tests
 npm run build
 php artisan schema:sync-field-types # after changing field type constants
 php artisan pages:warm              # bake the public site to files (#97) - THE DEPLOY STEP
@@ -297,7 +297,14 @@ Started from a repo that would not boot (eight files of merge conflicts).
 Worked through a prioritised list; every item is either done or recorded in
 `CHANGELOG.md` with its reasoning.
 
-- **531 PHP tests, 810 JS tests**, all passing. Build clean.
+- **531 PHP tests, 812 JS tests**, all passing. Build clean.
+- **#132, the entries table's Actions column, is DONE** (CHANGELOG §55) —
+  `EntriesTable` draws one column per schema field, none hidden responsively,
+  so a module with several fields (Rooms has six) built a table wider than an
+  ordinary laptop viewport — reaching Edit meant scrolling sideways past every
+  field first. Fixed by pinning Actions with `sticky right-0` on the header and
+  every row's cell, opaque on hover rather than the row's translucent tint,
+  since a sticky cell sits above whatever scrolls underneath it.
 - **#131, the Modules screen is a table again, is DONE** (CHANGELOG §54) —
   #130's card grid was checked against the owner's own eyes and lost: worse
   than the table it replaced, not better. Reverted, but not with a plain

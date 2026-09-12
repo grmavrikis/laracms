@@ -364,3 +364,29 @@ describe('EntriesTable, what was already there', () => {
         expect(onReorder).toHaveBeenCalledWith([12, 11]);
     });
 });
+
+// A module with several schema fields makes this table wide enough that the
+// Actions column would otherwise ride off the right edge of the scroll box -
+// reaching Edit meant scrolling across every field first. Pinned instead:
+// `sticky right-0` keeps it in view regardless of how wide the schema makes
+// the row. JSDOM does not lay out or scroll, so this asserts the classes that
+// carry the behaviour rather than an observed position.
+describe('EntriesTable, the actions column', () => {
+    it('pins the header cell to the right of the scroll box', () => {
+        draw();
+
+        const header = screen.getByRole('columnheader', { name: 'Actions' });
+
+        expect(header.className).toMatch(/\bsticky\b/);
+        expect(header.className).toMatch(/\bright-0\b/);
+    });
+
+    it('pins every row\'s actions cell to the right of the scroll box', () => {
+        draw();
+
+        const cell = within(rowFor(11)).getByRole('button', { name: /Edit/ }).closest('td');
+
+        expect(cell.className).toMatch(/\bsticky\b/);
+        expect(cell.className).toMatch(/\bright-0\b/);
+    });
+});
