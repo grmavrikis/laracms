@@ -403,84 +403,107 @@ export default function EntriesTable({
             </Preview>
             )}
 
-            {/* Appears where the reader already is, and says what the next
-                press will touch. */}
-            {chosen > 0 && (
-                <div className="flex flex-wrap items-center gap-2 rounded-xl border border-accent/30 bg-accent-soft p-3">
-                    {/* **The count is the live region, not the bar.** With the
-                        role on the wrapper, every tick re-announced all four
-                        control labels after the number - measured live, fifteen
-                        rows read that whole string fifteen times and buried the
-                        only thing that had changed. */}
-                    <span role="status" className="text-sm font-semibold text-accent-soft-fg">
-                        {t(':count selected', { count: chosen })}
+            {/*
+                Always on screen, not only once something is ticked. It
+                previously appeared out of nowhere on the first tick and
+                vanished on the last, a pop-in/pop-out the owner judged live
+                and rejected outright - "δεν είναι ωραίο". Sitting here at
+                rest with everything disabled and "0 selected" is what removes
+                the jump: the row of buttons never appears or disappears,
+                only its own enabled state changes, and `:count selected`
+                already reads correctly at zero without a second string.
+            */}
+            <div
+                className={`flex flex-wrap items-center gap-2 rounded-xl border p-3 transition-colors ${
+                    chosen > 0 ? 'border-accent/30 bg-accent-soft' : 'border-line bg-surface'
+                }`}
+            >
+                {/* **The count is the live region, not the bar.** With the
+                    role on the wrapper, every tick re-announced all four
+                    control labels after the number - measured live, fifteen
+                    rows read that whole string fifteen times and buried the
+                    only thing that had changed. */}
+                <span
+                    role="status"
+                    className={`text-sm font-semibold ${chosen > 0 ? 'text-accent-soft-fg' : 'text-fg-muted'}`}
+                >
+                    {t(':count selected', { count: chosen })}
+                </span>
+
+                {confirming ? (
+                    <span className="flex flex-wrap items-center gap-2 sm:ml-auto">
+                        <span className="text-sm font-semibold text-danger-text">
+                            {t('Delete :count entries permanently?', { count: chosen })}
+                        </span>
+                        <BulkButton
+                            icon={Trash2}
+                            label={t('Delete')}
+                            tone="danger"
+                            onClick={() => { setConfirming(false); onBulkAction?.('delete', selected); }}
+                        />
+                        <button
+                            type="button"
+                            onClick={() => setConfirming(false)}
+                            className="cursor-pointer rounded-lg px-3 py-1.5 text-sm font-medium text-accent-soft-fg transition-colors hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring-accent"
+                        >
+                            {t('Cancel')}
+                        </button>
                     </span>
+                ) : (
+                    <span className="flex flex-wrap items-center gap-2 sm:ml-auto">
+                        {/*
+                            **Disabled, and this is the whole finding.**
+                            `SchemaRuleBuilder::build()` hard-codes
+                            `data => required` and both entry requests share
+                            it, so `PUT { status }` alone answers 422 with
+                            *The data field is required*. Sending the whole
+                            document back instead would re-post everything
+                            the listing happened to be holding, which is
+                            #86's defect pointing the other way.
 
-                    {confirming ? (
-                        <span className="flex flex-wrap items-center gap-2 sm:ml-auto">
-                            <span className="text-sm font-semibold text-danger-text">
-                                {t('Delete :count entries permanently?', { count: chosen })}
-                            </span>
-                            <BulkButton
-                                icon={Trash2}
-                                label={t('Delete')}
-                                tone="danger"
-                                onClick={() => { setConfirming(false); onBulkAction?.('delete', selected); }}
-                            />
-                            <button
-                                type="button"
-                                onClick={() => setConfirming(false)}
-                                className="cursor-pointer rounded-lg px-3 py-1.5 text-sm font-medium text-accent-soft-fg transition-colors hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring-accent"
-                            >
-                                {t('Cancel')}
-                            </button>
-                        </span>
-                    ) : (
-                        <span className="flex flex-wrap items-center gap-2 sm:ml-auto">
-                            {/*
-                                **Disabled, and this is the whole finding.**
-                                `SchemaRuleBuilder::build()` hard-codes
-                                `data => required` and both entry requests share
-                                it, so `PUT { status }` alone answers 422 with
-                                *The data field is required*. Sending the whole
-                                document back instead would re-post everything
-                                the listing happened to be holding, which is
-                                #86's defect pointing the other way.
+                            Found by pressing the button against the real
+                            API, with 701 tests green.
 
-                                Found by pressing the button against the real
-                                API, with 701 tests green.
-
-                                TODO(#117 item 19): bulk publishing wants
-                                `data` to be `sometimes` on the **update** path
-                                only - create must keep it required - so a
-                                status-only `PUT` is accepted. That is one line
-                                in `SchemaRuleBuilder::build()` plus a flag from
-                                `UpdateEntryRequest`, and it is PHP.
-                            */}
-                            <BulkButton icon={Eye} label={t('Publish selected')} disabled note={t('not wired yet')} />
-                            <BulkButton icon={EyeOff} label={t('Unpublish selected')} disabled note={t('not wired yet')} />
-                            {/* A duplicate is a fresh `POST` carrying the
-                                original's own `data` - see `bulk.js` for why
-                                that needs the loaded entries rather than the
-                                id alone. No confirmation: unlike delete,
-                                nothing existing is touched. */}
-                            <BulkButton
-                                icon={Copy}
-                                label={t('Copy selected')}
-                                onClick={() => onBulkAction?.('copy', selected)}
-                            />
-                            <BulkButton icon={Trash2} label={t('Delete selected')} tone="danger" onClick={() => setConfirming(true)} />
-                            <button
-                                type="button"
-                                onClick={() => onSelectionChange?.([])}
-                                className="cursor-pointer rounded-lg px-3 py-1.5 text-sm font-medium text-accent-soft-fg underline-offset-2 transition-colors hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring-accent"
-                            >
-                                {t('Clear selection')}
-                            </button>
-                        </span>
-                    )}
-                </div>
-            )}
+                            TODO(#117 item 19): bulk publishing wants
+                            `data` to be `sometimes` on the **update** path
+                            only - create must keep it required - so a
+                            status-only `PUT` is accepted. That is one line
+                            in `SchemaRuleBuilder::build()` plus a flag from
+                            `UpdateEntryRequest`, and it is PHP.
+                        */}
+                        <BulkButton icon={Eye} label={t('Publish selected')} disabled note={t('not wired yet')} />
+                        <BulkButton icon={EyeOff} label={t('Unpublish selected')} disabled note={t('not wired yet')} />
+                        {/* A duplicate is a fresh `POST` carrying the
+                            original's own `data` - see `bulk.js` for why
+                            that needs the loaded entries rather than the
+                            id alone. No confirmation: unlike delete,
+                            nothing existing is touched. Disabled at zero
+                            selected for the same reason Delete is - there is
+                            nothing for either to act on. */}
+                        <BulkButton
+                            icon={Copy}
+                            label={t('Copy selected')}
+                            disabled={chosen === 0}
+                            onClick={() => onBulkAction?.('copy', selected)}
+                        />
+                        <BulkButton
+                            icon={Trash2}
+                            label={t('Delete selected')}
+                            tone="danger"
+                            disabled={chosen === 0}
+                            onClick={() => setConfirming(true)}
+                        />
+                        <button
+                            type="button"
+                            onClick={() => onSelectionChange?.([])}
+                            disabled={chosen === 0}
+                            className="cursor-pointer rounded-lg px-3 py-1.5 text-sm font-medium text-accent-soft-fg underline-offset-2 transition-colors hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring-accent disabled:cursor-not-allowed disabled:text-fg-subtle disabled:no-underline disabled:hover:no-underline"
+                        >
+                            {t('Clear selection')}
+                        </button>
+                    </span>
+                )}
+            </div>
 
             {!entries || entries.length === 0 ? (
                 <div className="rounded-xl border border-dashed border-line-strong px-4 py-16 text-center">

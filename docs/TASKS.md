@@ -1251,6 +1251,20 @@ migrations, so a choice follows the person to their second **tab** rather than
 their second machine. Two columns and a save; the panel's own half already
 resolves both against an allow-list before applying them.
 
+### 138. The bulk bar popped in and out, and the owner watched it happen — DONE (CHANGELOG §59)
+
+Checked live, #137's bulk bar still appeared out of nowhere on the first
+tick and vanished on the last - a pop-in/pop-out the owner saw in motion and
+rejected. It is always on screen now: at rest, `0 selected` with Copy,
+Delete and Clear all disabled, tinting to the accent-soft highlight the
+moment a row is ticked. The row of buttons itself never mounts or unmounts,
+only which ones answer a click does.
+
+Two tests in `EntriesTable.test.jsx` and three in `EntriesScreen.test.jsx`
+had asserted the bar's *absence* at rest - true for the old behaviour, and
+rewritten to check `toBeDisabled()`/`not.toBeDisabled()` instead. All five
+confirmed to fail against the pre-change component first.
+
 ### 137. A second date, a drawn Preview, a bulk Copy, and a bigger checkbox — DONE (CHANGELOG §58)
 
 Four reports at once. Both of an entry's dates are now shown and labelled

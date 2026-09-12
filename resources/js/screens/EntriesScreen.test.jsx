@@ -232,8 +232,10 @@ describe('EntriesScreen', () => {
             await user.click(screen.getByRole('button', { name: 'Delete' }));
 
             await waitFor(() => expect(api.delete).toHaveBeenCalled());
+            // The bar itself stays on screen (#137) - it is the button's own
+            // enabled state that says the selection emptied out.
             await waitFor(() => {
-                expect(screen.queryByRole('button', { name: 'Delete selected' })).not.toBeInTheDocument();
+                expect(screen.getByRole('button', { name: 'Delete selected' })).toBeDisabled();
             });
         });
 
@@ -284,12 +286,14 @@ describe('EntriesScreen', () => {
             mount(listModule);
 
             await tick(user, 1);
-            expect(screen.getByRole('button', { name: 'Delete selected' })).toBeInTheDocument();
+            expect(screen.getByRole('button', { name: 'Delete selected' })).not.toBeDisabled();
 
             await user.click(screen.getByRole('button', { name: 'Next' }));
 
+            // The bar stays on screen (#137); the selection it names is what
+            // empties out, back to the disabled row of controls it starts at.
             await waitFor(() => {
-                expect(screen.queryByRole('button', { name: 'Delete selected' })).not.toBeInTheDocument();
+                expect(screen.getByRole('button', { name: 'Delete selected' })).toBeDisabled();
             });
         });
 
@@ -320,7 +324,9 @@ describe('EntriesScreen', () => {
 
             await screen.findByRole('checkbox', { name: 'Select entry 1' });
 
-            expect(screen.queryByRole('button', { name: 'Delete selected' })).not.toBeInTheDocument();
+            // The bar itself is always on screen (#137); disabled is what
+            // says there is nothing yet for it to act on.
+            expect(screen.getByRole('button', { name: 'Delete selected' })).toBeDisabled();
             expect(api.delete).not.toHaveBeenCalled();
         });
     });

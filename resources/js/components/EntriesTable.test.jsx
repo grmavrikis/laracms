@@ -151,10 +151,25 @@ describe('EntriesTable, choosing rows', () => {
 });
 
 describe('EntriesTable, the bulk bar', () => {
-    it('stays out of the way until something is ticked', () => {
+    // It used to appear only once something was ticked and vanish on the
+    // last box cleared - a pop-in/pop-out the owner saw live and rejected.
+    // Always on screen now, at rest: the count reads zero and the two
+    // controls that act on a selection have nothing to act on yet.
+    it('stays on screen at rest, rather than appearing only once something is ticked', () => {
         draw();
 
-        expect(screen.queryByRole('button', { name: /Delete/ })).not.toBeInTheDocument();
+        expect(screen.getByText('0 selected')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Delete selected' })).toBeDisabled();
+        expect(screen.getByRole('button', { name: 'Copy selected' })).toBeDisabled();
+        expect(screen.getByRole('button', { name: 'Clear selection' })).toBeDisabled();
+    });
+
+    it('enables Copy, Delete and Clear the moment a row is ticked', () => {
+        draw({ selected: [11] });
+
+        expect(screen.getByRole('button', { name: 'Delete selected' })).not.toBeDisabled();
+        expect(screen.getByRole('button', { name: 'Copy selected' })).not.toBeDisabled();
+        expect(screen.getByRole('button', { name: 'Clear selection' })).not.toBeDisabled();
     });
 
     it('says how many rows the next action will touch', () => {

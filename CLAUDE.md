@@ -226,7 +226,7 @@ both — write `t('…')` literally, as `FIELD_TYPE_LABELS` does.
 
 ```bash
 php artisan test                    # 531 tests
-npm test                            # 832 tests
+npm test                            # 833 tests
 npm run build
 php artisan schema:sync-field-types # after changing field type constants
 php artisan pages:warm              # bake the public site to files (#97) - THE DEPLOY STEP
@@ -297,7 +297,13 @@ Started from a repo that would not boot (eight files of merge conflicts).
 Worked through a prioritised list; every item is either done or recorded in
 `CHANGELOG.md` with its reasoning.
 
-- **531 PHP tests, 832 JS tests**, all passing. Build clean.
+- **531 PHP tests, 833 JS tests**, all passing. Build clean.
+- **#138, the bulk bar no longer pops in and out, is DONE** (CHANGELOG §59) —
+  checked live, it appeared out of nowhere on the first tick and vanished on
+  the last; the owner watched it happen and rejected it. Always on screen
+  now: `0 selected` with Copy/Delete/Clear disabled at rest, tinting to the
+  accent-soft highlight the moment a row is ticked. The row of buttons never
+  mounts or unmounts, only which ones answer a click does.
 - **#137, four more entries-screen reports, is DONE** (CHANGELOG §58) — both
   of an entry's dates are now shown and labelled (`Created`/`Updated`), not
   one bare and nameless. `Copy selected` duplicates the ticked rows via a

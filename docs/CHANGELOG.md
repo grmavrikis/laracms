@@ -6079,3 +6079,48 @@ pre-click value, which is a timing artefact of the test method rather than
 anything the app got wrong. Checked in both themes.
 
 531 PHP tests, 832 JS tests, build clean.
+
+---
+
+## 59. The bulk bar popped in and out, and the owner watched it happen
+
+Checked live, §58's bar still had the one behaviour nothing in that pass had
+touched: it did not exist until the first tick and vanished the moment the
+selection emptied again, appearing and disappearing at the top of the list
+each time. Seen in motion rather than in a screenshot, it read as a glitch -
+*«δεν είναι ωραίο»*.
+
+**It is always on screen now.** At rest it reads `0 selected` with Copy,
+Delete and Clear all disabled - the two publish controls were already
+disabled for an unrelated reason (#117's PHP debt) and needed no change. The
+row of buttons itself never mounts or unmounts; only which ones answer a
+click does. The surface tints from a plain `border-line`/`bg-surface` to the
+accent-soft highlight the moment `chosen` passes zero, so a real selection
+still reads as a distinct state - the colour change is not the only signal,
+since the count and every button's own enabled state say the same thing in
+words.
+
+Kept, unchanged: the delete-confirmation step, which can still only be
+reached through a button that is itself disabled at zero, so nothing new
+had to guard it.
+
+### Checked
+
+Two tests replace the one that used to assert the bar's *absence* at rest
+(`queryByRole(...).not.toBeInTheDocument()`, which was true for the old
+behaviour and had to go) - one confirming `0 selected` and three disabled
+controls at rest, one confirming all three enable the moment a row is
+ticked. Three more, in `EntriesScreen.test.jsx`, asserted the same absence
+at the integration level - through a real mount, a real tick, a real
+page turn - and needed the same rewrite, to `toBeDisabled()` /
+`not.toBeDisabled()` in place of presence checks. All five confirmed to
+fail against the pre-change component first, `EntriesScreen`'s own three by
+`git stash` on `EntriesTable.jsx` while the screen test itself stayed
+untouched - the same component, exercised through its real parent rather
+than in isolation.
+
+Verified live: ticking a row now tints the existing bar and enables its
+buttons in place, with no row of controls appearing or disappearing: checked
+at both a desktop width and a phone width, and in both themes.
+
+531 PHP tests, 833 JS tests, build clean.
