@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { readFileSync, globSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { ACCENTS } from './theme';
 
@@ -222,5 +222,51 @@ describe('the grays are readable on the surfaces they sit on', () => {
         expect(ink, '--ui-highlight-fg').toMatch(HEX);
         expect(ground, '--ui-highlight-bg').toMatch(HEX);
         expect(contrast(ink, ground)).toBeGreaterThanOrEqual(4.5);
+    });
+});
+
+/**
+ * Everything above measures a **token**. An opacity modifier writes a different
+ * colour than the token names - `text-sidebar-fg-muted/70` composites the ink
+ * against whatever is behind it - so a class like that is a silent opt-out of
+ * every measurement in this file.
+ *
+ * It is not hypothetical. The rail's three group headings carried exactly that,
+ * and composited over `--ui-sidebar-bg` they measured **3.56:1 in light and
+ * 3.92:1 in dark** against the 4.5 floor the rule above holds that same token
+ * to. At 11px semibold nothing excuses it: WCAG's large-text allowance starts
+ * at 18.66px bold.
+ *
+ * Only `text-`. The panel carries twenty-eight other modifiers and every one is
+ * `bg-`, `border-` or `ring-`, which are surfaces and edges rather than ink -
+ * a translucent border is a design decision, a translucent sentence is a
+ * readability one.
+ */
+describe('no text colour opts out of the measurement', () => {
+    // Tailwind's other use of the slash: `text-sm/6` is a font-size with a
+    // line-height and says nothing about colour. Named rather than pattern-
+    // matched, because the scale is a closed list and a colour token is not.
+    const FONT_SIZES = new Set([
+        'xs', 'sm', 'base', 'lg', 'xl',
+        '2xl', '3xl', '4xl', '5xl', '6xl', '7xl', '8xl', '9xl',
+    ]);
+
+    const sources = globSync('resources/js/**/*.{js,jsx}', { cwd: process.cwd() })
+        .filter((path) => !/\.test\.[jt]sx?$/.test(path));
+
+    it('scans the panel it claims to scan', () => {
+        // A scan that reads less than it thinks reports success either way -
+        // the lesson `TranslatedLiterals` paid for when `accept="image/*"` hid
+        // three files from the check that existed to read them.
+        expect(sources.length).toBeGreaterThan(40);
+    });
+
+    it.each(sources)('%s', (path) => {
+        const source = readFileSync(resolve(process.cwd(), path), 'utf8');
+        const offenders = [...source.matchAll(/\btext-([a-z0-9-]+)\/(\d{1,3})\b/g)]
+            .filter(([, token]) => !FONT_SIZES.has(token))
+            .map(([match]) => match);
+
+        expect(offenders, `${path} dims an ink instead of naming a token`).toEqual([]);
     });
 });

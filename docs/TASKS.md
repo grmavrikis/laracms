@@ -1251,6 +1251,44 @@ migrations, so a choice follows the person to their second **tab** rather than
 their second machine. Two columns and a save; the panel's own half already
 resolves both against an allow-list before applying them.
 
+### 124. The rail's Content group is a submenu — DONE (CHANGELOG §46)
+
+Raised by the owner the day after #117 closed. The modules in the rail each
+carried a tile holding the initial of their name, because a module has no icon
+of its own, and six of them stacked between two groups of line icons read as a
+column of broken images. **The idea survives where it earns its place** — at
+68px the label is not rendered and the initial *is* the icon — and everywhere
+else `Content` is now a parent row with the sections indented under it on a
+guide line.
+
+Two things came out of doing it, and both are the reason this is worth a number:
+
+- **`title` was the only thing naming a collapsed row.** It is a real accessible
+  name, last in the computation, which is what made it comfortable to leave
+  there — and replacing it with a tooltip would have removed the name with it.
+  The label is rendered `sr-only` now. ARCHITECTURE → *Naming controls*.
+- **The group headings were at 3.56:1.** `text-sidebar-fg-muted/70` writes a
+  colour the token does not name, so the file whose entire subject is measured
+  contrast could not see it. The guard is general: no `text-` utility in the
+  panel carries an opacity modifier.
+
+`Sidebar.jsx` had no test at all before this and has one now.
+
+### 123. `--ui-surface-raised` is measured against nothing — P2
+
+`theme.css.test.js` measures `fg`, `fg-muted` and `fg-subtle` against `bg`,
+`surface` and `surface-muted`, and the rail's own inks against the rail. It does
+**not** include `surface-raised`, which is the ground the appearance menu paints
+`text-fg-subtle` and `text-fg-muted` on.
+
+That is the same shape as the defect the file was written for: `--ui-fg-muted`
+measured 4.35:1 on `--ui-surface-muted` and nothing in the suite could see it.
+Found while choosing a surface for the rail's tooltip (#124), which took
+`bg-surface` instead precisely because that pair is measured and this one is not.
+
+Adding `'surface-raised'` to the `SURFACES` list is one word. Whether it passes
+is the question — measure before assuming either way.
+
 ---
 
 ### 117. The panel redesign — DONE (2026-09-10 → 2026-09-12, CHANGELOG §37–§45)

@@ -226,7 +226,7 @@ both — write `t('…')` literally, as `FIELD_TYPE_LABELS` does.
 
 ```bash
 php artisan test                    # 531 tests
-npm test                            # 719 tests
+npm test                            # 787 tests
 npm run build
 php artisan schema:sync-field-types # after changing field type constants
 php artisan pages:warm              # bake the public site to files (#97) - THE DEPLOY STEP
@@ -297,7 +297,15 @@ Started from a repo that would not boot (eight files of merge conflicts).
 Worked through a prioritised list; every item is either done or recorded in
 `CHANGELOG.md` with its reasoning.
 
-- **531 PHP tests, 719 JS tests**, all passing. Build clean.
+- **531 PHP tests, 787 JS tests**, all passing. Build clean.
+- **#124, the rail's Content group, is DONE** (CHANGELOG §46) — the modules read
+  as a submenu of *Content* rather than as a column of lettered tiles, and the
+  tiles survive only at 68px where the initial is the only glyph a module has.
+  Two things fell out of it and both are rules now: **a control named only by
+  `title` has no name of its own** (the collapsed rows dropped their label and
+  leaned on it), and **`text-<token>/<n>` is a silent opt-out** of every contrast
+  rule in `theme.css.test.js`, which is why that file now reads the panel's
+  source as well as the stylesheet. `Sidebar.jsx` had no test at all and has one.
 - **#117, the panel redesign, is DONE** (2026-09-12) — all twenty items,
   CHANGELOG §37–§45. Tokens, a hand-written router, the `ui/` vocabulary, every
   screen restyled and named, and the catalogue checked in both directions. The

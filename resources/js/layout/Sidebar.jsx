@@ -1,7 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import {
     LayoutDashboard,
     ChartNoAxesColumn,
+    FileText,
     Inbox,
     Boxes,
     Settings,
@@ -21,6 +23,9 @@ import useMediaQuery from '../hooks/useMediaQuery';
 import IconButton from '../ui/IconButton';
 
 const STORAGE_KEY = 'miniCms.sidebar';
+
+/** Referenced by the test, and by nothing else - the tooltip has no role. */
+const TIP_ID = 'rail-tip';
 
 /**
  * Guarded, like the theme's: a browser set to block site data throws on access
@@ -50,8 +55,27 @@ const writeCollapsed = (collapsed) => {
  * all work on one and none of them work on the other, and a panel whose menu
  * cannot be opened in a new tab is a panel that feels like a toy. The click
  * handler stands aside for every modifier so the browser does its own thing.
+ *
+ * **The label is always rendered, and hidden rather than dropped when the rail
+ * is narrow.** It used to be omitted entirely at 68px, with `title` left to
+ * carry the name - and `title` *is* a name, last in the accessible-name
+ * computation, which is exactly what made that comfortable. It should not have
+ * been: it was the only thing naming the row, announced inconsistently between
+ * readers, and one CSS change away from nothing at all. The name is text now,
+ * and the tooltip below is decoration.
  */
-function SidebarLink({ href, icon: Icon, letter, label, active, collapsed, onNavigate }) {
+function SidebarLink({ href, icon: Icon, letter, label, active, collapsed, nested, onNavigate, onTip }) {
+    // Only while narrow. At full width the label is right there, and a tooltip
+    // repeating a word the reader is already looking at is noise.
+    const tipHandlers = collapsed && onTip
+        ? {
+            onMouseEnter: (event) => onTip(label, event.currentTarget),
+            onFocus: (event) => onTip(label, event.currentTarget),
+            onMouseLeave: () => onTip(null),
+            onBlur: () => onTip(null),
+        }
+        : {};
+
     return (
         <li>
             <Link
@@ -60,14 +84,18 @@ function SidebarLink({ href, icon: Icon, letter, label, active, collapsed, onNav
                 // `page` rather than `true`: this is the address on show, which
                 // is what a screen reader announces as the current location.
                 aria-current={active ? 'page' : undefined}
-                title={collapsed ? label : undefined}
+                {...tipHandlers}
                 className={`group flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ${
                     active
                         ? 'bg-accent text-accent-fg font-semibold'
                         : 'text-sidebar-fg-muted hover:bg-sidebar-hover hover:text-sidebar-fg'
                 } ${collapsed ? 'justify-center px-0' : ''}`}
             >
-                {Icon
+                {/* A nested row carries no glyph at all: the guide line and the
+                    indent say what it belongs to, which is the whole point of
+                    drawing the group as a submenu. The initial survives only
+                    where it earns its place - see `Section` below. */}
+                {!nested && (Icon
                     ? <Icon className="h-[18px] w-[18px] shrink-0" aria-hidden="true" />
                     : (
                         // A module has no icon of its own, and six identical
@@ -81,34 +109,61 @@ function SidebarLink({ href, icon: Icon, letter, label, active, collapsed, onNav
                         >
                             {letter}
                         </span>
-                    )}
+                    ))}
 
-                {!collapsed && <span className="truncate">{label}</span>}
+                <span className={collapsed ? 'sr-only' : 'truncate'}>{label}</span>
             </Link>
         </li>
     );
 }
 
-function Section({ id, title, collapsed, children }) {
+/**
+ * A named group of rows.
+ *
+ * `h2` + `aria-labelledby`, not a loose paragraph above a list. It said in a
+ * comment that the grouping was "real to a screen reader" and it was not:
+ * nothing associated the two, so the whole rail read as one flat list of links
+ * with three stray words in it - and a reader could not tell Rooms, which is
+ * the client's content, from Modules, which is ours. Collapsed it was worse,
+ * because the hidden heading was then the only marker and it pointed at
+ * nothing.
+ *
+ * **An `icon` makes it a submenu.** The heading is then drawn as a row of the
+ * rail rather than as a small-caps label, and its rows hang under it on a guide
+ * line. Only Content asks for that, because only Content's rows are the
+ * client's own sections rather than screens we shipped - and it is still an
+ * `h2` and still not a link, since there is no `/admin/content` to open and
+ * pointing it at the module list would hand a hotel owner the agency's half of
+ * the rail.
+ */
+function Section({ id, title, icon: Icon, collapsed, children }) {
+    const submenu = Boolean(Icon) && !collapsed;
+
     return (
         <div className="px-3 py-2">
-            {/* `h2` + `aria-labelledby`, not a loose paragraph above a list.
-                It said in a comment that the grouping was "real to a screen
-                reader" and it was not: nothing associated the two, so the
-                whole rail read as one flat list of links with three stray
-                words in it - and a reader could not tell Rooms, which is the
-                client's content, from Modules, which is ours. Collapsed it was
-                worse, because the hidden heading was then the only marker and
-                it pointed at nothing. */}
             <h2
                 id={id}
-                className={`mb-1 px-3 text-[11px] font-semibold uppercase tracking-wider text-sidebar-fg-muted/70 ${
-                    collapsed ? 'sr-only' : ''
-                }`}
+                className={
+                    collapsed
+                        ? 'sr-only'
+                        : submenu
+                            ? 'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-semibold text-sidebar-fg'
+                            : 'mb-1 px-3 text-[11px] font-semibold uppercase tracking-wider text-sidebar-fg-muted'
+                }
             >
+                {submenu && <Icon className="h-[18px] w-[18px] shrink-0" aria-hidden="true" />}
                 {title}
             </h2>
-            <ul aria-labelledby={id} className="space-y-0.5">{children}</ul>
+
+            {/* 21px is `px-3` plus half of an 18px icon, so the line falls down
+                the centre of the heading's own glyph; the 1px border and `pl-2`
+                then put a child's label at the same 42px as the heading's. */}
+            <ul
+                aria-labelledby={id}
+                className={`space-y-0.5 ${submenu ? 'ml-[21px] border-l border-sidebar-line pl-2' : ''}`}
+            >
+                {children}
+            </ul>
         </div>
     );
 }
@@ -126,8 +181,44 @@ export default function Sidebar({ open = false, onClose }) {
     const [modules, setModules] = useState([]);
     const [languages, setLanguages] = useState([]);
     const [modulesFailed, setModulesFailed] = useState(false);
+    const [tip, setTip] = useState(null);
 
     const viewLangCode = contentLangCode(languages, locale);
+
+    /**
+     * Where the hovered row's name is shown, and it is **portalled**.
+     *
+     * Measured before it was written rather than assumed: `nav` computes
+     * `overflow-x: auto` - forced by its own `overflow-y-auto` - with its right
+     * edge at 67.2px, and a probe positioned past that is clipped, with
+     * `elementFromPoint` over it answering the page behind. A `fixed` child
+     * happens to escape today because the rail's computed `transform` is
+     * `none`, but that holds by accident of the current classes and the failure
+     * mode of losing it is a tooltip nobody can see and nobody reports.
+     */
+    const showTip = useCallback((label, element) => {
+        if (label === null) {
+            setTip(null);
+
+            return;
+        }
+
+        const row = element.getBoundingClientRect();
+        const aside = element.closest('aside')?.getBoundingClientRect();
+
+        setTip({
+            label,
+            top: row.top + row.height / 2,
+            left: (aside?.right ?? row.right) + 8,
+        });
+    }, []);
+
+    // Anything that moves the rows out from under the pointer takes the tooltip
+    // with them: following a link, and widening the rail so the labels are
+    // there anyway.
+    useEffect(() => {
+        setTip(null);
+    }, [route, rail]);
 
     const fetchModules = useCallback(() => {
         setModulesFailed(false);
@@ -212,6 +303,7 @@ export default function Sidebar({ open = false, onClose }) {
                         active={isAt('dashboard')}
                         collapsed={rail}
                         onNavigate={() => navigate('dashboard')}
+                        onTip={showTip}
                     />
                     <SidebarLink
                         href={hrefFor('analytics')}
@@ -220,10 +312,11 @@ export default function Sidebar({ open = false, onClose }) {
                         active={isAt('analytics')}
                         collapsed={rail}
                         onNavigate={() => navigate('analytics')}
+                        onTip={showTip}
                     />
                 </Section>
 
-                <Section id="nav-content" title={t('Content')} collapsed={rail}>
+                <Section id="nav-content" title={t('Content')} icon={FileText} collapsed={rail}>
                     {modulesFailed && !rail && (
                         <li className="px-3 py-2 text-xs text-danger-text">
                             {t('Could not load the modules.')}
@@ -238,11 +331,13 @@ export default function Sidebar({ open = false, onClose }) {
                                 href={hrefFor('entries', { module: module.slug })}
                                 letter={(name[0] ?? '?').toUpperCase()}
                                 label={name}
+                                nested={!rail}
                                 active={isAt('entries', { module: module.slug })
                                     || isAt('entryEdit', { module: module.slug })
                                     || isAt('entryCreate', { module: module.slug })}
                                 collapsed={rail}
                                 onNavigate={() => navigate('entries', { module: module.slug })}
+                                onTip={showTip}
                             />
                         );
                     })}
@@ -262,6 +357,7 @@ export default function Sidebar({ open = false, onClose }) {
                         active={isAt('enquiries')}
                         collapsed={rail}
                         onNavigate={() => navigate('enquiries')}
+                        onTip={showTip}
                     />
                     <SidebarLink
                         href={hrefFor('modules')}
@@ -270,6 +366,7 @@ export default function Sidebar({ open = false, onClose }) {
                         active={isAt('modules') || isAt('moduleCreate') || route.name === 'moduleEdit'}
                         collapsed={rail}
                         onNavigate={() => navigate('modules')}
+                        onTip={showTip}
                     />
                     <SidebarLink
                         href={hrefFor('settings')}
@@ -278,9 +375,32 @@ export default function Sidebar({ open = false, onClose }) {
                         active={isAt('settings')}
                         collapsed={rail}
                         onNavigate={() => navigate('settings')}
+                        onTip={showTip}
                     />
                 </Section>
             </nav>
+
+            {/* `aria-hidden`, because the row it describes already carries the
+                same words as its accessible name and a reader announcing both
+                would say everything twice. `bg-surface` rather than the
+                `bg-surface-raised` the appearance menu uses: this ink is
+                measured against that ground in `theme.css.test.js` and the
+                raised surface is not on its list. The edge is `line-strong`
+                rather than `line`, measured in both themes: a tooltip lands
+                over the content area, where a card is `bg-surface` too, so at
+                the ordinary border weight the only thing separating the two was
+                a hairline of #e2e8f0 on #fff. */}
+            {tip && createPortal(
+                <div
+                    id={TIP_ID}
+                    aria-hidden="true"
+                    style={{ top: tip.top, left: tip.left }}
+                    className="pointer-events-none fixed z-50 -translate-y-1/2 animate-rail-tip whitespace-nowrap rounded-lg border border-line-strong bg-surface px-2.5 py-1.5 text-sm text-fg shadow-lg motion-reduce:animate-none"
+                >
+                    {tip.label}
+                </div>,
+                document.body,
+            )}
         </aside>
     );
 }

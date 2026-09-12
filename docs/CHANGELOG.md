@@ -5148,3 +5148,115 @@ environment beside the map, and what stayed in the component's test is the half
 that needs a rendered select.
 
 531 PHP tests, 719 JS tests, build clean.
+
+---
+
+## 46. The rail's content group becomes a submenu
+
+Raised by the owner after #117 closed, on one screen: *«τα αρχικά από τα ονόματα
+είναι κάπως καλή σαν σκέψη … αλλά δεν μου κάθεται καλά σαν εμφάνιση. Φτιάξε το να
+είναι σαν υπομενού του Content.»*
+
+### What it looked like
+
+The rail carries three groups — Overview, Content, Manage — each a small-caps
+heading above a flat list. Overview's and Manage's rows are screens we ship and
+carry `lucide-react` line icons. Content's rows are the **client's own sections**,
+which have no icon of their own, so each was given an 18×18 tile holding the
+initial of its name.
+
+Seen live at 1024px against the demo's six modules that is a column of grey
+lettered chips — `C A P F R S` — wedged between two groups of line icons. The
+judgement is not that the idea was wrong. It is that the idea earns its place at
+**68px**, where the label is not rendered and the initial genuinely is the icon,
+and nowhere else.
+
+### What replaced it
+
+`Section` takes an optional `icon`. Given one, its `h2` is drawn as a row of the
+rail rather than as a small-caps label, and its `ul` is indented behind a guide
+line. Only Content asks for it.
+
+It stays an `h2` and it stays **not a link**. There is no `/admin/content` to
+open, and the obvious candidate — the module list — is the other side of the
+divider this rail already draws: a hotel owner works above that line and should
+not be handed *Modules* by the row labelling their own rooms.
+
+Measured rather than eyeballed, against the running panel: the guide line falls
+at **x = 33**, which is the centre of the heading's own glyph to the pixel, and
+the child labels start at **53.8** against the heading's **54**. The numbers in
+the source (`ml-[21px]`, a 1px border, `pl-2`) are `px-3` plus half an icon, and
+they are written down because the next person to touch them needs to know they
+were arithmetic and not taste.
+
+### `title` was the only thing naming a collapsed row
+
+Replacing the browser's native tooltip is what the owner asked for. Reading the
+file to do it turned up why it could not simply be deleted: the collapsed row
+rendered `{!collapsed && <span>{label}</span>}`, so **`title` was carrying the
+accessible name** — last in the name computation, but a name, which is precisely
+what made it comfortable to leave there.
+
+So the name was fixed first. The label is always rendered and merely `sr-only`
+when narrow; `title` is gone; the tooltip is `aria-hidden` decoration. Verified
+live: all eleven collapsed rows carry a real label, `display: block`,
+`visibility: visible`, clipped to 1px.
+
+> The rule this adds to *Naming controls*: **a control named only by `title` has
+> no name of its own.** A collapsed rail is where that hides, because the state
+> that removes the text is the state nobody screenshots.
+
+### The tooltip is portalled, and that was measured
+
+`nav` computes `overflow-x: auto` — forced by its own `overflow-y-auto` — with
+its right edge at **67.2px**. A probe positioned absolutely at 185px is clipped:
+`elementFromPoint` over it answers the dashboard behind. A `fixed` child does
+escape today, because the rail's computed `transform` is `none` at `lg`, but that
+holds by accident of the current classes and the failure mode of losing it is a
+tooltip nobody can see and nobody reports. `createPortal` into `document.body` is
+five lines and is unconditionally correct.
+
+The surface is `bg-surface`, not the `bg-surface-raised` the appearance menu
+uses: that pair is one `theme.css.test.js` already measures and the raised
+surface is not on its list (logged as #123). The **edge** is `line-strong` rather
+than `line`, and that came out of looking at it: a tooltip flies over the content
+area, where a card is `bg-surface` too, so at the ordinary border weight the only
+thing separating the two was a hairline of `#e2e8f0` on `#fff`.
+
+The entrance is `--animate-rail-tip` in `app.css` with `motion-reduce:animate-none`.
+It animates `translate` rather than `transform`, which is the property Tailwind
+v4's own translate utilities set — animating the other one leaves both applied
+and drops the tooltip half its height.
+
+### The group headings were failing AA, and nothing could see it
+
+`text-sidebar-fg-muted/70`, composited over the rail, measures **3.56:1 in light
+and 3.92:1 in dark** against the 4.5 floor `theme.css.test.js` holds that very
+token to. At 11px semibold nothing excuses it — WCAG's large-text allowance
+starts at 18.66px bold.
+
+The opacity modifier is how it got past a file whose whole subject is measured
+contrast: **every rule in it measures a token, and `/70` writes a colour the
+token does not name.** So the guard is the general one rather than a third hex:
+no `text-` utility in the panel may carry an opacity modifier. Exactly one
+existed. The other twenty-eight modifiers in the panel are all `bg-`, `border-`
+and `ring-` — surfaces and edges, where translucency is a design decision rather
+than a readability one — and the rule does not touch them.
+
+### Checked
+
+`Sidebar.jsx` had **no test at all**, which TASKS.md #94 says is where six
+defects in a row have been. It has one now, and four of its seven assertions
+failed before the change: the row read `"RRooms"`, it carried a `title`, and
+nothing appeared on hover or on focus. Two mutations afterwards, because two of
+the seven would have passed against the old code as well: restoring the letter
+tile fails the submenu assertion, and swallowing `onMouseLeave` fails the one
+that says the tooltip goes away.
+
+Verified live at 1024px and at 375px, in both themes: hover and keyboard focus
+both raise it, `mouseout` and `blur` both take it away, it sits at the rail's
+right edge plus 8 and centred on its row to the pixel, and the phone drawer gets
+the submenu rather than the letters — collapsing is a desktop idea and
+`rail = collapsed && isDesktop` already said so.
+
+531 PHP tests, 787 JS tests, build clean.

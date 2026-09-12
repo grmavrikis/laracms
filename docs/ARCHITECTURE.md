@@ -1220,6 +1220,13 @@ swatches against the ramp they advertise, every gray against every surface it
 sits on, and the `--tw-prose-*` mapping. Contrast here is measured, never
 eyeballed - three steps that looked fine have failed AA.
 
+It also reads the panel's **source**, for the one thing a stylesheet cannot say:
+every rule above measures a *token*, and an opacity modifier writes a colour the
+token does not name, so `text-<token>/<n>` is a silent opt-out of all of it. The
+rail's group headings carried exactly that and measured 3.56:1. Only `text-`;
+`bg-`, `border-` and `ring-` modifiers are surfaces and edges, and the panel has
+twenty-eight of them.
+
 **Primitives, in `resources/js/ui/`.** Each was extracted at its *second or
 later* use, never before: a pattern's real shape is visible on its second use,
 and item 6's amendment records why building thirteen of them up front was
@@ -1233,6 +1240,20 @@ refused.
 | `Link` | the third copy of the modifier-click guard, and the two later ones had dropped its `defaultPrevented` check |
 | `Pagination`, `Badge`, `PageHeader`, `FileInput` | second uses, each with one copy already diverged |
 | `Preview` | see below |
+
+**The rail has two shapes, and only one of them is a hierarchy.** At full width
+and in the phone drawer, `Content` is a row with an icon and the client's
+sections hang under it on a guide line - a submenu, because they are the client's
+own and the rows above and below them are screens we ship. It stays an `h2` and
+stays unclickable: there is no `/admin/content`, and pointing it at the module
+list would hand a hotel owner the agency's half of the rail. At 68px none of that
+applies - there is no room for an indent and no label rendered, so each module
+falls back to its initial, which is the only glyph it has.
+
+The name a narrow row hovers is a **portalled** element, not a `title`. `nav`
+computes `overflow-x: auto`, forced by its `overflow-y-auto`, so anything
+positioned past the 68px edge is clipped - measured, with a probe. See *Naming
+controls* for the half of this that is not decoration.
 
 **Screens, in `resources/js/screens/`**, reached by name from the table in
 `app.jsx`. A name that table does not know is a **throw**, not a default -
@@ -1296,6 +1317,15 @@ the control's accessible name.
 Rows of identical controls are named by their row: *Remove image 2*, *Select
 entry 11*, *Move field 3 up*. A column of buttons all called *Delete* says
 nothing about which one.
+
+**A control named only by `title` has no name of its own.** `title` is genuinely
+last in the accessible-name computation, which is exactly what makes leaving it
+there comfortable - the rail's collapsed rows dropped their label entirely and
+read correctly under test for months on the strength of it. It is announced
+inconsistently between readers, it is unreachable by touch, and it disappears the
+moment somebody replaces it with a tooltip of their own. The label is rendered
+and `sr-only` instead, and a tooltip beside it is `aria-hidden`. The state that
+hides the text is the state nobody screenshots, which is why this one lasted.
 
 ### The panel's language decides which content language it opens on (#116)
 
