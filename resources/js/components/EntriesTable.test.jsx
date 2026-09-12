@@ -214,6 +214,29 @@ describe('EntriesTable, the bulk bar', () => {
         expect(screen.getByRole('button', { name: 'Delete selected' })).toBeInTheDocument();
     });
 
+    /**
+     * **Which rows, not how many.** Keyed on the count alone, a selection of
+     * the same size but different rows kept the question open - so *Delete 2
+     * entries permanently?* could be standing over a pair the reader never
+     * chose, which a background refetch swapping a row produces.
+     */
+    it('drops the question when the rows change but the count does not', async () => {
+        const user = userEvent.setup();
+        const { rerender } = draw({ selected: [11, 12] });
+
+        await user.click(screen.getByRole('button', { name: 'Delete selected' }));
+        expect(screen.getByText('Delete 2 entries permanently?')).toBeInTheDocument();
+
+        // Same size, different rows.
+        rerender(
+            <EntriesTable schema={SCHEMA} entries={ENTRIES} orderIds={[11, 12]} languages={LANGUAGES}
+                currentLangCode="el" selected={[11, 99]} onEdit={vi.fn()} onReorder={vi.fn()}
+                onLanguageChange={vi.fn()} onPageChange={vi.fn()} onSelectionChange={vi.fn()} onBulkAction={vi.fn()} />
+        );
+
+        expect(screen.queryByText(/permanently/)).not.toBeInTheDocument();
+    });
+
     // Otherwise the question on screen names a number that no longer matches
     // what pressing Delete would take.
     it('drops the question when the selection changes underneath it', async () => {
@@ -241,12 +264,23 @@ describe('EntriesTable, the bulk bar', () => {
         expect(onSelectionChange).toHaveBeenCalledWith([]);
     });
 
-    // The bar appears where the reader already is, and a live region is what
-    // tells somebody who cannot see it that the count changed.
-    it('announces itself', () => {
+    /**
+     * **The count is the live region, not the bar.**
+     *
+     * With `role="status"` on the whole bar, every tick re-announced all four
+     * control labels after the number - measured live, the region read
+     * "2 selected / Publish selected / Unpublish selected / Delete selected /
+     * Clear selection". Ticking a page of fifteen reads that fifteen times and
+     * buries the only thing that changed.
+     */
+    it('announces the count, and only the count', () => {
         draw({ selected: [11] });
 
-        expect(screen.getByRole('status')).toHaveTextContent('1 selected');
+        const live = screen.getByRole('status');
+
+        expect(live).toHaveTextContent('1 selected');
+        expect(live.textContent).toBe('1 selected');
+        expect(within(live).queryByRole('button')).not.toBeInTheDocument();
     });
 });
 
@@ -257,6 +291,21 @@ describe('EntriesTable, the bulk bar', () => {
  * #117 and the same treatment as the dashboard's counts.
  */
 describe('EntriesTable, what is not wired yet', () => {
+    // Two greyed-out controls and a sample-data warning above "nothing has been
+    // written here" is the first thing a client sees in a new section. The
+    // empty state should be the only thing on the screen.
+    it('offers nothing to sort when there is nothing to sort', () => {
+        render(
+            <EntriesTable schema={SCHEMA} entries={[]} orderIds={[]} languages={LANGUAGES}
+                currentLangCode="el" selected={[]} onEdit={vi.fn()} onReorder={vi.fn()}
+                onLanguageChange={vi.fn()} onPageChange={vi.fn()} onSelectionChange={vi.fn()} />
+        );
+
+        expect(screen.getByText('No entries yet')).toBeInTheDocument();
+        expect(screen.queryByLabelText('Sort by')).not.toBeInTheDocument();
+        expect(screen.queryByRole('region', { name: /Sample data/ })).not.toBeInTheDocument();
+    });
+
     it('keeps the sort and filter controls inside the marker', () => {
         draw();
 

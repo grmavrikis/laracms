@@ -4979,3 +4979,31 @@ the **database** held exactly the other three. The probe module and its entries
 were removed.
 
 515 PHP tests, 702 JS tests, build clean.
+
+### The review over item 19
+
+Nine findings, and two are worth keeping beyond the fix.
+
+**A live region should be the thing that changes, not the box around it.**
+`role="status"` was on the whole bulk bar, so every tick re-announced all four
+control labels after the number — measured live, the region read *2 selected /
+Publish selected / Unpublish selected / Delete selected / Clear selection*, and
+a page of fifteen reads that fifteen times. The role belongs on the count.
+
+**The obvious place to clear a stale message was the wrong one.** `bulkError`
+survived a page change, so the natural fix was to reset it in the fetch effect —
+which wiped the message on the very refetch the action itself triggers, because
+`handleBulkAction` bumps `refreshKey` immediately after setting it. It is its
+own effect now, keyed on the module and the page: the two things that actually
+make it stale.
+
+The rest: `errorSummary` gained a **429**, which the panel can now produce on its
+own since a bulk delete sends one request per row against a sixty-a-minute
+throttle — a reader was getting a count and no reason at all. The delete
+confirmation follows *which* rows rather than how many. `bulkRequest` replaced a
+silent `return` for unknown actions with a lookup that throws and names the
+action, the rule `app.jsx` settled for the route table. The sort controls no
+longer draw above an empty table. Two docblocks were reunited with what they
+describe, and an effect's cleanup with the indentation of its own block.
+
+515 PHP tests, 714 JS tests, build clean.

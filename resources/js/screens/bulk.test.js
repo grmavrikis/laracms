@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { applyToEach, bulkSummary } from './bulk';
+import { applyToEach, bulkSummary, bulkRequest } from './bulk';
 
 /**
  * What a bulk action does to several rows at once (#117 item 19).
@@ -74,5 +74,32 @@ describe('bulkSummary', () => {
 
         expect(bulkSummary({ done: [], failed: [1], reason: refused }))
             .toContain('That status is not allowed.');
+    });
+});
+
+/**
+ * **Loud, not silent.** `app.jsx` settled this shape for the route table: a
+ * name it does not know is a throw, because "loud is affordable". The screen
+ * used to answer an unknown action with a bare `return`, so the day the two
+ * publish controls are enabled - one line of PHP away - pressing them would
+ * have done nothing at all, with no console message and no banner.
+ */
+describe('bulkRequest', () => {
+    const api = { delete: (url) => Promise.resolve(url) };
+
+    it('builds the delete each ticked row needs', async () => {
+        const send = bulkRequest('delete', api, 'rooms');
+
+        expect(await send(7)).toBe('/modules/rooms/entries/7');
+    });
+
+    it.each(['publish', 'unpublish', 'archive', '', undefined])('refuses %s by name', (action) => {
+        expect(() => bulkRequest(action, api, 'rooms')).toThrow(/bulk action/i);
+    });
+
+    // The name is in the message, so the console says which one rather than
+    // that something was wrong.
+    it('names the action it was given', () => {
+        expect(() => bulkRequest('publish', api, 'rooms')).toThrow(/publish/);
     });
 });

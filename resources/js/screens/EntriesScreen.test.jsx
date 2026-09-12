@@ -168,142 +168,160 @@ describe('EntriesScreen', () => {
 
         expect(await screen.findByRole('alert')).toHaveTextContent(/Could not load the entries/i);
     });
-});
-
-/**
- * The listing's bulk actions (#117 item 19).
- *
- * **Real, not drawn.** There is no bulk endpoint, but `DELETE` and `PUT` on one
- * entry both exist, so this is n requests rather than new PHP - the same rule
- * that kept the dashboard's section count real. What is drawn and marked is
- * sort and filter, because `EntryController::index` takes a page and nothing
- * else.
- */
-describe('EntriesScreen, acting on several entries', () => {
-    const tick = async (user, id) =>
-        user.click(await screen.findByRole('checkbox', { name: `Select entry ${id}` }));
-
-    // Its own reset. This block sits outside the describe above, so that
-    // one's `clearAllMocks` never reached it - and `api.delete` arrived
-    // carrying the calls of the test before.
-    beforeEach(() => {
-        vi.clearAllMocks();
-        forgetLanguages();
-        at('/admin');
-        api.put.mockResolvedValue({ data: {} });
-        api.delete.mockResolvedValue({ data: {} });
-    });
-
-    it('deletes each ticked entry, once it has been confirmed', async () => {
-        const user = userEvent.setup();
-        respond({ entries: [entry(1), entry(2), entry(3)] });
-        mount(listModule);
-
-        await tick(user, 1);
-        await tick(user, 3);
-        await user.click(screen.getByRole('button', { name: 'Delete selected' }));
-        await user.click(screen.getByRole('button', { name: 'Delete' }));
-
-        await waitFor(() => expect(api.delete).toHaveBeenCalledTimes(2));
-        expect(api.delete).toHaveBeenCalledWith('/modules/rooms/entries/1');
-        expect(api.delete).toHaveBeenCalledWith('/modules/rooms/entries/3');
-    });
-
     /**
-     * **No `PUT` goes out at all.** Bulk publishing would need
-     * `SchemaRuleBuilder`'s hard-coded `data => required` relaxed, which is PHP
-     * this phase does not write - so the two controls are drawn, disabled and
-     * explained rather than wired to a call the API answers 422 to.
+     * The listing's bulk actions (#117 item 19).
+     *
+     * **Real, not drawn.** There is no bulk endpoint, but `DELETE` and `PUT` on one
+     * entry both exist, so this is n requests rather than new PHP - the same rule
+     * that kept the dashboard's section count real. What is drawn and marked is
+     * sort and filter, because `EntryController::index` takes a page and nothing
+     * else.
      */
-    it('sends no update request, because the API would refuse it', async () => {
-        const user = userEvent.setup();
-        respond({ entries: [entry(1), entry(2)] });
-        mount(listModule);
+    describe('acting on several entries', () => {
+        const tick = async (user, id) =>
+            user.click(await screen.findByRole('checkbox', { name: `Select entry ${id}` }));
 
-        await tick(user, 2);
-        await user.click(screen.getByRole('button', { name: /Publish selected/ }));
-
-        expect(api.put).not.toHaveBeenCalled();
-    });
-
-    it('clears the selection and refetches once it is done', async () => {
-        const user = userEvent.setup();
-        respond({ entries: [entry(1), entry(2)] });
-        mount(listModule);
-
-        await tick(user, 1);
-        await user.click(screen.getByRole('button', { name: 'Delete selected' }));
-        await user.click(screen.getByRole('button', { name: 'Delete' }));
-
-        await waitFor(() => expect(api.delete).toHaveBeenCalled());
-        await waitFor(() => {
-            expect(screen.queryByRole('button', { name: 'Delete selected' })).not.toBeInTheDocument();
+        // Only what this block adds; `clearAllMocks`, `forgetLanguages` and the
+        // address reset are the outer describe's, which it now sits inside. It
+        // used to be a sibling and carry its own copy - and before that copy
+        // existed, `api.delete` arrived holding the previous test's calls.
+        beforeEach(() => {
+            api.put.mockResolvedValue({ data: {} });
+            api.delete.mockResolvedValue({ data: {} });
         });
-    });
 
-    /**
-     * A delete that half-succeeded cannot be undone by retrying the set, so the
-     * screen has to say **how many** went - `allSettled`, not `all`.
-     */
-    it('says how many could not be done, and keeps the rest', async () => {
-        const user = userEvent.setup();
-        respond({ entries: [entry(1), entry(2)] });
-        api.delete.mockImplementation((url) => (
-            url.endsWith('/2') ? Promise.reject(new Error('offline')) : Promise.resolve({ data: {} })
-        ));
-        mount(listModule);
+        it('deletes each ticked entry, once it has been confirmed', async () => {
+            const user = userEvent.setup();
+            respond({ entries: [entry(1), entry(2), entry(3)] });
+            mount(listModule);
 
-        await tick(user, 1);
-        await tick(user, 2);
-        await user.click(screen.getByRole('button', { name: 'Delete selected' }));
-        await user.click(screen.getByRole('button', { name: 'Delete' }));
+            await tick(user, 1);
+            await tick(user, 3);
+            await user.click(screen.getByRole('button', { name: 'Delete selected' }));
+            await user.click(screen.getByRole('button', { name: 'Delete' }));
 
-        expect(await screen.findByRole('alert')).toHaveTextContent('1 of 2');
-        expect(api.delete).toHaveBeenCalledTimes(2);
-    });
+            await waitFor(() => expect(api.delete).toHaveBeenCalledTimes(2));
+            expect(api.delete).toHaveBeenCalledWith('/modules/rooms/entries/1');
+            expect(api.delete).toHaveBeenCalledWith('/modules/rooms/entries/3');
+        });
 
-    /**
-     * A selection is per page. Carrying fifteen ticks to page two would let a
-     * delete act on rows the reader is no longer looking at, while the bar
-     * still named the old count.
-     */
-    it('drops the selection when the page turns', async () => {
-        const user = userEvent.setup();
+        /**
+         * **No `PUT` goes out at all.** Bulk publishing would need
+         * `SchemaRuleBuilder`'s hard-coded `data => required` relaxed, which is PHP
+         * this phase does not write - so the two controls are drawn, disabled and
+         * explained rather than wired to a call the API answers 422 to.
+         */
+        it('sends no update request, because the API would refuse it', async () => {
+            const user = userEvent.setup();
+            respond({ entries: [entry(1), entry(2)] });
+            mount(listModule);
 
-        // A real second page holds different rows, which is the whole point:
-        // `respond` answers the same ones for every page, so the tick would
-        // survive for the wrong reason.
-        api.get.mockImplementation((url) => {
-            if (url === '/languages') return Promise.resolve({ data: LANGUAGES });
-            if (url.endsWith('/order')) return Promise.resolve({ data: { ids: [1, 2, 3, 4], reorderable: true } });
+            await tick(user, 2);
+            await user.click(screen.getByRole('button', { name: /Publish selected/ }));
 
-            const second = url.includes('page=2') || api.get.mock.calls.filter((c) => !String(c[0]).endsWith('/order')).length > 2;
-            const rows = second ? [entry(3), entry(4)] : [entry(1), entry(2)];
+            expect(api.put).not.toHaveBeenCalled();
+        });
 
-            return Promise.resolve({
-                data: { data: rows, current_page: second ? 2 : 1, last_page: 2, per_page: 2, total: 4, from: 1, to: 2 },
+        it('clears the selection and refetches once it is done', async () => {
+            const user = userEvent.setup();
+            respond({ entries: [entry(1), entry(2)] });
+            mount(listModule);
+
+            await tick(user, 1);
+            await user.click(screen.getByRole('button', { name: 'Delete selected' }));
+            await user.click(screen.getByRole('button', { name: 'Delete' }));
+
+            await waitFor(() => expect(api.delete).toHaveBeenCalled());
+            await waitFor(() => {
+                expect(screen.queryByRole('button', { name: 'Delete selected' })).not.toBeInTheDocument();
             });
         });
 
-        mount(listModule);
+        /**
+         * A delete that half-succeeded cannot be undone by retrying the set, so the
+         * screen has to say **how many** went - `allSettled`, not `all`.
+         */
+        it('says how many could not be done, and keeps the rest', async () => {
+            const user = userEvent.setup();
+            respond({ entries: [entry(1), entry(2)] });
+            api.delete.mockImplementation((url) => (
+                url.endsWith('/2') ? Promise.reject(new Error('offline')) : Promise.resolve({ data: {} })
+            ));
+            mount(listModule);
 
-        await tick(user, 1);
-        expect(screen.getByRole('button', { name: 'Delete selected' })).toBeInTheDocument();
+            await tick(user, 1);
+            await tick(user, 2);
+            await user.click(screen.getByRole('button', { name: 'Delete selected' }));
+            await user.click(screen.getByRole('button', { name: 'Delete' }));
 
-        await user.click(screen.getByRole('button', { name: 'Next' }));
-
-        await waitFor(() => {
-            expect(screen.queryByRole('button', { name: 'Delete selected' })).not.toBeInTheDocument();
+            expect(await screen.findByRole('alert')).toHaveTextContent('1 of 2');
+            expect(api.delete).toHaveBeenCalledTimes(2);
         });
-    });
 
-    it('does nothing at all when nothing is ticked', async () => {
-        respond({ entries: [entry(1)] });
-        mount(listModule);
+        /**
+         * A selection is per page. Carrying fifteen ticks to page two would let a
+         * delete act on rows the reader is no longer looking at, while the bar
+         * still named the old count.
+         */
+        it('drops the selection when the page turns', async () => {
+            const user = userEvent.setup();
 
-        await screen.findByRole('checkbox', { name: 'Select entry 1' });
+            // A real second page holds different rows, which is the whole point:
+            // `respond` answers the same ones for every page, so the tick would
+            // survive for the wrong reason.
+            api.get.mockImplementation((url) => {
+                if (url === '/languages') return Promise.resolve({ data: LANGUAGES });
+                if (url.endsWith('/order')) return Promise.resolve({ data: { ids: [1, 2, 3, 4], reorderable: true } });
 
-        expect(screen.queryByRole('button', { name: 'Delete selected' })).not.toBeInTheDocument();
-        expect(api.delete).not.toHaveBeenCalled();
+                const second = url.includes('page=2') || api.get.mock.calls.filter((c) => !String(c[0]).endsWith('/order')).length > 2;
+                const rows = second ? [entry(3), entry(4)] : [entry(1), entry(2)];
+
+                return Promise.resolve({
+                    data: { data: rows, current_page: second ? 2 : 1, last_page: 2, per_page: 2, total: 4, from: 1, to: 2 },
+                });
+            });
+
+            mount(listModule);
+
+            await tick(user, 1);
+            expect(screen.getByRole('button', { name: 'Delete selected' })).toBeInTheDocument();
+
+            await user.click(screen.getByRole('button', { name: 'Next' }));
+
+            await waitFor(() => {
+                expect(screen.queryByRole('button', { name: 'Delete selected' })).not.toBeInTheDocument();
+            });
+        });
+
+        /**
+         * A message about rows that are no longer on screen is worse than none.
+         * The listing's own error is cleared by the fetch; this one was added to
+         * the same strip without being added to the same reset.
+         */
+        it('drops a failed bulk message when the page turns', async () => {
+            const user = userEvent.setup();
+            api.delete.mockRejectedValue(new Error('offline'));
+            respond({ entries: [entry(1), entry(2)], total: 30, lastPage: 2 });
+            mount(listModule);
+
+            await tick(user, 1);
+            await user.click(screen.getByRole('button', { name: 'Delete selected' }));
+            await user.click(screen.getByRole('button', { name: 'Delete' }));
+            await screen.findByRole('alert');
+
+            await user.click(screen.getByRole('button', { name: 'Next' }));
+
+            await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument());
+        });
+
+        it('does nothing at all when nothing is ticked', async () => {
+            respond({ entries: [entry(1)] });
+            mount(listModule);
+
+            await screen.findByRole('checkbox', { name: 'Select entry 1' });
+
+            expect(screen.queryByRole('button', { name: 'Delete selected' })).not.toBeInTheDocument();
+            expect(api.delete).not.toHaveBeenCalled();
+        });
     });
 });

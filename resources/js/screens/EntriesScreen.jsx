@@ -5,7 +5,7 @@ import EntriesTable from '../components/EntriesTable';
 import { paginationFrom, rowsFrom, isPastLastPage } from '../lib/pagination';
 import { t, locale } from '../lib/i18n';
 import { onlyPresent } from '../lib/selection';
-import { applyToEach, bulkSummary } from './bulk';
+import { applyToEach, bulkSummary, bulkRequest } from './bulk';
 import { contentLangCode } from '../lib/languages';
 import { loadLanguages } from '../lib/languageStore';
 import { moduleNameForReader } from '../lib/modules';
@@ -91,15 +91,6 @@ export default function EntriesScreen({ module }) {
     }), [navigate, module.slug]);
 
     /**
-     * The address of one entry, carrying the page it was opened from.
-     *
-     * Without this the page was in the URL of the listing and nowhere else, so
-     * the form had no idea where the reader came from and saving always
-     * returned them to page one - the very regression putting the page in the
-     * address was supposed to end. On a module of forty rooms, correcting the
-     * last one threw the owner back to the top after every save.
-     */
-    /**
      * The selection, narrowed to the rows now on show.
      *
      * A selection is **per page**: carrying fifteen ticks to page two would let
@@ -108,6 +99,16 @@ export default function EntriesScreen({ module }) {
      * there is no render in which the two disagree.
      */
     const onPage = onlyPresent(selected, entries.map((entry) => entry.id));
+
+    /**
+     * A failed bulk message must not outlive the rows it described.
+     *
+     * **Not in the fetch effect**, which is the obvious place and the wrong
+     * one: `handleBulkAction` sets the message and then bumps `refreshKey`, so
+     * clearing it there wiped the message on the very refetch the action asked
+     * for. It is the *page* and the *module* moving that make it stale.
+     */
+    useEffect(() => { setBulkError(null); }, [module.slug, page]);
 
     /**
      * One action, applied to every ticked entry (#117 item 19).
@@ -126,13 +127,11 @@ export default function EntriesScreen({ module }) {
      * page and nothing else - which is why sort and filter are marked too.
      */
     const handleBulkAction = async (action, ids) => {
-        if (action !== 'delete') {
-            return;
-        }
-
         setBulkError(null);
 
-        const result = await applyToEach(ids, (id) => api.delete(`/modules/${module.slug}/entries/${id}`));
+        // Throws for an action it does not know, rather than returning quietly
+        // - the rule `app.jsx` settled for the route table.
+        const result = await applyToEach(ids, bulkRequest(action, api, module.slug));
         const summary = bulkSummary(result);
 
         if (summary) {
@@ -146,6 +145,16 @@ export default function EntriesScreen({ module }) {
         setRefreshKey((n) => n + 1);
     };
 
+
+    /**
+     * The address of one entry, carrying the page it was opened from.
+     *
+     * Without this the page was in the URL of the listing and nowhere else, so
+     * the form had no idea where the reader came from and saving always
+     * returned them to page one - the very regression putting the page in the
+     * address was supposed to end. On a module of forty rooms, correcting the
+     * last one threw the owner back to the top after every save.
+     */
     const entryHref = (entry) => ({
         name: 'entryEdit',
         params: { module: module.slug, entry: entry.id },
@@ -190,7 +199,6 @@ export default function EntriesScreen({ module }) {
     useEffect(() => {
         let current = true;
 
-        setLoading(true);
         setError(null);
 
         api.get(`/modules/${module.slug}/entries`, { params: { page } })
@@ -216,8 +224,7 @@ export default function EntriesScreen({ module }) {
             })
             .finally(() => current && setLoading(false));
 
-
-    return () => { current = false; };
+        return () => { current = false; };
     }, [module.slug, refreshKey, page, goToPage]);
 
     // The order of the whole module, which the table reorders against.

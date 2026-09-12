@@ -12,13 +12,6 @@ import IconButton from '../ui/IconButton';
 import Preview from '../ui/Preview';
 import { Select, Checkbox, INPUT_LABEL_CLASSES } from '../ui/Input';
 
-/**
- * A checkbox whose third state is a real one.
- *
- * `indeterminate` is a **property, not an attribute** - there is no way to set
- * it in JSX - so a part-ticked page would otherwise render as an empty box and
- * tell the reader nothing on it is selected.
- */
 /** One action the bar offers, an icon and a word. */
 const BulkButton = ({ icon: Icon, label, tone, onClick, disabled, note }) => (
     <button
@@ -43,6 +36,13 @@ const BulkButton = ({ icon: Icon, label, tone, onClick, disabled, note }) => (
     </button>
 );
 
+/**
+ * A checkbox whose third state is a real one.
+ *
+ * `indeterminate` is a **property, not an attribute** - there is no way to set
+ * it in JSX - so a part-ticked page would otherwise render as an empty box and
+ * tell the reader nothing on it is selected.
+ */
 function PageCheckbox({ indeterminate, ...rest }) {
     const box = useRef(null);
 
@@ -147,12 +147,15 @@ export default function EntriesTable({
      * time, and a mis-click on a full page takes fifteen entries - the enquiry
      * inbox already asks before removing a single one.
      *
-     * The question is dropped whenever the selection moves, or it would name a
-     * number that no longer matches what pressing Delete would take.
+     * The question is dropped whenever the selection moves - **which rows, not
+     * how many**. Keyed on the count alone, a selection of the same size but
+     * different rows kept it open, so the question could stand over a pair the
+     * reader never chose once a background refetch swapped one out.
      */
     const [confirming, setConfirming] = useState(false);
+    const selectionKey = selected.map(String).sort().join(',');
 
-    useEffect(() => { setConfirming(false); }, [chosen]);
+    useEffect(() => { setConfirming(false); }, [selectionKey]);
 
     return (
         <div className="mt-6 flex flex-col gap-4">
@@ -209,6 +212,7 @@ export default function EntriesTable({
                 so the paginator and `order()` keep agreeing - they must, or a
                 reorder computed against one order is applied to another (#75).
             */}
+            {rows.length > 0 && (
             <Preview note={t('These do not filter or sort anything yet.')}>
                 <div className="flex flex-wrap items-end gap-3">
                     <div>
@@ -230,16 +234,18 @@ export default function EntriesTable({
                     <ArrowUpDown className="mb-2 h-4 w-4 text-fg-subtle" aria-hidden="true" />
                 </div>
             </Preview>
+            )}
 
             {/* Appears where the reader already is, and says what the next
-                press will touch. A live region, because the count changing is
-                the whole information. */}
+                press will touch. */}
             {chosen > 0 && (
-                <div
-                    role="status"
-                    className="flex flex-wrap items-center gap-2 rounded-xl border border-accent/30 bg-accent-soft p-3"
-                >
-                    <span className="text-sm font-semibold text-accent-soft-fg">
+                <div className="flex flex-wrap items-center gap-2 rounded-xl border border-accent/30 bg-accent-soft p-3">
+                    {/* **The count is the live region, not the bar.** With the
+                        role on the wrapper, every tick re-announced all four
+                        control labels after the number - measured live, fifteen
+                        rows read that whole string fifteen times and buried the
+                        only thing that had changed. */}
+                    <span role="status" className="text-sm font-semibold text-accent-soft-fg">
                         {t(':count selected', { count: chosen })}
                     </span>
 

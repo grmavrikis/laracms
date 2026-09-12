@@ -218,3 +218,31 @@ describe('languagesWithErrors', () => {
     });
 });
 
+
+/**
+ * Too many requests, which the panel can now actually produce.
+ *
+ * `bootstrap/app.php` calls `throttleApi()` - Laravel's sixty a minute - and
+ * since #117 item 19 a bulk delete fires one request per ticked row. Fifteen
+ * rows plus the refetches, two or three times in a minute, crosses it. Without
+ * a case here the reader is told a number and no reason, and tries again
+ * immediately, which is the one thing that makes it worse.
+ */
+describe('errorSummary, when the server asks for a pause', () => {
+    const refused = (status) => {
+        const err = new Error(String(status));
+        err.response = { status, data: {} };
+        return err;
+    };
+
+    it('says to wait rather than falling through to the caller’s fallback', () => {
+        expect(errorSummary(refused(429), 'Something went wrong.'))
+            .toEqual(['Too many requests in a row. Wait a moment and try again.']);
+    });
+
+    // The bug this closes: a caller passing an empty fallback got an empty
+    // string, so the message was a count with nothing after it.
+    it('answers something even when the caller offers no fallback', () => {
+        expect(errorSummary(refused(429), '')[0]).not.toBe('');
+    });
+});

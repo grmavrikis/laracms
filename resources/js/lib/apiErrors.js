@@ -48,6 +48,11 @@ export const errorSummary = (err, fallback = t('Something went wrong.'), overrid
     if (status === 419) return [t('Your session has expired. Please reload the page and retry.')];
     if (status === 403) return [t('You do not have permission to do that.')];
     if (status === 404) return [t('That item no longer exists. It may have been deleted.')];
+    // `throttleApi()` is sixty a minute, and a bulk delete since #117 item 19
+    // sends one request per ticked row - so the panel can reach this on its
+    // own. Without a case here the caller's fallback answered, and a caller
+    // that had none (`bulkSummary`) reported a count and no reason at all.
+    if (status === 429) return [t('Too many requests in a row. Wait a moment and try again.')];
     if (status >= 500) return [t('The server could not complete the request. Please try again.')];
 
     return [fallback];

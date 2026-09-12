@@ -56,3 +56,31 @@ export const bulkSummary = ({ done, failed, reason }) => {
 
     return why ? `${count} ${why}` : count;
 };
+
+/**
+ * The request one bulk action sends for one entry.
+ *
+ * **A lookup that throws, not a silent `return`.** `app.jsx` settled this shape
+ * for the route table - a name it does not know is a throw, because "loud is
+ * affordable" - and the screen was answering an unknown action by doing
+ * nothing. The day the two publish controls are enabled, which is one line of
+ * PHP away, pressing them would have produced no request, no console message
+ * and no banner.
+ *
+ * Only `delete` is here, and deliberately: `DELETE` needs no body, while
+ * `PUT { status }` answers 422 because `SchemaRuleBuilder::build()` hard-codes
+ * `data` as required. Adding a key here is what enabling one looks like.
+ */
+const BULK_REQUESTS = {
+    delete: (api, module) => (id) => api.delete(`/modules/${module}/entries/${id}`),
+};
+
+export const bulkRequest = (action, api, module) => {
+    const build = BULK_REQUESTS[action];
+
+    if (!build) {
+        throw new Error(`bulkRequest: there is no bulk action named "${action}".`);
+    }
+
+    return build(api, module);
+};
