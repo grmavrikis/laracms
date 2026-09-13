@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, within, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import EntriesTable from './EntriesTable';
 
@@ -526,22 +526,78 @@ describe('EntriesTable, the actions overlay', () => {
         expect(cell.className).toMatch(/\bw-0\b/);
     });
 
-    // Centred on the row's own full width (#141), not pinned to the right
-    // edge - a `<tr>` positioned `relative` is the card's containing block,
-    // so it centres correctly however wide the schema makes the row, without
-    // needing the `sticky` anchor the pinned version relied on.
-    it('centres the floating card on the row rather than pinning it to an edge', () => {
+    // #142 corrects #141: centring against the *row's* own width put the card
+    // in the middle of content that might be scrolled half off-screen on a
+    // wide schema - correct against the row, wrong against what the reader
+    // is actually looking at.
+    it('reads its horizontal position from a CSS variable, falling back to the row\'s own centre', () => {
         draw();
 
-        const row = rowFor(11);
         const card = overlayFor(11);
 
-        expect(row.className).toMatch(/\brelative\b/);
         expect(card.className).toMatch(/\babsolute\b/);
-        expect(card.className).toMatch(/\bleft-1\/2\b/);
+        expect(card.className).toMatch(/left-\[var\(--action-center,50%\)\]/);
         expect(card.className).toMatch(/-translate-x-1\/2/);
         expect(card.className).toMatch(/\btop-1\/2\b/);
         expect(card.className).toMatch(/-translate-y-1\/2/);
+    });
+
+    /**
+     * `syncActionCenter` writes that variable the moment a row is about to
+     * be looked at - hovered, or a control inside it focused - rather than a
+     * scroll listener kept running for every row all the time. `scrollLeft`
+     * plus half of `clientWidth` is the scroll box's own visible centre, in
+     * the row's coordinate space, which is exactly where the row's own
+     * `left: var(--action-center)` needs it. JSDOM lays nothing out, so
+     * `clientWidth` is stubbed the way a real, scrolled table would report
+     * it.
+     */
+    it('centres on the scroll box\'s own visible width once the row is hovered', () => {
+        const { container } = draw();
+
+        const scrollBox = container.querySelector('.overflow-x-auto');
+
+        Object.defineProperty(scrollBox, 'clientWidth', { value: 400, configurable: true });
+        scrollBox.scrollLeft = 250;
+
+        fireEvent.mouseEnter(rowFor(11));
+
+        expect(rowFor(11).style.getPropertyValue('--action-center')).toBe('450px');
+    });
+
+    it('centres on the scroll box again once a control inside the row takes focus', () => {
+        const { container } = draw();
+
+        const scrollBox = container.querySelector('.overflow-x-auto');
+
+        Object.defineProperty(scrollBox, 'clientWidth', { value: 600, configurable: true });
+        scrollBox.scrollLeft = 100;
+
+        fireEvent.focus(within(rowFor(11)).getByRole('button', { name: /Edit/ }));
+
+        expect(rowFor(11).style.getPropertyValue('--action-center')).toBe('400px');
+    });
+
+    // A caret so the card still reads as *this row's* card once it floats
+    // free of the row and centres on the screen instead.
+    it('gives the floating card a caret hidden from the accessibility tree', () => {
+        draw();
+
+        const caret = overlayFor(11).firstElementChild;
+
+        expect(caret.tagName).toBe('SPAN');
+        expect(caret).toHaveAttribute('aria-hidden', 'true');
+    });
+
+    // Four icons in an undifferentiated row read as clutter; grouping
+    // reordering apart from Preview/Edit was asked for by name (#142).
+    it('separates the reorder arrows from Preview and Edit with a visual divider', () => {
+        draw();
+
+        const actions = within(rowFor(11)).getByRole('button', { name: /Move up/ }).parentElement;
+        const divider = actions.querySelector('span[aria-hidden="true"].bg-line');
+
+        expect(divider).toBeInTheDocument();
     });
 
     it('keeps the floating card hidden and un-clickable until the row is hovered or focused', () => {

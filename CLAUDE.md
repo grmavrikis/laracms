@@ -226,7 +226,7 @@ both — write `t('…')` literally, as `FIELD_TYPE_LABELS` does.
 
 ```bash
 php artisan test                    # 531 tests
-npm test                            # 838 tests
+npm test                            # 842 tests
 npm run build
 php artisan schema:sync-field-types # after changing field type constants
 php artisan pages:warm              # bake the public site to files (#97) - THE DEPLOY STEP
@@ -297,26 +297,41 @@ Started from a repo that would not boot (eight files of merge conflicts).
 Worked through a prioritised list; every item is either done or recorded in
 `CHANGELOG.md` with its reasoning.
 
-- **531 PHP tests, 838 JS tests**, all passing. Build clean.
-- **#141, #140's card centred and a real reorder bug fixed, is DONE**
-  (CHANGELOG §62) — the edge-pinned card from #140 clipped at ~1200px (too
-  close to the scrollbar's own territory), so it is now centred on the row:
-  `position: relative` on the `<tr>` is its containing block, no `sticky`
-  anchor needed, nothing left for `overflow-x-auto` to clip. The row's own
-  hover tint lost the `/60` that halved it, per a direct request for
-  something clearer. **The real find**: clicking a reorder arrow moves that
-  row (React reuses the DOM node) while also focusing the button, and
-  `:focus-within` cannot tell a click from a `Tab` — the card stayed open on
-  the entry that had just moved away while a second one opened, from a
-  genuine `:hover`, on whatever entry took its place under the mouse. Fixed
-  by trigger, not by tracking the mouse by hand: `group-has-[:focus-visible]`
-  in place of `group-focus-within` — all three engines already decline to
-  mark a mouse-clicked button `:focus-visible`, while `Tab` still does, so
-  keyboard reveal is unaffected. **One thing this pass could not verify
-  end-to-end**: this session's own browser-automation tool does not retain
-  focus on a clicked element at all (unlike a real mouse), so the two-cards
-  moment itself rests on documented cross-engine `:focus-visible` behaviour,
-  not on something watched happen live here.
+- **531 PHP tests, 842 JS tests**, all passing. Build clean.
+- **#142, #141's card centred against the wrong rectangle, is DONE**
+  (CHANGELOG §63) — #141 centred the floating card on the *row*, correct only
+  when nothing is scrolled; scroll a wide schema half-way and the card sat in
+  the middle of a rectangle that was by then half off-screen. A CSS-only fix
+  (`@container` + `left-[50cqw]` + a `sticky left-0` anchor) was tried and
+  measured live to do nothing — unlike `sticky right-0` (#140's own
+  right-pinned column, still correct), this card's natural position is never
+  at risk of scrolling off the *left*, so a `left-0` constraint has nothing
+  to correct. Fixed with a few lines of JS instead: `syncActionCenter`
+  (`EntriesTable.jsx`) writes `scrollLeft + clientWidth / 2` onto a
+  `--action-center` CSS variable on `mouseenter`/`focus`, and the card reads
+  it back via `left: var(--action-center, 50%)` — the fallback matches what
+  the row-centred version always used, so an unscrolled table is unaffected.
+  Also asked for: a more polished card — a divider now separates the reorder
+  arrows from Preview/Edit, and a small caret ties the card back to its row
+  now that it can float anywhere across the screen. Verified live at a
+  genuinely overflowing width, centred within half a pixel of the scroll
+  box's own visible centre at two different scroll positions.
+- **#141, #140's card centred and a real reorder bug fixed — DONE, its
+  centring refined by #142** (CHANGELOG §62) — the edge-pinned card from
+  #140 clipped at ~1200px (too close to the scrollbar's own territory).
+  **The real find, which survives #142 unchanged**: clicking a reorder arrow
+  moves that row (React reuses the DOM node) while also focusing the button,
+  and `:focus-within` cannot tell a click from a `Tab` — the card stayed
+  open on the entry that had just moved away while a second one opened,
+  from a genuine `:hover`, on whatever entry took its place under the
+  mouse. Fixed by trigger, not by tracking the mouse by hand:
+  `group-has-[:focus-visible]` in place of `group-focus-within` — all three
+  engines already decline to mark a mouse-clicked button `:focus-visible`,
+  while `Tab` still does, so keyboard reveal is unaffected. **One thing this
+  pass could not verify end-to-end**: this session's own browser-automation
+  tool does not retain focus on a clicked element at all (unlike a real
+  mouse), so the two-cards moment itself rests on documented cross-engine
+  `:focus-visible` behaviour, not on something watched happen live here.
 - **#140, the Actions column itself is gone — DONE, refined by #141**
   (CHANGELOG §61) — #139 hid the icons but left the column, a blank strip
   the width of four icons at the end of every row. The header `<th>` and the

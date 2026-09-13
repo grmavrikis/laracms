@@ -1251,6 +1251,38 @@ migrations, so a choice follows the person to their second **tab** rather than
 their second machine. Two columns and a save; the panel's own half already
 resolves both against an allow-list before applying them.
 
+### 142. #141 centred the card against the wrong rectangle, and a polish request — DONE (CHANGELOG §63)
+
+#141's card centred correctly against the **row**, not the scroll box - scroll
+a wide schema half-way and the card sat in the middle of a rectangle that was
+by then half off-screen. A CSS-only fix (`@container` + `left-[50cqw]` + a
+`sticky left-0` anchor) was tried and abandoned: unlike `sticky right-0`,
+which #140 already relies on and which works because this card's natural
+position is *always* too far right (so the browser keeps correcting it
+inward through the whole scroll range), `sticky left-0` had nothing to
+correct - the card is never at risk of scrolling off the left, so the anchor
+just sat wherever normal flow put it. Measured live, not assumed.
+
+Fixed with a few lines of JS instead: `syncActionCenter` writes
+`scrollLeft + clientWidth / 2` (the scroll box's own visible centre, in the
+row's coordinate space) onto a `--action-center` CSS variable on
+`mouseenter`/`focus`, and the card reads it back via
+`left: var(--action-center, 50%)` - the fallback is the same value the
+row-centred version always used, so an unscrolled table is unaffected.
+`position: relative` returned to the `<tr>` as the card's containing block.
+
+Also asked for: a more polished card. A divider now separates the reorder
+arrows from Preview/Edit, and a small caret ties the card back to its row
+now that centring can put it anywhere across the screen rather than sitting
+inside the row itself.
+
+Five tests replace the two from #141, confirmed to fail against the
+pre-change component first. Checked live at a genuinely overflowing width:
+centred within half a pixel of the scroll box's own visible centre at two
+different scroll positions (proving it tracks scroll, not a one-position
+coincidence), in dark theme, and at a non-overflowing width where the `50%`
+fallback alone reproduces the same result.
+
 ### 141. #140's card clipped at ~1200px, centred instead, and a real reorder bug — DONE (CHANGELOG §62)
 
 Three reports; the third was a genuine defect. **Clipped at ~1200px** - #140

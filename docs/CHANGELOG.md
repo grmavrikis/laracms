@@ -6317,3 +6317,73 @@ itself - that rests on the documented `:focus-visible` heuristic all three
 engines ship, not on anything this session watched happen live.
 
 531 PHP tests, 838 JS tests, build clean.
+
+## 63. §62's centring was against the wrong thing, and the card wanted polish
+
+Two reports. The first named the exact mistake in §62's fix: the card
+centred correctly against the **row**, and a row wider than the scroll box
+is not the same rectangle as what the reader is looking at - scroll a wide
+schema half-way and the card sat in the middle of the *row*, which by then
+was half off the left edge of the screen. Centred on the wrong thing, not
+uncentred.
+
+**A CSS-only fix was tried first and abandoned.** `@container` on the scroll
+box plus `left-[50cqw]` gives a reliable pixel value for "half the box's
+*visible* width" - but only a value, not a moving one. A `sticky left-0`
+anchor was meant to turn that into "the box's left edge, right now," on the
+strength of `sticky right-0` already doing exactly that for #140's own
+right-pinned column. It does not generalise: `right-0` sticky corrects
+because this card's *natural*, unstuck position is always too far right for
+a table scrolled anywhere but the end, so the browser is constantly pulling
+it back - the fix and the natural tendency point the same way through the
+whole scroll range. `left-0` sticky corrects the opposite tendency, and this
+card never has it: living in the last cell, it is never at risk of scrolling
+off the *left* edge, so the constraint had nothing to do and the anchor just
+sat wherever normal flow put it. Measured live rather than assumed - the
+anchor's own position did not move as the box was scrolled, at all.
+
+**The actual fix is a few lines of JavaScript, not a cleverer selector.**
+`syncActionCenter` (`EntriesTable.jsx`) writes `scrollLeft + clientWidth / 2`
+- the box's own visible centre, expressed in the row's coordinate space -
+onto a `--action-center` CSS variable, on `mouseenter`/`focus` rather than a
+scroll listener kept running for every row all the time. The card's own
+`left: var(--action-center, 50%)` reads it straight back, falling back to
+the row's own centre only for an unscrolled table or a render before either
+event has fired - the same value the row-centred version always used, so
+nothing regresses when there is nothing to correct for. `position:relative`
+returned to the `<tr>` (removed one round ago along with the `sticky`
+anchor it was serving) as the card's containing block.
+
+**The second report:** the card itself was asked to look nicer. Two changes,
+both restrained rather than decorative for its own sake - this is a
+professional tool for hotel and rental-office owners, not a playground:
+
+- **A divider** between the reorder arrows and Preview/Edit
+  (`bg-line`, `aria-hidden`) - four icons read as one undifferentiated row;
+  two pairs read as two different jobs.
+- **A caret** - a small rotated square sharing the card's own border and
+  background, pointing down at the row - because a card now free to float to
+  the centre of the screen has otherwise lost the one visual thing that used
+  to say which row it belonged to: sitting inside it.
+
+### Checked
+
+Five tests replace the two CSS-only ones §62 had added for centring: the
+card reads `left-[var(--action-center,50%)]`; `syncActionCenter` fires and
+writes the correct pixel value on `mouseenter` and again on `focus`, checked
+against a stubbed `clientWidth`/`scrollLeft` since JSDOM lays nothing out; the
+caret exists and is `aria-hidden`; the divider sits between the two icon
+groups. All five confirmed to fail against the pre-change component first.
+
+Live, at a genuinely overflowing width (a 700px viewport against this
+module's own ~840px of columns): focusing Edit at `scrollLeft: 0` centred the
+card within half a pixel of the scroll box's own visible centre
+(`getBoundingClientRect`, not the row's); scrolling to `120` and focusing
+again read `--action-center: 445px` (120 + 650⁄2, exactly) and again centred
+within half a pixel - confirming the fix tracks scroll rather than only
+working at one position by coincidence. Checked in dark theme (same
+centring, same `bg-surface`/`border-line` pair `theme.css.test.js` already
+measures) and at a width with no overflow at all, where the `50%` fallback
+alone reproduced the same centred result with nothing to correct for.
+
+531 PHP tests, 842 JS tests, build clean.

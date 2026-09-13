@@ -71,6 +71,33 @@ const Empty = () => <span className="text-fg-subtle">—</span>;
 const clickedControl = (event) => !!event.target.closest('input, button, a, select, textarea');
 
 /**
+ * Where the hover-revealed actions card should sit, in the row's own
+ * coordinate space rather than the screen's (#142).
+ *
+ * The card is centred on the *row* with plain CSS (`left-1/2`), which is
+ * exactly right when nothing is scrolled - and wrong once a wide schema
+ * pushes the table into `overflow-x-auto`, where a reader looking at the
+ * visible right-hand half of the row got a card centred on the invisible
+ * left half instead. Fixed at the moment the card is about to be seen -
+ * `onMouseEnter`/`onFocus` on the row, not a scroll listener kept running for
+ * every row all the time - by writing the scroll box's own visible centre,
+ * in the row's coordinate space (`scrollLeft` is exactly that offset), onto
+ * a CSS variable the row's own stylesheet already reads. A CSS variable
+ * rather than a second render: this is layout math, not state a reader ever
+ * needs reflected back at them.
+ *
+ * Deliberately does not also track scrolling *while* a row is already
+ * revealed - hovering a row and then scrolling the table at the same time is
+ * a real but rare combination, and the card lands correctly again the next
+ * time it is revealed either way.
+ */
+function syncActionCenter(row, scrollBox) {
+    if (!scrollBox) return;
+
+    row.style.setProperty('--action-center', `${scrollBox.scrollLeft + scrollBox.clientWidth / 2}px`);
+}
+
+/**
  * One schema field's value, in the language on show - computed once and
  * shared between the table's own cell and the narrow layout's label/value
  * pair (#133), so the rich text excerpt, the gallery preview and the boolean
@@ -168,7 +195,7 @@ function Cell({ field, entry, currentLangCode }) {
  */
 function RowActions({ entry, at, orderIds, onReorder, onEdit }) {
     return (
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-0.5">
             {onReorder && (
                 <>
                     <IconButton
@@ -185,6 +212,9 @@ function RowActions({ entry, at, orderIds, onReorder, onEdit }) {
                         disabled={at < 0 || at === orderIds.length - 1}
                         className="h-8 w-8 disabled:cursor-not-allowed disabled:opacity-30"
                     />
+                    {/* Groups reordering apart from Preview/Edit rather than
+                        four icons reading as one undifferentiated row. */}
+                    <span aria-hidden="true" className="mx-0.5 h-5 w-px shrink-0 bg-line" />
                 </>
             )}
             {/* Drawn and disabled, not left out (#136): opening the public
@@ -302,6 +332,11 @@ export default function EntriesTable({
     // however wide the schema turns out to be, without JavaScript deciding
     // anything.
     const isNarrow = useMediaQuery('(max-width: 639px)');
+
+    // Read by `syncActionCenter` (see its own comment) to place the
+    // hover-revealed actions card against the part of a scrolled table the
+    // reader is actually looking at, not the row's own far side.
+    const scrollBoxRef = useRef(null);
 
     // A reorder is applied to the id list before the server confirms it, so the
     // rows follow that rather than waiting for the refetch - otherwise pressing
@@ -568,7 +603,7 @@ export default function EntriesTable({
                 // negative margins to escape the page padding, which now fights
                 // the Shell's own - and a table wide enough to need it took the
                 // whole page sideways with it.
-                <div className="overflow-x-auto rounded-xl border border-line bg-surface">
+                <div ref={scrollBoxRef} className="overflow-x-auto rounded-xl border border-line bg-surface">
                     <table className="min-w-full divide-y divide-line text-left text-sm">
                         <thead className="bg-surface-muted">
                             <tr>
@@ -632,12 +667,17 @@ export default function EntriesTable({
                                             if (clickedControl(event)) return;
                                             onSelectionChange?.(toggle(selected, entry.id));
                                         }}
-                                        // `relative` gives the floating actions
-                                        // card below something to centre itself
-                                        // against; `has-[:focus-visible]` tints
-                                        // the row the same way `:hover` already
-                                        // does, so tabbing to Edit reads the
-                                        // same as pointing at it (#141).
+                                        // `relative` is the floating actions
+                                        // card's containing block; the two
+                                        // handlers below are what keeps the
+                                        // card honest against a scrolled table
+                                        // (`syncActionCenter`'s own comment).
+                                        // `has-[:focus-visible]` tints the row
+                                        // the same way `:hover` already does,
+                                        // so tabbing to Edit reads the same as
+                                        // pointing at it (#141).
+                                        onMouseEnter={(event) => syncActionCenter(event.currentTarget, scrollBoxRef.current)}
+                                        onFocus={(event) => syncActionCenter(event.currentTarget, scrollBoxRef.current)}
                                         className="group relative cursor-pointer transition-colors hover:bg-surface-muted has-[:focus-visible]:bg-surface-muted"
                                     >
                                         <td className="w-px px-4 py-3 sm:pl-6">
@@ -685,18 +725,26 @@ export default function EntriesTable({
                                             reader not touching this row saw a
                                             border's width of dead air at the
                                             end of every one. `w-0 p-0` claims
-                                            none; what shows is a card,
-                                            absolutely centred on the *row*
-                                            (`position: relative` lives on the
-                                            `<tr>` above, so this is free to sit
-                                            in any cell and still centre
-                                            against the row's own full width,
-                                            not this one cell's sliver).
-                                            Centred rather than pinned to the
-                                            right edge (#141) - at ~1200px a
-                                            handful of schema fields already
-                                            push that edge into the scrollbar's
-                                            own territory, clipping it. */}
+                                            none; the card is absolutely
+                                            positioned, which does not affect
+                                            an ancestor's size.
+
+                                            `left-[var(--action-center,50%)]`
+                                            centres on the *visible scroll
+                                            box* (#142 corrects #141): centring
+                                            against the row's own full width
+                                            put the card in the middle of
+                                            content that might be scrolled
+                                            half off-screen, correct against
+                                            the row and wrong against what the
+                                            reader is actually looking at.
+                                            `syncActionCenter` (its own
+                                            comment has the reasoning) writes
+                                            the variable on `mouseenter`/
+                                            `focus`; the `,50%` fallback is
+                                            only what an unscrolled table
+                                            (or a render before either has
+                                            fired) uses regardless. */}
                                         <td className="w-0 p-0">
                                             {/* `pointer-events-none` at rest so
                                                 the invisible card cannot steal
@@ -720,7 +768,19 @@ export default function EntriesTable({
                                                 `:focus-visible`, so reaching
                                                 Edit that way reveals the card
                                                 exactly as before. */}
-                                            <div className="pointer-events-none absolute left-1/2 top-1/2 z-20 flex -translate-x-1/2 -translate-y-1/2 scale-90 items-center gap-1 rounded-xl border border-line bg-surface p-1 opacity-0 shadow-lg transition-[opacity,transform] duration-200 ease-out group-hover:pointer-events-auto group-hover:scale-100 group-hover:opacity-100 group-has-[:focus-visible]:pointer-events-auto group-has-[:focus-visible]:scale-100 group-has-[:focus-visible]:opacity-100 motion-reduce:transition-none">
+                                            <div className="pointer-events-none absolute left-[var(--action-center,50%)] top-1/2 z-20 flex -translate-x-1/2 -translate-y-1/2 scale-90 items-center gap-0.5 rounded-xl border border-line bg-surface p-1 opacity-0 shadow-lg transition-[opacity,transform] duration-200 ease-out group-hover:pointer-events-auto group-hover:scale-100 group-hover:opacity-100 group-has-[:focus-visible]:pointer-events-auto group-has-[:focus-visible]:scale-100 group-has-[:focus-visible]:opacity-100 motion-reduce:transition-none">
+                                                {/* A caret, not just a card -
+                                                    ties the floating pill
+                                                    back to the row it belongs
+                                                    to, which is otherwise the
+                                                    only thing connecting the
+                                                    two once the card floats
+                                                    free of the row's own
+                                                    layout. */}
+                                                <span
+                                                    aria-hidden="true"
+                                                    className="absolute -bottom-1 left-1/2 h-2 w-2 -translate-x-1/2 rotate-45 rounded-[2px] border-b border-r border-line bg-surface"
+                                                />
                                                 <RowActions entry={entry} at={at} orderIds={orderIds} onReorder={onReorder} onEdit={onEdit} />
                                             </div>
                                         </td>
