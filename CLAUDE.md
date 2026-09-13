@@ -226,7 +226,7 @@ both — write `t('…')` literally, as `FIELD_TYPE_LABELS` does.
 
 ```bash
 php artisan test                    # 531 tests
-npm test                            # 835 tests
+npm test                            # 836 tests
 npm run build
 php artisan schema:sync-field-types # after changing field type constants
 php artisan pages:warm              # bake the public site to files (#97) - THE DEPLOY STEP
@@ -297,16 +297,25 @@ Started from a repo that would not boot (eight files of merge conflicts).
 Worked through a prioritised list; every item is either done or recorded in
 `CHANGELOG.md` with its reasoning.
 
-- **531 PHP tests, 835 JS tests**, all passing. Build clean.
-- **#139, the entries table's actions show only on hover, is DONE**
-  (CHANGELOG §60) — reported live as clutter, four or five icons lit up on
-  every row whether or not the reader was doing anything with it. `RowActions`
-  takes a `hoverReveal` flag; the desktop table's row passes it, hiding the
-  actions behind `opacity-0` and revealing them on `group-hover` **and**
-  `group-focus-within` off the row's own `group` class, so a keyboard user
-  tabbing to Edit reveals it exactly as a mouse hovering the row does. The
-  narrow card does not pass the flag and keeps showing its actions plainly —
-  a touch screen has no hover state to reveal them with.
+- **531 PHP tests, 836 JS tests**, all passing. Build clean.
+- **#140, the Actions column itself is gone, is DONE** (CHANGELOG §61) —
+  #139 hid the icons but left the column, a blank strip the width of four
+  icons at the end of every row. The header `<th>` and the row's own `<td>`
+  now both carry `w-0 p-0`, so neither claims a pixel of the table; what
+  shows on hover/focus is a small card, absolutely positioned inside a
+  zero-width `sticky right-0` anchor so it still floats at the scroll box's
+  right edge regardless of how far a wide schema has scrolled (#132's own
+  reason for pinning a column in the first place). `RowActions` lost the
+  `hoverReveal` flag #139 gave it — the reveal, the float, the
+  `pointer-events-none`/`auto` swap and the fade/slide/scale now live
+  entirely in the table's own markup, and the narrow card (untouched) still
+  calls it plainly.
+- **#139, the entries table's actions show only on hover — DONE, superseded
+  by #140** (CHANGELOG §60) — reported live as clutter, four or five icons
+  lit up on every row whether or not the reader was doing anything with it.
+  Hiding them behind `opacity-0`/`group-hover`/`group-focus-within` was the
+  right idea and survives inside #140's overlay; the column that held them
+  did not survive.
 - **#138, the bulk bar no longer pops in and out, is DONE** (CHANGELOG §59) —
   checked live, it appeared out of nowhere on the first tick and vanished on
   the last; the owner watched it happen and rejected it. Always on screen

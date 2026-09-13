@@ -1251,7 +1251,43 @@ migrations, so a choice follows the person to their second **tab** rather than
 their second machine. Two columns and a save; the panel's own half already
 resolves both against an allow-list before applying them.
 
-### 139. The entries table's actions, shown only on hover — DONE (CHANGELOG §60)
+### 140. §139 hid the icons; the column itself was the next complaint — DONE (CHANGELOG §61)
+
+Seen live straight after #139 landed: the icons were gone at rest, but the
+**column** was not - a header reading `Actions` and a blank strip the width
+of four icons at the end of every row. Asked for by name: no reason for the
+column to exist, and the reveal itself should read as an overlay riding on
+top of the row, not a plain fade.
+
+There is no Actions column any more. The header `<th>` and the row's own
+`<td>` both carry `w-0 p-0`, so neither widens the table by a pixel; the
+header keeps `t('Actions')` for a screen reader only (`sr-only`), so the
+column count still matches between `<thead>` and `<tbody>`. Inside the
+zero-width `<td>` sits a zero-width `sticky right-0` anchor - sticky, not
+merely absolute, so the card stays reachable at the right edge of the scroll
+box regardless of how far a wide schema has scrolled, the same reachability
+#132 once pinned a whole column for. Inside that anchor, an absolutely
+positioned card (`bg-surface`/`border-line`/`shadow-lg`, the pair
+`theme.css.test.js` already measures) holds `RowActions` unchanged, fading,
+sliding and scaling into place on `group-hover`/`group-focus-within` -
+`pointer-events-none` at rest so the invisible card cannot steal a click
+meant for whatever it is floating over, `pointer-events-auto` once revealed.
+`motion-reduce:transition-none` drops the animation for a reader who asked
+for less of it.
+
+`RowActions` lost the `hoverReveal` flag #139 gave it - it draws plainly
+again, with no opinion of its own about when it is visible. The narrow card
+(#133) is untouched: no hover state to float a card in front of, so it keeps
+showing its icons plainly.
+
+Five tests replace #139's two, all confirmed to fail against #139's own
+component first. Checked live: focusing Edit toggled the card's opacity and
+pointer-events exactly as #139's did; a hovered row's screenshot showed the
+card floating over that row's own dates with every other row still bare; the
+table's last visible cell now measures flush with the scroll box's right
+edge, nothing reserved past it.
+
+### 139. The entries table's actions, shown only on hover — DONE (CHANGELOG §60), superseded by #140
 
 Reported live: the desktop table's row actions (the two reorder arrows, a
 disabled Preview, Edit) sat lit up on every row regardless of whether the
@@ -1270,6 +1306,9 @@ row per entry already, not a shared column short on width.
 Two tests, confirmed to fail against the pre-change component first. Checked
 live: a keyboard focus/blur on Edit toggled the computed opacity between `0`
 and `1`; a real mouse hover showed the same in a screenshot.
+
+**Superseded by #140** - hiding the icons was not enough on its own; the
+column holding them, empty or not, was the next thing reported.
 
 ### 138. The bulk bar popped in and out, and the owner watched it happen — DONE (CHANGELOG §59)
 

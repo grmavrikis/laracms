@@ -6159,3 +6159,76 @@ once it moved away. Checked on the narrow card too: the icons stayed shown
 with the mouse nowhere near them, as intended.
 
 531 PHP tests, 835 JS tests, build clean.
+
+## 61. §60 hid the icons; the column itself was the next complaint
+
+Seen live straight after §60 landed: the icons were gone at rest, but the
+**column** was not - a header cell reading `Actions`, and a blank strip the
+width of four icons at the end of every row whether or not it was being
+hovered. Asked for by name: no reason for the column to exist at all, and the
+reveal itself should read as something more deliberate than a plain fade -
+"σούπερ ωραίο εφέ" - an overlay riding on top of the row it belongs to,
+the way Notion or Linear float a row's actions rather than reserving a
+column for them.
+
+**There is no Actions column any more.** The header `<th>` and the row's own
+`<td>` both carry `w-0 p-0` - zero width, so neither widens a single pixel of
+the table regardless of what is inside them. The header keeps `t('Actions')`
+only for a screen reader (`sr-only`), so the table's column count still
+matches between `<thead>` and `<tbody>` without asking a sighted reader to
+look at it.
+
+**What actually shows is a small floating card, not a cell.** Inside the
+zero-width `<td>` sits a zero-width `sticky right-0` anchor - sticky, not
+merely absolute, for the same reason #132 once pinned a whole column: a
+module with several schema fields scrolls, and the card has to keep floating
+at the right edge of the scroll box regardless of where the row's own content
+has scrolled to, or reaching it would mean scrolling every time, the exact
+defect §55/§56 fixed for the column this replaces. Inside *that* anchor, an
+absolutely positioned card - `rounded-xl border border-line bg-surface p-1
+shadow-lg`, the same elevated-surface pair `theme.css.test.js` already
+measures at 4.5:1 in both themes - holds `RowActions` unchanged. An
+absolutely positioned descendant does not affect the size of the ancestors it
+is positioned against, which is the one fact that makes "reserves no column
+width" and "floats wherever it needs to, including over neighbouring cells"
+true at the same time.
+
+**The card fades, slides and scales into place** - `opacity-0
+translate-x-1 scale-95` at rest to `opacity-100 translate-x-0 scale-100` on
+`group-hover`/`group-focus-within`, `duration-200 ease-out`, transform and
+opacity only. `motion-reduce:transition-none` drops the animation and leaves
+the two end states, for a reader who has asked the system for less motion.
+
+**`pointer-events-none` at rest, `pointer-events-auto` on reveal.** The card
+sits, in z-order, on top of whatever it is floating over - the row's own
+Updated column, or a schema field, depending on how far the table is
+scrolled - and without this, an invisible box would still catch a click
+meant for the text underneath it. Keyboard focus is unaffected either way:
+`pointer-events` governs pointer hit-testing only, so Tab still reaches Edit
+and reveals the card exactly as hovering the row does.
+
+`RowActions` itself lost the `hoverReveal` flag §60 gave it - it draws its
+buttons plainly again and has no opinion about when it is visible, which now
+lives entirely in the table's own markup. The narrow card (#133) still calls
+it exactly as before and is untouched by any of this - a touch screen has no
+hover state to float the card in front of, so it keeps showing the icons
+plainly, as it always has.
+
+### Checked
+
+Five tests replace §60's two: the header and row cell both claim `w-0`; the
+floating card carries `opacity-0`, `pointer-events-none` and both `group-`
+reveal pairs; the sticky anchor one level up carries `sticky`/`right-0`; the
+narrow card is untouched. All five confirmed to fail against §60's own
+component first (`git stash` on the component file alone, test file kept).
+
+Live: focusing Edit with the keyboard toggled the card's `opacity` between
+`0` and `1` (`getComputedStyle`) and its `pointer-events` between `none` and
+`auto`, holding at `1`/`auto` for the ~200ms the transition takes to settle
+back down after blur; a screenshot with a row hovered showed the card
+floating over the row's own dates, with every other row still bare. Checked
+that the header row's own cells now end exactly at the scroll box's right
+edge with nothing reserved past them (`getBoundingClientRect` on the last
+schema cell vs. the scroll container, 0px gap).
+
+531 PHP tests, 836 JS tests, build clean.

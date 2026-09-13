@@ -491,47 +491,65 @@ describe('EntriesTable, on a narrow screen', () => {
     });
 });
 
-// A module with several schema fields makes this table wide enough that the
-// Actions column would otherwise ride off the right edge of the scroll box -
-// reaching Edit meant scrolling across every field first. Pinned instead:
-// `sticky right-0` keeps it in view regardless of how wide the schema makes
-// the row. JSDOM does not lay out or scroll, so this asserts the classes that
-// carry the behaviour rather than an observed position.
-describe('EntriesTable, the actions column', () => {
-    it('pins the header cell to the right of the scroll box', () => {
+// A module with several schema fields makes the table wide enough that a
+// dedicated Actions column would ride off the right edge of the scroll box -
+// reaching Edit meant scrolling across every field first (#132/#133). There
+// is no such column any more (#140): reported live as a header and a cell
+// that sat there for every row regardless of whether the reader was touching
+// it. What a reader sees instead is a small card that floats *over* the row,
+// hidden and un-clickable until the row is hovered or a control inside it
+// takes focus. JSDOM does not lay out, scroll or evaluate `:hover`, so these
+// assert the classes that carry the behaviour rather than an observed
+// position - the live check is in CHANGELOG.
+describe('EntriesTable, the actions overlay', () => {
+    // The floating card itself - one level above RowActions' own
+    // `flex items-center gap-1` div, which carries no opinion of its own
+    // about visibility.
+    const overlayFor = (id) =>
+        within(rowFor(id)).getByRole('button', { name: /Edit/ }).closest('div').parentElement;
+
+    it('claims no width for the header cell, keeping the name for a screen reader only', () => {
         draw();
 
         const header = screen.getByRole('columnheader', { name: 'Actions' });
 
-        expect(header.className).toMatch(/\bsticky\b/);
-        expect(header.className).toMatch(/\bright-0\b/);
+        expect(header.className).toMatch(/\bw-0\b/);
     });
 
-    it('pins every row\'s actions cell to the right of the scroll box', () => {
+    it('claims no width for the row\'s own cell either', () => {
         draw();
 
         const cell = within(rowFor(11)).getByRole('button', { name: /Edit/ }).closest('td');
 
-        expect(cell.className).toMatch(/\bsticky\b/);
-        expect(cell.className).toMatch(/\bright-0\b/);
+        expect(cell.className).toMatch(/\bw-0\b/);
     });
-});
 
-// Reported live: six icons (two reorder arrows, a disabled Preview, Edit) sat
-// in every row whether or not the reader was doing anything with it - noise
-// for every row but the one they were actually looking at.
-describe('EntriesTable, actions revealed on hover', () => {
-    it('keeps a row\'s actions hidden until the row is hovered or a control in it takes focus', () => {
+    it('keeps the floating card hidden and un-clickable until the row is hovered or focused', () => {
         draw();
 
-        const actions = within(rowFor(11)).getByRole('button', { name: /Edit/ }).closest('div');
+        const card = overlayFor(11);
 
-        expect(actions.className).toMatch(/\bopacity-0\b/);
-        expect(actions.className).toMatch(/group-hover:opacity-100/);
-        expect(actions.className).toMatch(/group-focus-within:opacity-100/);
+        expect(card.className).toMatch(/\bopacity-0\b/);
+        expect(card.className).toMatch(/\bpointer-events-none\b/);
+        expect(card.className).toMatch(/group-hover:opacity-100/);
+        expect(card.className).toMatch(/group-hover:pointer-events-auto/);
+        expect(card.className).toMatch(/group-focus-within:opacity-100/);
+        expect(card.className).toMatch(/group-focus-within:pointer-events-auto/);
     });
 
-    // A touch screen has no hover state to reveal them with, so hiding the
+    // Sticky, not merely absolute, so the card keeps floating at the right
+    // edge of the scroll box regardless of how wide the schema makes the
+    // row - the same reachability #132 once pinned a whole column for.
+    it('keeps the card pinned to the right edge of the scroll box', () => {
+        draw();
+
+        const anchor = overlayFor(11).parentElement;
+
+        expect(anchor.className).toMatch(/\bsticky\b/);
+        expect(anchor.className).toMatch(/\bright-0\b/);
+    });
+
+    // A touch screen has no hover state to reveal it with, so hiding the
     // narrow card's actions the same way would put Edit and the reorder
     // arrows behind a gesture a phone cannot make. It keeps them shown
     // plainly, exactly as it always has.

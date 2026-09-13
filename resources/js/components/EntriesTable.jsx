@@ -154,32 +154,21 @@ function Cell({ field, entry, currentLangCode }) {
 }
 
 /**
- * The reorder arrows and Edit, shared between the table's own actions cell
- * and the narrow layout's card header (#133).
+ * The reorder arrows and Edit, shared between the table's own hover overlay
+ * (#140) and the narrow layout's card header (#133).
  *
  * **Icon-only**, unlike the button this replaced. A word beside the pencil on
  * every row was the widest thing forcing this column to be pinned in the
  * first place, and it said nothing the icon does not already say once it is
  * the only pencil in the row.
  *
- * `hoverReveal` hides this behind the row's own `:hover`/`:focus-within`
- * (`group` on the `<tr>`, #139) - reported live as clutter, four or five
- * icons lit up in full colour on every row whether or not the reader was
- * doing anything with it. **Only the desktop table asks for it.** A touch
- * screen has no hover state to reveal them with, so the narrow card (which
- * has room of its own, one row per entry rather than a shared column) always
- * shows its actions plainly - hiding them there would put Edit behind a
- * gesture a phone cannot make. Opacity, not `display`/`visibility`: the
- * buttons stay in the tab order and in the accessibility tree throughout, so
- * a keyboard user tabbing into one reveals it the same way a mouse does.
+ * Carries no opinion of its own about when it is visible - the table wraps it
+ * in the overlay that reveals it on hover/focus (#140), the narrow card
+ * renders it plainly, and neither has to know the other exists.
  */
-function RowActions({ entry, at, orderIds, onReorder, onEdit, hoverReveal = false }) {
+function RowActions({ entry, at, orderIds, onReorder, onEdit }) {
     return (
-        <div
-            className={`flex items-center gap-1 ${
-                hoverReveal ? 'opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100' : ''
-            }`}
-        >
+        <div className="flex items-center gap-1">
             {onReorder && (
                 <>
                     <IconButton
@@ -608,16 +597,16 @@ export default function EntriesTable({
                                 <th scope="col" className="hidden px-4 py-3 font-semibold text-fg lg:table-cell">
                                     {t('Updated')}
                                 </th>
-                                {/* Pinned to the right edge of the scroll box
-                                    rather than riding off with the schema
-                                    columns - a module with several fields made
-                                    this table wide enough that reaching Edit
-                                    meant scrolling all the way across first.
-                                    Only reachable here at all: below 640px this
-                                    branch does not render, and the phone gets
-                                    the card list instead. */}
-                                <th scope="col" className="sticky right-0 z-10 bg-surface-muted px-4 py-3 text-right font-semibold text-fg shadow-[-8px_0_8px_-8px_rgb(0_0_0_/_0.12)] sm:pr-6">
-                                    {t('Actions')}
+                                {/* No column a sighted reader ever needed to
+                                    read (#140) - the header the pinned
+                                    version of this cell used to carry sat
+                                    there for every row regardless of whether
+                                    the reader was touching that one. Kept
+                                    only so the table's own column count still
+                                    matches the body, and only for a screen
+                                    reader: `sr-only` rather than deleted. */}
+                                <th scope="col" className="w-0 p-0">
+                                    <span className="sr-only">{t('Actions')}</span>
                                 </th>
                             </tr>
                         </thead>
@@ -686,16 +675,36 @@ export default function EntriesTable({
                                             {formatDate(entry.updated_at) ?? <Empty />}
                                         </td>
 
-                                        {/* Sticky, so it stays reachable
-                                            without scrolling - a solid
-                                            background and a soft shadow rather
-                                            than a hard rule, because a sticky
-                                            cell sits above the columns
-                                            scrolling underneath it and the
-                                            row's own translucent hover would
-                                            let them show through. */}
-                                        <td className="sticky right-0 z-10 whitespace-nowrap bg-surface px-4 py-3 text-right shadow-[-8px_0_8px_-8px_rgb(0_0_0_/_0.12)] transition-colors group-hover:bg-surface-muted sm:pr-6">
-                                            <RowActions entry={entry} at={at} orderIds={orderIds} onReorder={onReorder} onEdit={onEdit} hoverReveal />
+                                        {/* No column of its own (#140) - a
+                                            reader not touching this row saw a
+                                            border's width of dead air at the
+                                            end of every one. `w-0 p-0` plus a
+                                            zero-width `sticky` anchor inside
+                                            it claim none: what actually shows
+                                            is a card, absolutely positioned
+                                            free of that anchor, invisible and
+                                            un-clickable at rest, fading and
+                                            sliding into place *over* the row
+                                            the moment it is hovered or a
+                                            control inside it takes focus -
+                                            `group` is the same class the
+                                            row-click behaviour above already
+                                            reads. Sticky rather than merely
+                                            absolute, so the anchor itself
+                                            keeps floating at the right edge of
+                                            the scroll box on a module with
+                                            several fields, the same reason
+                                            #132 pinned the column this
+                                            replaces. `pointer-events-none`
+                                            at rest so the invisible card does
+                                            not steal a click meant for
+                                            whatever it is floating over. */}
+                                        <td className="w-0 p-0 align-middle">
+                                            <div className="sticky right-0 z-20 w-0">
+                                                <div className="pointer-events-none absolute right-2 top-1/2 flex -translate-y-1/2 translate-x-1 scale-95 items-center gap-1 rounded-xl border border-line bg-surface p-1 opacity-0 shadow-lg transition-[opacity,transform] duration-200 ease-out group-hover:pointer-events-auto group-hover:translate-x-0 group-hover:scale-100 group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:translate-x-0 group-focus-within:scale-100 group-focus-within:opacity-100 motion-reduce:transition-none">
+                                                    <RowActions entry={entry} at={at} orderIds={orderIds} onReorder={onReorder} onEdit={onEdit} />
+                                                </div>
+                                            </div>
                                         </td>
                                     </tr>
                                 );
