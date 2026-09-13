@@ -1251,6 +1251,41 @@ migrations, so a choice follows the person to their second **tab** rather than
 their second machine. Two columns and a save; the panel's own half already
 resolves both against an allow-list before applying them.
 
+### 141. #140's card clipped at ~1200px, centred instead, and a real reorder bug — DONE (CHANGELOG §62)
+
+Three reports; the third was a genuine defect. **Clipped at ~1200px** - #140
+pinned the card to the scroll box's right edge, close enough to the
+scrollbar's own territory at that width to clip. Moved to the **centre of
+the row** instead: `position: relative` on the `<tr>` (already `group`) is
+the card's containing block, so an absolutely positioned, centred card needs
+no `sticky` anchor and nothing left for `overflow-x-auto` to clip. **A
+plainer overlay was asked for** - the row's own `hover:bg-surface-muted` lost
+the `/60` that halved it.
+
+**The real bug: reordering left two cards open.** Clicking "Move up"/"Move
+down" moves that row - React reuses the same DOM node, so it relocates
+rather than being recreated - and the click also focuses the button.
+`:focus-within` cannot tell a click from a `Tab`, so the card stayed open on
+the entry that had just moved away while a second one opened, from a
+genuine `:hover`, on whatever entry the move put under the still-stationary
+mouse. Fixed by trigger, not by tracking the mouse by hand:
+`group-has-[:focus-visible]` in place of `group-focus-within`.
+`:focus-visible` is exactly this distinction - Chromium, Firefox and Safari
+already decline to mark a clicked `<button>` `:focus-visible`, while `Tab`
+still does, so a keyboard user reaches Edit and sees the same reveal as
+before. The row's tint uses the same trigger for the same reason.
+
+Three tests replace one, confirmed to fail against the pre-change component
+first, one of them asserting `group-focus-within` does not appear anywhere
+in the reveal classes - a guard against silently reintroducing the exact
+trigger this removes. Checked live at 1200px and in dark theme. The reorder
+bug itself could not be driven end-to-end through this session's own
+browser-automation tool - its dispatched clicks do not retain focus on the
+clicked element at all, unlike a real mouse - so the fix rests on the
+documented `:focus-visible` heuristic all three engines ship, verified here
+only for its two separate halves: a real reorder still saves correctly, and
+a real keyboard `Tab` still marks `:focus-visible` and reveals the card.
+
 ### 140. §139 hid the icons; the column itself was the next complaint — DONE (CHANGELOG §61)
 
 Seen live straight after #139 landed: the icons were gone at rest, but the

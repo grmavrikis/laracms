@@ -632,7 +632,13 @@ export default function EntriesTable({
                                             if (clickedControl(event)) return;
                                             onSelectionChange?.(toggle(selected, entry.id));
                                         }}
-                                        className="group cursor-pointer transition-colors hover:bg-surface-muted/60"
+                                        // `relative` gives the floating actions
+                                        // card below something to centre itself
+                                        // against; `has-[:focus-visible]` tints
+                                        // the row the same way `:hover` already
+                                        // does, so tabbing to Edit reads the
+                                        // same as pointing at it (#141).
+                                        className="group relative cursor-pointer transition-colors hover:bg-surface-muted has-[:focus-visible]:bg-surface-muted"
                                     >
                                         <td className="w-px px-4 py-3 sm:pl-6">
                                             {/* Named by the entry it ticks: one
@@ -678,32 +684,44 @@ export default function EntriesTable({
                                         {/* No column of its own (#140) - a
                                             reader not touching this row saw a
                                             border's width of dead air at the
-                                            end of every one. `w-0 p-0` plus a
-                                            zero-width `sticky` anchor inside
-                                            it claim none: what actually shows
-                                            is a card, absolutely positioned
-                                            free of that anchor, invisible and
-                                            un-clickable at rest, fading and
-                                            sliding into place *over* the row
-                                            the moment it is hovered or a
-                                            control inside it takes focus -
-                                            `group` is the same class the
-                                            row-click behaviour above already
-                                            reads. Sticky rather than merely
-                                            absolute, so the anchor itself
-                                            keeps floating at the right edge of
-                                            the scroll box on a module with
-                                            several fields, the same reason
-                                            #132 pinned the column this
-                                            replaces. `pointer-events-none`
-                                            at rest so the invisible card does
-                                            not steal a click meant for
-                                            whatever it is floating over. */}
-                                        <td className="w-0 p-0 align-middle">
-                                            <div className="sticky right-0 z-20 w-0">
-                                                <div className="pointer-events-none absolute right-2 top-1/2 flex -translate-y-1/2 translate-x-1 scale-95 items-center gap-1 rounded-xl border border-line bg-surface p-1 opacity-0 shadow-lg transition-[opacity,transform] duration-200 ease-out group-hover:pointer-events-auto group-hover:translate-x-0 group-hover:scale-100 group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:translate-x-0 group-focus-within:scale-100 group-focus-within:opacity-100 motion-reduce:transition-none">
-                                                    <RowActions entry={entry} at={at} orderIds={orderIds} onReorder={onReorder} onEdit={onEdit} />
-                                                </div>
+                                            end of every one. `w-0 p-0` claims
+                                            none; what shows is a card,
+                                            absolutely centred on the *row*
+                                            (`position: relative` lives on the
+                                            `<tr>` above, so this is free to sit
+                                            in any cell and still centre
+                                            against the row's own full width,
+                                            not this one cell's sliver).
+                                            Centred rather than pinned to the
+                                            right edge (#141) - at ~1200px a
+                                            handful of schema fields already
+                                            push that edge into the scrollbar's
+                                            own territory, clipping it. */}
+                                        <td className="w-0 p-0">
+                                            {/* `pointer-events-none` at rest so
+                                                the invisible card cannot steal
+                                                a click meant for whatever it
+                                                floats over; `group-has-` uses
+                                                `:focus-visible`, not plain
+                                                `:focus`, because a *mouse*
+                                                click on a button focuses it
+                                                without matching
+                                                `:focus-visible` in this
+                                                browser family - a real bug
+                                                otherwise (#141): clicking
+                                                "Move up" left this card open
+                                                on the row that had just moved
+                                                away, while a second one opened
+                                                on whatever row the reorder put
+                                                under the cursor instead, and
+                                                neither closed until an
+                                                unrelated click stole focus.
+                                                Keyboard `Tab` still matches
+                                                `:focus-visible`, so reaching
+                                                Edit that way reveals the card
+                                                exactly as before. */}
+                                            <div className="pointer-events-none absolute left-1/2 top-1/2 z-20 flex -translate-x-1/2 -translate-y-1/2 scale-90 items-center gap-1 rounded-xl border border-line bg-surface p-1 opacity-0 shadow-lg transition-[opacity,transform] duration-200 ease-out group-hover:pointer-events-auto group-hover:scale-100 group-hover:opacity-100 group-has-[:focus-visible]:pointer-events-auto group-has-[:focus-visible]:scale-100 group-has-[:focus-visible]:opacity-100 motion-reduce:transition-none">
+                                                <RowActions entry={entry} at={at} orderIds={orderIds} onReorder={onReorder} onEdit={onEdit} />
                                             </div>
                                         </td>
                                     </tr>

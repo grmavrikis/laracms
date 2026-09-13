@@ -226,7 +226,7 @@ both — write `t('…')` literally, as `FIELD_TYPE_LABELS` does.
 
 ```bash
 php artisan test                    # 531 tests
-npm test                            # 836 tests
+npm test                            # 838 tests
 npm run build
 php artisan schema:sync-field-types # after changing field type constants
 php artisan pages:warm              # bake the public site to files (#97) - THE DEPLOY STEP
@@ -297,19 +297,36 @@ Started from a repo that would not boot (eight files of merge conflicts).
 Worked through a prioritised list; every item is either done or recorded in
 `CHANGELOG.md` with its reasoning.
 
-- **531 PHP tests, 836 JS tests**, all passing. Build clean.
-- **#140, the Actions column itself is gone, is DONE** (CHANGELOG §61) —
-  #139 hid the icons but left the column, a blank strip the width of four
-  icons at the end of every row. The header `<th>` and the row's own `<td>`
-  now both carry `w-0 p-0`, so neither claims a pixel of the table; what
-  shows on hover/focus is a small card, absolutely positioned inside a
-  zero-width `sticky right-0` anchor so it still floats at the scroll box's
-  right edge regardless of how far a wide schema has scrolled (#132's own
-  reason for pinning a column in the first place). `RowActions` lost the
-  `hoverReveal` flag #139 gave it — the reveal, the float, the
-  `pointer-events-none`/`auto` swap and the fade/slide/scale now live
-  entirely in the table's own markup, and the narrow card (untouched) still
-  calls it plainly.
+- **531 PHP tests, 838 JS tests**, all passing. Build clean.
+- **#141, #140's card centred and a real reorder bug fixed, is DONE**
+  (CHANGELOG §62) — the edge-pinned card from #140 clipped at ~1200px (too
+  close to the scrollbar's own territory), so it is now centred on the row:
+  `position: relative` on the `<tr>` is its containing block, no `sticky`
+  anchor needed, nothing left for `overflow-x-auto` to clip. The row's own
+  hover tint lost the `/60` that halved it, per a direct request for
+  something clearer. **The real find**: clicking a reorder arrow moves that
+  row (React reuses the DOM node) while also focusing the button, and
+  `:focus-within` cannot tell a click from a `Tab` — the card stayed open on
+  the entry that had just moved away while a second one opened, from a
+  genuine `:hover`, on whatever entry took its place under the mouse. Fixed
+  by trigger, not by tracking the mouse by hand: `group-has-[:focus-visible]`
+  in place of `group-focus-within` — all three engines already decline to
+  mark a mouse-clicked button `:focus-visible`, while `Tab` still does, so
+  keyboard reveal is unaffected. **One thing this pass could not verify
+  end-to-end**: this session's own browser-automation tool does not retain
+  focus on a clicked element at all (unlike a real mouse), so the two-cards
+  moment itself rests on documented cross-engine `:focus-visible` behaviour,
+  not on something watched happen live here.
+- **#140, the Actions column itself is gone — DONE, refined by #141**
+  (CHANGELOG §61) — #139 hid the icons but left the column, a blank strip
+  the width of four icons at the end of every row. The header `<th>` and the
+  row's own `<td>` both carry `w-0 p-0`, so neither claims a pixel of the
+  table; what shows on hover/focus is a small floating card. `RowActions`
+  lost the `hoverReveal` flag #139 gave it — the reveal, the float, the
+  `pointer-events-none`/`auto` swap and the fade/scale now live entirely in
+  the table's own markup, and the narrow card (untouched) still calls it
+  plainly. Its edge-pinned positioning and `group-focus-within` trigger were
+  both replaced by #141 — read that entry for the current mechanism.
 - **#139, the entries table's actions show only on hover — DONE, superseded
   by #140** (CHANGELOG §60) — reported live as clutter, four or five icons
   lit up on every row whether or not the reader was doing anything with it.

@@ -6232,3 +6232,88 @@ edge with nothing reserved past them (`getBoundingClientRect` on the last
 schema cell vs. the scroll container, 0px gap).
 
 531 PHP tests, 836 JS tests, build clean.
+
+## 62. §61's card, centred instead of edge-pinned, and a real bug in its trigger
+
+Three reports at once, the third describing a real defect rather than a
+preference.
+
+**1. Clipped at ~1200px.** §61 pinned the card to the scroll box's right
+edge. At that width the edge sits close enough to the scrollbar's own
+territory that the card's box could land partly outside what
+`overflow-x-auto` was willing to show - the exact kind of clipping a sticky
+element tucked inside a table cell is prone to. **Moved to the centre of the
+row instead** - `position: relative` on the `<tr>` (already `group` for the
+row-click behaviour, so this was one class away) makes it the containing
+block for an absolutely positioned `left-1/2 top-1/2 -translate-x-1/2
+-translate-y-1/2` card in any cell, wherever that cell happens to sit. No
+scroll-box edge is involved any more, so nothing is left for `overflow-x-auto`
+to clip - the `sticky` anchor §61 needed is gone along with the problem it
+was managing.
+
+**2. "I don't like how it appears."** Asked for an overlay across the whole
+hovered row, not just the card. The row's own tint - `hover:bg-surface-muted`,
+already the measured, tested token - lost the `/60` that made it half as
+strong as it could be, so the highlight reads clearly rather than as a
+suggestion.
+
+**3. A real bug: reordering left two action cards open at once.** Clicking
+"Move up"/"Move down" moves that row - React reuses the same DOM node
+(keyed on `entry.id`), so the node physically relocates rather than being
+recreated. Clicking the button also **focuses** it, and `:focus-within` does
+not know or care that a click, not a Tab, put the focus there. The result:
+the card stayed open on the entry that had just moved away, revealed by
+`:focus-within` for a focus with nowhere left to go, while a *second* card
+opened on whatever entry the move had put under the still-stationary mouse,
+revealed by a perfectly genuine `:hover`. Only clicking somewhere else -
+taking focus away - closed the stuck one, which is exactly what was reported.
+
+The instinct in the report was right (something has to notice the click and
+turn the stuck one off) but hand-rolled JS to track mouse movement and fake
+a "hover disabled" state would have fought the browser to re-implement
+something it already tracks correctly. **The actual fix is choosing a better
+signal, not adding one**: `group-has-[:focus-visible]` in place of
+`group-focus-within`. `:focus-visible` is exactly the distinction this needed
+- Chromium, Firefox and Safari all already decline to mark a `<button>`
+`:focus-visible` after a plain mouse click (that heuristic exists so a
+clicked button does not wear a focus ring it does not need), while `Tab`
+still marks it, so a keyboard user reaches Edit and sees the same reveal as
+before. Nothing tracks input modality by hand; the browser already does, and
+`:has()` is what lets a `group-hover:`-shaped rule ask the same question of
+`:focus-visible` on a descendant. The row's own new tint uses the identical
+trigger (`has-[:focus-visible]:bg-surface-muted`) for the same reason
+`:hover` and `:focus-within` were kept in step before.
+
+### Checked
+
+Three tests replace one: the card centres on the row (`left-1/2`/`top-1/2`
+with matching negative-translate classes, and `relative` on the `<tr>`); the
+reveal classes read `group-has-[:focus-visible]`, and a dedicated test
+asserts `group-focus-within` does not appear anywhere in that string, so a
+future edit cannot reintroduce the exact trigger this section removes; the
+row's `has-[:focus-visible]:bg-surface-muted` matches its own `hover:`. All
+three confirmed to fail against the pre-change component first.
+
+Live, at 1200px: the card centres correctly and nothing clips it
+(`elementFromPoint` at the card's own centre resolves inside the card, not
+to whatever it floats over). Checked in dark theme too - same centring, same
+reveal.
+
+For the reorder bug, this session's browser-automation tool turned out not
+to be a faithful stand-in for a real mouse: a dispatched click here does not
+retain focus on the clicked element at all (confirmed against a plain
+checkbox, not only the reorder buttons), so the exact "focus stuck on a
+button" precondition could not be driven through it. Firing the same click
+via the DOM's own `.click()` did carry through to a real reorder (a `PUT
+.../entries/order` visibly saved it, undone afterwards) and, immediately
+after, showed **every** row's card at `opacity: 0` - the reordered entry's
+included - which is the fully-closed state the fix is supposed to produce,
+not a coincidence of nothing having happened. A real keyboard `Tab` (34
+presses, landing exactly where the accessible-name ordering predicted) does
+correctly mark `:focus-visible` in this same browser, and the card followed
+that focus. What was not, and could not honestly be, exercised end-to-end
+here is a real physical mouse clicking the button and the two-cards moment
+itself - that rests on the documented `:focus-visible` heuristic all three
+engines ship, not on anything this session watched happen live.
+
+531 PHP tests, 838 JS tests, build clean.

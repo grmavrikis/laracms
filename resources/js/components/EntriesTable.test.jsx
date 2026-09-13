@@ -497,10 +497,12 @@ describe('EntriesTable, on a narrow screen', () => {
 // is no such column any more (#140): reported live as a header and a cell
 // that sat there for every row regardless of whether the reader was touching
 // it. What a reader sees instead is a small card that floats *over* the row,
-// hidden and un-clickable until the row is hovered or a control inside it
-// takes focus. JSDOM does not lay out, scroll or evaluate `:hover`, so these
-// assert the classes that carry the behaviour rather than an observed
-// position - the live check is in CHANGELOG.
+// centred rather than pinned to the right edge (#141 - at ~1200px the right
+// edge sat too close to the scrollbar's own territory and clipped), hidden
+// and un-clickable until the row is hovered or a control inside it takes
+// keyboard focus. JSDOM does not lay out, scroll, or evaluate `:hover` or
+// `:has()`, so these assert the classes that carry the behaviour rather than
+// an observed position - the live check is in CHANGELOG.
 describe('EntriesTable, the actions overlay', () => {
     // The floating card itself - one level above RowActions' own
     // `flex items-center gap-1` div, which carries no opinion of its own
@@ -524,6 +526,24 @@ describe('EntriesTable, the actions overlay', () => {
         expect(cell.className).toMatch(/\bw-0\b/);
     });
 
+    // Centred on the row's own full width (#141), not pinned to the right
+    // edge - a `<tr>` positioned `relative` is the card's containing block,
+    // so it centres correctly however wide the schema makes the row, without
+    // needing the `sticky` anchor the pinned version relied on.
+    it('centres the floating card on the row rather than pinning it to an edge', () => {
+        draw();
+
+        const row = rowFor(11);
+        const card = overlayFor(11);
+
+        expect(row.className).toMatch(/\brelative\b/);
+        expect(card.className).toMatch(/\babsolute\b/);
+        expect(card.className).toMatch(/\bleft-1\/2\b/);
+        expect(card.className).toMatch(/-translate-x-1\/2/);
+        expect(card.className).toMatch(/\btop-1\/2\b/);
+        expect(card.className).toMatch(/-translate-y-1\/2/);
+    });
+
     it('keeps the floating card hidden and un-clickable until the row is hovered or focused', () => {
         draw();
 
@@ -533,20 +553,41 @@ describe('EntriesTable, the actions overlay', () => {
         expect(card.className).toMatch(/\bpointer-events-none\b/);
         expect(card.className).toMatch(/group-hover:opacity-100/);
         expect(card.className).toMatch(/group-hover:pointer-events-auto/);
-        expect(card.className).toMatch(/group-focus-within:opacity-100/);
-        expect(card.className).toMatch(/group-focus-within:pointer-events-auto/);
+        expect(card.className).toMatch(/group-has-\[:focus-visible\]:opacity-100/);
+        expect(card.className).toMatch(/group-has-\[:focus-visible\]:pointer-events-auto/);
     });
 
-    // Sticky, not merely absolute, so the card keeps floating at the right
-    // edge of the scroll box regardless of how wide the schema makes the
-    // row - the same reachability #132 once pinned a whole column for.
-    it('keeps the card pinned to the right edge of the scroll box', () => {
+    /**
+     * **The bug a reorder click used to cause (#141).** Clicking "Move up"/
+     * "Move down" focuses the button *and* moves its row - the DOM node
+     * React reuses for that entry (keyed on `entry.id`) relocates, but focus
+     * does not follow it visually, so the card stayed revealed on the row
+     * that had just moved away while a second one opened, from a genuine
+     * `:hover`, on whichever row the reorder put under the cursor instead.
+     * Only clearing focus - by clicking anywhere else - closed the stuck one.
+     *
+     * `:focus-within` cannot tell a keyboard tab from a mouse click; the fix
+     * is the trigger that can, so this pins it down rather than only pinning
+     * the symptom.
+     */
+    it('reveals on a keyboard-focus-visible descendant, not on any focus at all', () => {
         draw();
 
-        const anchor = overlayFor(11).parentElement;
+        const card = overlayFor(11);
 
-        expect(anchor.className).toMatch(/\bsticky\b/);
-        expect(anchor.className).toMatch(/\bright-0\b/);
+        expect(card.className).not.toMatch(/focus-within/);
+    });
+
+    // State-clarity: a keyboard user tabbing into Edit should see the same
+    // row highlight a mouse hovering it produces, not just the floating card
+    // with no context for where it belongs.
+    it('tints the whole row the same way for a hover and for a keyboard-focused control inside it', () => {
+        draw();
+
+        const row = rowFor(11);
+
+        expect(row.className).toMatch(/hover:bg-surface-muted\b/);
+        expect(row.className).toMatch(/has-\[:focus-visible\]:bg-surface-muted\b/);
     });
 
     // A touch screen has no hover state to reveal it with, so hiding the
