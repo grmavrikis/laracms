@@ -1251,6 +1251,26 @@ migrations, so a choice follows the person to their second **tab** rather than
 their second machine. Two columns and a save; the panel's own half already
 resolves both against an allow-list before applying them.
 
+### 139. The entries table's actions, shown only on hover — DONE (CHANGELOG §60)
+
+Reported live: the desktop table's row actions (the two reorder arrows, a
+disabled Preview, Edit) sat lit up on every row regardless of whether the
+reader was doing anything with it. `RowActions` (`EntriesTable.jsx`) took a
+`hoverReveal` flag, passed only from the table's own row: `opacity-0` at
+rest, `group-hover:opacity-100`/`group-focus-within:opacity-100` off the
+`group` class already on the `<tr>`. Opacity rather than `display` or
+`visibility`, so the buttons stay reachable by keyboard throughout - tabbing
+into one reveals it the same way hovering the row does.
+
+**The narrow card keeps its actions shown plainly.** A touch screen has no
+hover state to reveal them with, and hiding Edit behind a gesture a phone
+cannot make would have broken it there for nothing gained - the card is one
+row per entry already, not a shared column short on width.
+
+Two tests, confirmed to fail against the pre-change component first. Checked
+live: a keyboard focus/blur on Edit toggled the computed opacity between `0`
+and `1`; a real mouse hover showed the same in a screenshot.
+
 ### 138. The bulk bar popped in and out, and the owner watched it happen — DONE (CHANGELOG §59)
 
 Checked live, #137's bulk bar still appeared out of nowhere on the first

@@ -6124,3 +6124,38 @@ buttons in place, with no row of controls appearing or disappearing: checked
 at both a desktop width and a phone width, and in both themes.
 
 531 PHP tests, 833 JS tests, build clean.
+
+## 60. The entries table's actions, shown only on hover
+
+Reported live: four or five icons (two reorder arrows, a disabled Preview,
+Edit) sat lit up in every row of the desktop table whether or not the reader
+was doing anything with it - a request to show them only on hover.
+
+`RowActions` (`EntriesTable.jsx`) took a `hoverReveal` flag. With it, the
+wrapping `<div>` renders `opacity-0 transition-opacity` plus
+`group-hover:opacity-100 group-focus-within:opacity-100`, keyed off the
+`group` class already on the `<tr>` for the row-click behaviour §58 added.
+**Opacity, not `display` or `visibility`**: the buttons stay in the tab order
+and in the accessibility tree throughout, so a keyboard user tabbing into one
+reveals it exactly as a mouse hovering the row does - `:focus-within` and
+`:hover` are the same kind of pseudo-class to the browser, recalculated the
+same way.
+
+**Only the desktop table passes the flag.** A touch screen has no hover state
+to reveal them with, and the narrow card (#133) is one row per entry with
+room of its own rather than a shared column fighting for width - hiding its
+actions the same way would put Edit behind a gesture a phone cannot make. It
+keeps showing them plainly, as it always has.
+
+### Checked
+
+Two tests: the desktop row's actions carry the three classes, and the narrow
+card's do not. Both confirmed to fail against the pre-change component first.
+Live, focusing Edit with the keyboard revealed it and blurring hid it again
+(read via `getComputedStyle().opacity`, `0` at rest and after blur, `1`
+while focused); a real mouse hover over a row showed the same in a
+screenshot, icons appearing over the row under the cursor and disappearing
+once it moved away. Checked on the narrow card too: the icons stayed shown
+with the mouse nowhere near them, as intended.
+
+531 PHP tests, 835 JS tests, build clean.

@@ -161,10 +161,25 @@ function Cell({ field, entry, currentLangCode }) {
  * every row was the widest thing forcing this column to be pinned in the
  * first place, and it said nothing the icon does not already say once it is
  * the only pencil in the row.
+ *
+ * `hoverReveal` hides this behind the row's own `:hover`/`:focus-within`
+ * (`group` on the `<tr>`, #139) - reported live as clutter, four or five
+ * icons lit up in full colour on every row whether or not the reader was
+ * doing anything with it. **Only the desktop table asks for it.** A touch
+ * screen has no hover state to reveal them with, so the narrow card (which
+ * has room of its own, one row per entry rather than a shared column) always
+ * shows its actions plainly - hiding them there would put Edit behind a
+ * gesture a phone cannot make. Opacity, not `display`/`visibility`: the
+ * buttons stay in the tab order and in the accessibility tree throughout, so
+ * a keyboard user tabbing into one reveals it the same way a mouse does.
  */
-function RowActions({ entry, at, orderIds, onReorder, onEdit }) {
+function RowActions({ entry, at, orderIds, onReorder, onEdit, hoverReveal = false }) {
     return (
-        <div className="flex items-center gap-1">
+        <div
+            className={`flex items-center gap-1 ${
+                hoverReveal ? 'opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100' : ''
+            }`}
+        >
             {onReorder && (
                 <>
                     <IconButton
@@ -680,7 +695,7 @@ export default function EntriesTable({
                                             row's own translucent hover would
                                             let them show through. */}
                                         <td className="sticky right-0 z-10 whitespace-nowrap bg-surface px-4 py-3 text-right shadow-[-8px_0_8px_-8px_rgb(0_0_0_/_0.12)] transition-colors group-hover:bg-surface-muted sm:pr-6">
-                                            <RowActions entry={entry} at={at} orderIds={orderIds} onReorder={onReorder} onEdit={onEdit} />
+                                            <RowActions entry={entry} at={at} orderIds={orderIds} onReorder={onReorder} onEdit={onEdit} hoverReveal />
                                         </td>
                                     </tr>
                                 );

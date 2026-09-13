@@ -517,6 +517,34 @@ describe('EntriesTable, the actions column', () => {
     });
 });
 
+// Reported live: six icons (two reorder arrows, a disabled Preview, Edit) sat
+// in every row whether or not the reader was doing anything with it - noise
+// for every row but the one they were actually looking at.
+describe('EntriesTable, actions revealed on hover', () => {
+    it('keeps a row\'s actions hidden until the row is hovered or a control in it takes focus', () => {
+        draw();
+
+        const actions = within(rowFor(11)).getByRole('button', { name: /Edit/ }).closest('div');
+
+        expect(actions.className).toMatch(/\bopacity-0\b/);
+        expect(actions.className).toMatch(/group-hover:opacity-100/);
+        expect(actions.className).toMatch(/group-focus-within:opacity-100/);
+    });
+
+    // A touch screen has no hover state to reveal them with, so hiding the
+    // narrow card's actions the same way would put Edit and the reorder
+    // arrows behind a gesture a phone cannot make. It keeps them shown
+    // plainly, exactly as it always has.
+    it('leaves the narrow card\'s actions shown plainly, since touch has no hover', () => {
+        stubNarrow(true);
+        draw();
+
+        const actions = within(cardFor(11)).getByRole('button', { name: /Edit/ }).closest('div');
+
+        expect(actions.className).not.toMatch(/opacity-0/);
+    });
+});
+
 // Reported live: the table showed one date with no way to tell whether it was
 // when the entry was written or when it was last touched, and only one of the
 // two was shown at all.
