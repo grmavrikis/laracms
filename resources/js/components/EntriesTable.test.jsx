@@ -596,6 +596,34 @@ describe('EntriesTable, the actions overlay', () => {
         expect(overlayFor(11).className).toMatch(/border-accent\//);
     });
 
+    /**
+     * #144: a flat single-colour fill read as a sticker laid on top of the
+     * row rather than a small raised object above it. A top-to-bottom
+     * gradient plus a layered contact/ambient shadow (rather than one
+     * uniform blur) is what a genuinely raised surface looks like - a single
+     * `shadow-lg` is a soft halo, not a lift.
+     */
+    it('gives the card a gradient fill and a layered shadow for a raised, three-dimensional look', () => {
+        draw();
+
+        const card = overlayFor(11);
+
+        expect(card.className).toMatch(/bg-gradient-to-b/);
+        expect(card.className).toMatch(/from-surface\b/);
+        expect(card.className).toMatch(/to-surface-muted\b/);
+        // Three layers, not one - two neutral contact shadows close to the
+        // surface plus an ambient one tinted with the accent colour is the
+        // actual difference between "flat with a blur" and "lifted". The
+        // tint is a literal `color-mix()`, not a `shadow-<color>` utility -
+        // Tailwind rewrites every colour inside an arbitrary `shadow-[...]`
+        // to read `--tw-shadow-color` once one of those is present, which
+        // would have erased the two contact layers' own literal alphas too.
+        expect(card.className).toMatch(/0_1px_1px_rgba\(0,0,0,0\.06\)/);
+        expect(card.className).toMatch(/0_4px_8px_rgba\(0,0,0,0\.1\d?\)/);
+        expect(card.className).toMatch(/color-mix\(in_oklab,var\(--color-accent\)/);
+        expect(card.className).not.toMatch(/\bshadow-accent\//);
+    });
+
     // The row's one primary action among several neutral ones (#143) - a
     // little colour, asked for by name, rather than every icon reading the
     // same shade of grey.

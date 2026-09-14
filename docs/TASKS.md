@@ -1251,6 +1251,30 @@ migrations, so a choice follows the person to their second **tab** rather than
 their second machine. Two columns and a save; the panel's own half already
 resolves both against an allow-list before applying them.
 
+### 144. #143's card asked to look more three-dimensional — DONE (CHANGELOG §65)
+
+Judged live against the alternatives tried and reverted after it, #143's
+version - one section, Edit's icon carrying the accent colour, no caret -
+was picked as the one to keep and refine. Asked to make its flat
+`bg-surface` fill look more like a small raised object above the row: a
+top-to-bottom gradient (`bg-gradient-to-b from-surface to-surface-muted`)
+replaces the flat fill, and the single `shadow-lg` blur becomes three
+explicit layers - a tight contact shadow, a mid one, and a soft ambient one
+carrying the accent tint via a literal `color-mix(in oklab,
+var(--color-accent) 12%, transparent)`.
+
+A `shadow-accent/10` utility was tried first for that tint and measured live
+to do the wrong thing: Tailwind rewrites every colour inside an arbitrary
+`shadow-[...]` value to read `--tw-shadow-color` once any `shadow-<color>`
+utility sits on the same element, which silently erased the two contact
+layers' own literal alphas and tinted the whole shadow uniformly. Found by
+reading `getComputedStyle` rather than trusting the class list.
+
+One new test, confirmed to fail against the flat version first; the other
+sixty in the same file passed unchanged. Checked live in both themes -
+`getComputedStyle` read the real gradient and the three-layer shadow with
+the correct colour split in each.
+
 ### 143. #142's caret sat wrong on a short row, the card wanted colour, and Preview's tooltip was unreachable — DONE (CHANGELOG §64)
 
 Three reports against #142's card. The caret, anchored to the card's own

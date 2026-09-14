@@ -6445,3 +6445,48 @@ names Preview `Προεπισκόπηση — δεν έχει συνδεθεί �
 a normal, focusable button.
 
 531 PHP tests, 845 JS tests, build clean.
+
+## 65. §64's card asked to look more three-dimensional
+
+Judged live against the alternatives tried and reverted after it (a
+recoloured glyph alone, then Edit split into its own separate circular
+button): §64's version - one section, Edit's icon carrying the accent
+colour, no caret - was picked as the one to keep and refine further. The
+ask: make its flat `bg-surface` fill look more like a small raised object
+above the row, not a sticker laid on top of it.
+
+**Two changes, both about depth rather than colour.** The fill is now a
+top-to-bottom gradient (`bg-gradient-to-b from-surface to-surface-muted`)
+standing in for a surface catching light from above. The shadow is three
+explicit layers - a tight contact shadow, a mid one, and a soft ambient one
+- rather than the single `shadow-lg` blur it had: a real lifted object casts
+a crisp shadow close to it and a softer one further out, and one uniform
+blur reads as neither.
+
+**The ambient layer alone carries the accent tint**, written as a literal
+`color-mix(in oklab, var(--color-accent) 12%, transparent)` rather than a
+separate `shadow-accent/10` utility - a real object's own colour bleeds a
+little into its own soft shadow, and a contact shadow never picks up colour
+at all. Tried the `shadow-accent/10` utility first and measured it live:
+Tailwind rewrites *every* colour inside an arbitrary `shadow-[...]` value to
+read `--tw-shadow-color` the moment any `shadow-<color>` utility sits on the
+same element, which silently erased the two contact layers' own literal
+alphas and tinted the whole shadow uniformly - found before it shipped by
+reading `getComputedStyle` rather than trusting the class list.
+
+### Checked
+
+One new test: the card's `className` carries `bg-gradient-to-b`,
+`from-surface` and `to-surface-muted`, the two neutral shadow layers by
+their exact literal values, and the accent `color-mix()` on the third -
+confirmed to fail against the flat `bg-surface`/`shadow-lg` version first.
+The other sixty tests in the same file passed unchanged.
+
+Live: `getComputedStyle` on the card read a real `linear-gradient` between
+the two surface tokens and a three-layer `box-shadow` - two neutral
+`rgba(0,0,0,…)` layers plus one accent-tinted `oklab(…)` layer, matching the
+literal values exactly - in both themes, confirming the gradient direction
+and the shadow's colour split both re-point correctly with no theme-specific
+code written for this pass.
+
+531 PHP tests, 846 JS tests, build clean.

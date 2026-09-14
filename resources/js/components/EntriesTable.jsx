@@ -784,8 +784,42 @@ export default function EntriesTable({
                                                 border below ties the card to
                                                 its row instead: a colour, not
                                                 a shape, so it survives a row
-                                                of any height unchanged. */}
-                                            <div className="pointer-events-none absolute left-[var(--action-center,50%)] top-1/2 z-20 flex -translate-x-1/2 -translate-y-1/2 scale-90 items-center gap-0.5 rounded-xl border border-accent/25 bg-surface p-1 opacity-0 shadow-lg shadow-accent/10 transition-[opacity,transform] duration-200 ease-[cubic-bezier(0.34,1.56,0.64,1)] group-hover:pointer-events-auto group-hover:scale-100 group-hover:opacity-100 group-has-[:focus-visible]:pointer-events-auto group-has-[:focus-visible]:scale-100 group-has-[:focus-visible]:opacity-100 motion-reduce:transition-none">
+                                                of any height unchanged.
+
+                                                A flat `bg-surface` fill read
+                                                as a sticker on the row rather
+                                                than a small object lifted
+                                                above it (#144) - a top-to-
+                                                bottom gradient stands in for
+                                                the surface catching light
+                                                from above, and the shadow is
+                                                three explicit layers (a tight
+                                                neutral contact shadow, a
+                                                neutral mid one, and a soft
+                                                ambient one tinted with the
+                                                accent colour) rather than one
+                                                uniform blur, which is what
+                                                actually reads as "lifted"
+                                                instead of "blurred" - a real
+                                                object's own colour spreads a
+                                                little into its own soft
+                                                shadow, while a contact shadow
+                                                never does. Written as one
+                                                literal `color-mix()` on the
+                                                ambient layer rather than a
+                                                separate `shadow-accent/10`
+                                                utility: Tailwind rewrites
+                                                *every* colour inside an
+                                                arbitrary `shadow-[...]` to
+                                                read `--tw-shadow-color` once
+                                                any `shadow-<color>` utility is
+                                                present on the same element,
+                                                which would have tinted the
+                                                two contact layers as well and
+                                                erased their own literal
+                                                alphas - measured live before
+                                                settling on this. */}
+                                            <div className="pointer-events-none absolute left-[var(--action-center,50%)] top-1/2 z-20 flex -translate-x-1/2 -translate-y-1/2 scale-90 items-center gap-0.5 rounded-xl border border-accent/25 bg-gradient-to-b from-surface to-surface-muted p-1 opacity-0 shadow-[0_1px_1px_rgba(0,0,0,0.06),0_4px_8px_rgba(0,0,0,0.10),0_16px_32px_-8px_color-mix(in_oklab,var(--color-accent)_12%,transparent)] transition-[opacity,transform] duration-200 ease-[cubic-bezier(0.34,1.56,0.64,1)] group-hover:pointer-events-auto group-hover:scale-100 group-hover:opacity-100 group-has-[:focus-visible]:pointer-events-auto group-has-[:focus-visible]:scale-100 group-has-[:focus-visible]:opacity-100 motion-reduce:transition-none">
                                                 <RowActions entry={entry} at={at} orderIds={orderIds} onReorder={onReorder} onEdit={onEdit} />
                                             </div>
                                         </td>

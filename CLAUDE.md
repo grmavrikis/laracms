@@ -226,7 +226,7 @@ both — write `t('…')` literally, as `FIELD_TYPE_LABELS` does.
 
 ```bash
 php artisan test                    # 531 tests
-npm test                            # 845 tests
+npm test                            # 846 tests
 npm run build
 php artisan schema:sync-field-types # after changing field type constants
 php artisan pages:warm              # bake the public site to files (#97) - THE DEPLOY STEP
@@ -297,9 +297,24 @@ Started from a repo that would not boot (eight files of merge conflicts).
 Worked through a prioritised list; every item is either done or recorded in
 `CHANGELOG.md` with its reasoning.
 
-- **531 PHP tests, 845 JS tests**, all passing. Build clean.
-- **#143, #142's card wanted colour and its caret sat wrong, is DONE**
-  (CHANGELOG §64) — the caret, anchored to the card's own bottom corner,
+- **531 PHP tests, 846 JS tests**, all passing. Build clean.
+- **#144, #143's card asked to look more three-dimensional, is DONE**
+  (CHANGELOG §65) — judged live against the alternatives tried and reverted
+  after it, #143's version (one section, Edit's icon carrying the accent
+  colour, no caret) was picked as the one to keep and refine. Its flat
+  `bg-surface` fill is now a top-to-bottom gradient
+  (`bg-gradient-to-b from-surface to-surface-muted`), and the single
+  `shadow-lg` blur is three explicit layers - a tight contact shadow, a mid
+  one, and a soft ambient one carrying the accent tint via a literal
+  `color-mix(in oklab, var(--color-accent) 12%, transparent)`. A
+  `shadow-accent/10` utility was tried for that tint first and measured live
+  to do the wrong thing: Tailwind rewrites every colour inside an arbitrary
+  `shadow-[...]` value to read `--tw-shadow-color` once any `shadow-<color>`
+  utility sits on the same element, silently erasing the two contact layers'
+  own literal alphas.
+- **#143, #142's card wanted colour and its caret sat wrong — DONE, its
+  background and shadow refined by #144** (CHANGELOG §64) — the caret,
+  anchored to the card's own bottom corner,
   assumed a row of one particular height and looked wrong against any other;
   removed, not re-anchored, in favour of a light accent tint on the card's
   own border and shadow (`border-accent/25`, `shadow-accent/10`), which ties
