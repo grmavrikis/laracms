@@ -1251,6 +1251,32 @@ migrations, so a choice follows the person to their second **tab** rather than
 their second machine. Two columns and a save; the panel's own half already
 resolves both against an allow-list before applying them.
 
+### 143. #142's caret sat wrong on a short row, the card wanted colour, and Preview's tooltip was unreachable — DONE (CHANGELOG §64)
+
+Three reports against #142's card. The caret, anchored to the card's own
+bottom corner, assumed a row of one particular height and looked wrong
+against any other - removed, not re-anchored; the card's border now carries
+a light accent tint instead (`border-accent/25`, `shadow-accent/10`), which
+ties it to its row by colour and survives a row of any height unchanged.
+Asked for a little colour: `IconButton` gained an `accent` tone, given only
+to Edit - the row's one primary action among four - while the reorder
+arrows, the divider and Preview stay neutral.
+
+Preview stopped being `disabled`. Reading `BulkButton`'s own comment on why a
+disabled control's `title` is not reliably reachable turned up that the same
+was true here: the "not wired yet" explanation was, in practice, close to
+invisible. It is a plain enabled button now, same neutral tone as the
+reorder arrows and still no `onClick` - #136 (loading the public page's own
+address) is still what it is waiting on - and the label carries the same
+explanation as before.
+
+Five tests changed, confirmed to fail against the pre-change component
+first. Checked live: `getComputedStyle` confirmed the border/shadow tint and
+Edit's colour both resolve to the accent tokens in both themes without
+needing hover to fire (none of the three is conditioned on the reveal state);
+a real keyboard `Tab` revealed the card with the tint, the coloured pencil,
+and no caret, Preview sitting at full opacity beside it.
+
 ### 142. #141 centred the card against the wrong rectangle, and a polish request — DONE (CHANGELOG §63)
 
 #141's card centred correctly against the **row**, not the scroll box - scroll

@@ -578,15 +578,33 @@ describe('EntriesTable, the actions overlay', () => {
         expect(rowFor(11).style.getPropertyValue('--action-center')).toBe('400px');
     });
 
-    // A caret so the card still reads as *this row's* card once it floats
-    // free of the row and centres on the screen instead.
-    it('gives the floating card a caret hidden from the accessibility tree', () => {
+    // #143: the caret drawn under the card to tie it back to its row sat
+    // wrong whenever a row's own height didn't match the two-line guess it
+    // was built against, and was dropped rather than chased further.
+    it('draws no caret under the card', () => {
         draw();
 
-        const caret = overlayFor(11).firstElementChild;
+        expect(overlayFor(11).querySelector('.rotate-45')).not.toBeInTheDocument();
+    });
 
-        expect(caret.tagName).toBe('SPAN');
-        expect(caret).toHaveAttribute('aria-hidden', 'true');
+    // #143: colour, not a shape glued to one edge, is what now ties the card
+    // to the row underneath it - it survives a row of any height, which a
+    // caret measured from the card's own corner never did.
+    it('tints the floating card\'s border with the accent colour', () => {
+        draw();
+
+        expect(overlayFor(11).className).toMatch(/border-accent\//);
+    });
+
+    // The row's one primary action among several neutral ones (#143) - a
+    // little colour, asked for by name, rather than every icon reading the
+    // same shade of grey.
+    it('gives Edit a touch of accent colour as the row\'s primary action', () => {
+        draw();
+
+        const edit = within(rowFor(11)).getByRole('button', { name: /Edit/ });
+
+        expect(edit.className).toMatch(/text-accent-text/);
     });
 
     // Four icons in an undifferentiated row read as clutter; grouping
@@ -694,20 +712,42 @@ describe('EntriesTable, Created and Updated', () => {
 // loads `slugs`. Drawn so the shape of the row is right, disabled and
 // explained so pressing it promises nothing the panel cannot do.
 describe('EntriesTable, the Preview control', () => {
-    it('is drawn next to Edit, disabled, and says why', () => {
+    /**
+     * **No longer `disabled` (#143).** A disabled control does not reliably
+     * fire the hover that reveals its own `title` - the same reasoning
+     * `BulkButton`'s own comment already gives for putting the reason in the
+     * accessible name rather than trusting a tooltip - so the explanation
+     * this button carries was, in practice, hard to ever see. It reads and
+     * behaves like every other action now; the label is still the one place
+     * that says it does not go anywhere yet.
+     */
+    it('is drawn next to Edit, not disabled, and still says it goes nowhere yet', () => {
         draw();
 
         const preview = within(rowFor(11)).getByRole('button', { name: /Preview/ });
 
-        expect(preview).toBeDisabled();
+        expect(preview).not.toBeDisabled();
         expect(preview).toHaveAccessibleName(expect.stringContaining('not wired yet'));
     });
 
-    it('is drawn on the narrow card too', () => {
+    it('is drawn on the narrow card too, and not disabled there either', () => {
         stubNarrow(true);
         draw();
 
-        expect(within(cardFor(11)).getByRole('button', { name: /Preview/ })).toBeDisabled();
+        expect(within(cardFor(11)).getByRole('button', { name: /Preview/ })).not.toBeDisabled();
+    });
+
+    // Enabled now, it is a real button in the row's click-guard's path -
+    // clicking it must still do only nothing, not also toggle the row the
+    // way clicking empty space beside it would.
+    it('does nothing when clicked, since it has nowhere to go yet', async () => {
+        const user = userEvent.setup();
+        const { onEdit, onSelectionChange } = draw();
+
+        await user.click(within(rowFor(11)).getByRole('button', { name: /Preview/ }));
+
+        expect(onEdit).not.toHaveBeenCalled();
+        expect(onSelectionChange).not.toHaveBeenCalled();
     });
 });
 
