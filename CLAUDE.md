@@ -226,7 +226,7 @@ both — write `t('…')` literally, as `FIELD_TYPE_LABELS` does.
 
 ```bash
 php artisan test                    # 531 tests
-npm test                            # 845 tests
+npm test                            # 842 tests
 npm run build
 php artisan schema:sync-field-types # after changing field type constants
 php artisan pages:warm              # bake the public site to files (#97) - THE DEPLOY STEP
@@ -297,23 +297,8 @@ Started from a repo that would not boot (eight files of merge conflicts).
 Worked through a prioritised list; every item is either done or recorded in
 `CHANGELOG.md` with its reasoning.
 
-- **531 PHP tests, 845 JS tests**, all passing. Build clean.
-- **#143, #142's card wanted colour and its caret sat wrong, is DONE**
-  (CHANGELOG §64) — the caret, anchored to the card's own bottom corner,
-  assumed a row of one particular height and looked wrong against any other;
-  removed, not re-anchored, in favour of a light accent tint on the card's
-  own border and shadow (`border-accent/25`, `shadow-accent/10`), which ties
-  the card to its row by colour and survives a row of any height unchanged.
-  `IconButton` gained an `accent` tone, given only to Edit - the row's one
-  primary action among four - while the reorder arrows, the divider and
-  Preview stay neutral. Preview also stopped being `disabled`: a disabled
-  control does not reliably fire the hover that reveals its own `title` (the
-  same reasoning `BulkButton`'s own comment already gives), so its "not
-  wired yet" explanation was, in practice, close to unreachable. It is a
-  plain enabled button now, same neutral tone as the reorder arrows, still
-  with no `onClick` since #136 is what it is still waiting on.
-- **#142, #141's card centred against the wrong rectangle, is DONE, its
-  caret and Preview's `disabled` refined by #143**
+- **531 PHP tests, 842 JS tests**, all passing. Build clean.
+- **#142, #141's card centred against the wrong rectangle, is DONE**
   (CHANGELOG §63) — #141 centred the floating card on the *row*, correct only
   when nothing is scrolled; scroll a wide schema half-way and the card sat in
   the middle of a rectangle that was by then half off-screen. A CSS-only fix

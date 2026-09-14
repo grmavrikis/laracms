@@ -217,31 +217,25 @@ function RowActions({ entry, at, orderIds, onReorder, onEdit }) {
                     <span aria-hidden="true" className="mx-0.5 h-5 w-px shrink-0 bg-line" />
                 </>
             )}
-            {/* Drawn and clickable, not disabled (#143) - a disabled
-                control does not reliably fire the hover that reveals its own
-                `title`, the same reasoning `BulkButton`'s own comment gives
-                for the bulk bar, so the explanation this button carries was
-                in practice hard to ever see. Opening the public page needs
-                that page's own address, and the entries list has no way to
-                know it - `EntryController::index` never loads `slugs`,
-                unlike `show()`. One line of PHP (`->with('slugs')` on the
-                index query) plus reading `entry.slugs`/`module.slugs` here
-                for the current language is what turns this on; nothing
-                about the button itself would need to change. */}
+            {/* Drawn and disabled, not left out (#136): opening the public
+                page needs that page's own address, and the entries list has
+                no way to know it - `EntryController::index` never loads
+                `slugs`, unlike `show()`. One line of PHP
+                (`->with('slugs')` on the index query) plus reading
+                `entry.slugs`/`module.slugs` here for the current language is
+                what turns this on; nothing about the button itself changes. */}
             <IconButton
                 icon={ExternalLink}
                 label={`${t('Preview')} — ${t('not wired yet')}`}
-                className="h-8 w-8"
+                disabled
+                className="h-8 w-8 disabled:cursor-not-allowed disabled:opacity-30"
             />
             {/* Named per entry, not just "Edit" - several identical buttons
                 with the same accessible name is the checkbox column's own
                 defect (see its comment below), and this control has the
-                same shape. Accented rather than neutral (#143) - the row's
-                one primary action among several, so it earns the one touch
-                of colour the others do not. */}
+                same shape. */}
             <IconButton
                 icon={Pencil}
-                tone="accent"
                 label={t('Edit entry :id', { id: entry.id })}
                 onClick={() => onEdit(entry)}
                 className="h-8 w-8"
@@ -773,19 +767,20 @@ export default function EntriesTable({
                                                 Keyboard `Tab` still matches
                                                 `:focus-visible`, so reaching
                                                 Edit that way reveals the card
-                                                exactly as before.
-
-                                                No caret pointing back at the
-                                                row any more (#143) - anchored
-                                                to the card's own corner, it
-                                                assumed a row of one particular
-                                                height and looked wrong against
-                                                any other. The accent-tinted
-                                                border below ties the card to
-                                                its row instead: a colour, not
-                                                a shape, so it survives a row
-                                                of any height unchanged. */}
-                                            <div className="pointer-events-none absolute left-[var(--action-center,50%)] top-1/2 z-20 flex -translate-x-1/2 -translate-y-1/2 scale-90 items-center gap-0.5 rounded-xl border border-accent/25 bg-surface p-1 opacity-0 shadow-lg shadow-accent/10 transition-[opacity,transform] duration-200 ease-[cubic-bezier(0.34,1.56,0.64,1)] group-hover:pointer-events-auto group-hover:scale-100 group-hover:opacity-100 group-has-[:focus-visible]:pointer-events-auto group-has-[:focus-visible]:scale-100 group-has-[:focus-visible]:opacity-100 motion-reduce:transition-none">
+                                                exactly as before. */}
+                                            <div className="pointer-events-none absolute left-[var(--action-center,50%)] top-1/2 z-20 flex -translate-x-1/2 -translate-y-1/2 scale-90 items-center gap-0.5 rounded-xl border border-line bg-surface p-1 opacity-0 shadow-lg transition-[opacity,transform] duration-200 ease-out group-hover:pointer-events-auto group-hover:scale-100 group-hover:opacity-100 group-has-[:focus-visible]:pointer-events-auto group-has-[:focus-visible]:scale-100 group-has-[:focus-visible]:opacity-100 motion-reduce:transition-none">
+                                                {/* A caret, not just a card -
+                                                    ties the floating pill
+                                                    back to the row it belongs
+                                                    to, which is otherwise the
+                                                    only thing connecting the
+                                                    two once the card floats
+                                                    free of the row's own
+                                                    layout. */}
+                                                <span
+                                                    aria-hidden="true"
+                                                    className="absolute -bottom-1 left-1/2 h-2 w-2 -translate-x-1/2 rotate-45 rounded-[2px] border-b border-r border-line bg-surface"
+                                                />
                                                 <RowActions entry={entry} at={at} orderIds={orderIds} onReorder={onReorder} onEdit={onEdit} />
                                             </div>
                                         </td>
