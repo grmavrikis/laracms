@@ -21,6 +21,10 @@ const TONES = {
     // `surface` - a row of icons should not be a row of red - and only the
     // hover turns.
     danger: 'text-fg-muted hover:bg-danger-soft hover:text-danger-text',
+    // A row's one primary action among several neutral ones (#143) - unlike
+    // `danger`, tinted at rest as well as on hover, since the point is to
+    // stand out from its neighbours rather than to warn.
+    accent: 'text-accent-text hover:bg-accent-soft hover:text-accent-text',
 };
 
 /**
