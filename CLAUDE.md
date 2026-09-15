@@ -226,7 +226,7 @@ both — write `t('…')` literally, as `FIELD_TYPE_LABELS` does.
 
 ```bash
 php artisan test                    # 531 tests
-npm test                            # 850 tests
+npm test                            # 851 tests
 npm run build
 php artisan schema:sync-field-types # after changing field type constants
 php artisan pages:warm              # bake the public site to files (#97) - THE DEPLOY STEP
@@ -297,9 +297,17 @@ Started from a repo that would not boot (eight files of merge conflicts).
 Worked through a prioritised list; every item is either done or recorded in
 `CHANGELOG.md` with its reasoning.
 
-- **531 PHP tests, 850 JS tests**, all passing. Build clean.
+- **531 PHP tests, 851 JS tests**, all passing. Build clean.
+- **#146, #145's Copy landed in the wrong order, is DONE** (CHANGELOG §67)
+  — read right to left, the intended order is Edit, Preview, Copy; #145
+  had appended Copy after Edit instead. Reordered the three `RowActions`
+  icons to Copy, Preview, Edit; the reorder arrows stay untouched. A pure
+  reorder, no new markup or class - pinned with one test asserting the
+  exact `aria-label` sequence, written after the fix and confirmed to bite
+  by mutating the code back to the wrong order first.
 - **#145, a row-level Copy, is DONE, and a row-level Delete is deliberately
-  deferred** (CHANGELOG §66) — discussed live rather than reported as a
+  deferred, its icon order refined by #146** (CHANGELOG §66) — discussed
+  live rather than reported as a
   bug: could the row's own floating actions offer Copy and Delete directly,
   rather than only through the bulk bar? Copy was added, reusing the exact
   `onBulkAction` handler the bulk bar already calls

@@ -217,6 +217,22 @@ function RowActions({ entry, at, orderIds, onReorder, onEdit, onBulkAction }) {
                     <span aria-hidden="true" className="mx-0.5 h-5 w-px shrink-0 bg-line" />
                 </>
             )}
+            {/* Duplicating one entry without first ticking its checkbox and
+                reaching the bulk bar above the table. Reuses `onBulkAction`
+                rather than a new callback - `bulkRequest('copy', ...)`
+                already looks the entry up by id in the screen's own loaded
+                list (`screens/bulk.js`), and this row's own `entry` is, by
+                definition, already in it. No confirmation, same as the bulk
+                bar's own Copy: nothing existing is touched by a duplicate.
+                Delete stays bulk-only - it is the one irreversible action
+                here and would need its own confirmation step, deliberately
+                not built alongside this. */}
+            <IconButton
+                icon={Copy}
+                label={t('Copy entry :id', { id: entry.id })}
+                onClick={() => onBulkAction?.('copy', [entry.id])}
+                className="h-8 w-8"
+            />
             {/* Drawn and clickable, not disabled (#143) - a disabled
                 control does not reliably fire the hover that reveals its own
                 `title`, the same reasoning `BulkButton`'s own comment gives
@@ -238,28 +254,14 @@ function RowActions({ entry, at, orderIds, onReorder, onEdit, onBulkAction }) {
                 defect (see its comment below), and this control has the
                 same shape. Accented rather than neutral (#143) - the row's
                 one primary action among several, so it earns the one touch
-                of colour the others do not. */}
+                of colour the others do not. Last rather than first among
+                the three (#146) - the reader's eye lands on it last, and
+                it is the one control most rows are actually opened for. */}
             <IconButton
                 icon={Pencil}
                 tone="accent"
                 label={t('Edit entry :id', { id: entry.id })}
                 onClick={() => onEdit(entry)}
-                className="h-8 w-8"
-            />
-            {/* Duplicating one entry without first ticking its checkbox and
-                reaching the bulk bar above the table. Reuses `onBulkAction`
-                rather than a new callback - `bulkRequest('copy', ...)`
-                already looks the entry up by id in the screen's own loaded
-                list (`screens/bulk.js`), and this row's own `entry` is, by
-                definition, already in it. No confirmation, same as the bulk
-                bar's own Copy: nothing existing is touched by a duplicate.
-                Delete stays bulk-only - it is the one irreversible action
-                here and would need its own confirmation step, deliberately
-                not built alongside this. */}
-            <IconButton
-                icon={Copy}
-                label={t('Copy entry :id', { id: entry.id })}
-                onClick={() => onBulkAction?.('copy', [entry.id])}
                 className="h-8 w-8"
             />
         </div>

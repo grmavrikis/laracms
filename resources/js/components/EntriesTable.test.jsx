@@ -820,6 +820,22 @@ describe('EntriesTable, copying a single entry from its own row', () => {
         expect(within(rowFor(11)).getByRole('button', { name: 'Copy entry 11' })).toBeInTheDocument();
     });
 
+    // #146: ordered by name, after the reorder arrows - Copy, Preview, Edit,
+    // Edit last so it is the one the reader's eye lands on.
+    it('places Copy, then Preview, then Edit, in that order', () => {
+        draw();
+
+        const names = within(rowFor(11)).getAllByRole('button')
+            .map((button) => button.getAttribute('aria-label'))
+            .filter((label) => /^(Copy|Preview|Edit)\b/.test(label));
+
+        expect(names).toEqual([
+            'Copy entry 11',
+            'Preview — not wired yet',
+            'Edit entry 11',
+        ]);
+    });
+
     it('fires immediately, scoped to just that one entry', async () => {
         const user = userEvent.setup();
         const onBulkAction = vi.fn();

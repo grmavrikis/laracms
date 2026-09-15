@@ -6536,3 +6536,34 @@ entry and its duplicate were both deleted afterward via the API, restoring
 Rooms to its original four sample entries.
 
 531 PHP tests, 850 JS tests, build clean.
+
+## 67. §66's Copy landed in the wrong order
+
+Reported straight after §66 shipped: read right to left, the intended order
+is Edit, Preview, Copy - Edit last, since it is the control most rows are
+actually opened for and the reader's eye lands on it last scanning the row.
+§66 had appended Copy after Edit instead (Preview, Edit, Copy), and the
+reorder arrows before the divider were correct already and stay untouched.
+
+Reordered the three `IconButton`s in `RowActions` to Copy, Preview, Edit -
+the same left-to-right sequence, just moved. No behaviour changed, only
+position, so this is the one case in this whole run of rounds where the
+fix is a pure reorder rather than new markup or a new class.
+
+### Checked
+
+One new test pins the order directly - each button's `aria-label` in DOM
+order, asserted as an exact array (`Copy entry :id`, the Preview label,
+`Edit entry :id`). Following the rule for a structural fix rather than a
+new behaviour: written *after* the reorder, then confirmed to bite by
+mutating the code back to §66's order and watching it fail before
+restoring the fix - a genuine "does this actually pin the order" check,
+since the naive first draft would have passed either way if it only
+checked each button's presence rather than the sequence.
+
+Live: a real keyboard `Tab` into a row's Edit control, then reading every
+button's `aria-label` in the revealed card, confirmed the order exactly -
+Move up, Move down, Copy, Preview, Edit - and a screenshot scaled 2.5×
+showed the same order visually.
+
+531 PHP tests, 851 JS tests, build clean.

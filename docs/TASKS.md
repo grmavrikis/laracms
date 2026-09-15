@@ -1251,6 +1251,20 @@ migrations, so a choice follows the person to their second **tab** rather than
 their second machine. Two columns and a save; the panel's own half already
 resolves both against an allow-list before applying them.
 
+### 146. #145's Copy landed in the wrong order — DONE (CHANGELOG §67)
+
+Reported straight after #145 shipped: read right to left, the intended
+order is Edit, Preview, Copy - Edit last, the control most rows are
+actually opened for. #145 had appended Copy after Edit instead. Reordered
+the three `RowActions` icons to Copy, Preview, Edit; the reorder arrows
+before the divider were already correct and stay untouched.
+
+One new test pins the exact order (each button's `aria-label`, in DOM
+order); written after the reorder and confirmed to bite by mutating the
+code back to #145's order and watching it fail, per the rule for a
+structural fix. Checked live via a real keyboard `Tab` reveal, reading
+every button's `aria-label` in sequence.
+
 ### 145. A row-level Copy, discussed and added; a row-level Delete deliberately deferred — DONE (CHANGELOG §66)
 
 Discussed live: could the row's own floating actions offer Copy and Delete
