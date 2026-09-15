@@ -1251,6 +1251,40 @@ migrations, so a choice follows the person to their second **tab** rather than
 their second machine. Two columns and a save; the panel's own half already
 resolves both against an allow-list before applying them.
 
+### 147. The bulk bar floats over the page instead of living in it, reversing §59 — DONE (CHANGELOG §68)
+
+Asked live to reverse §59's own decision: hide the bulk bar until
+something is ticked again, but keep the table from jumping - §59's actual
+fix, which was never really the same thing as "it appears and
+disappears." `position: fixed` removes the bar from the page's document
+flow entirely, anchored to the bottom of the viewport as a centred,
+rounded, elevated pill ("σαν ένα bubble") rather than a full-width block -
+the table's own position is unaffected either way. Always mounted rather
+than conditionally rendered, the same technique `RowActions`' own floating
+card already uses (#140): `opacity`/`translate-y`/`aria-hidden` toggle on
+the ticked count.
+
+Two class-conflict bugs found live, neither visible to the test suite.
+Writing a base class plus a conditional override in the same string left
+both classes of a pair present at once whenever something was selected;
+the compiled stylesheet resolves that by its own internal order, not by
+which class reads more relevant - `IconButton`'s own docblock already
+found this once, and here it silently made `pointer-events` resolve to
+`none` even while visible. Fixed with an either/or ternary per fragment.
+A second bug survived that fix: the full-width positioning wrapper (needed
+to centre the pill) getting `pointer-events-auto` made its whole width
+clickable, transparent margins included, eating clicks meant for the
+table on any viewport wider than the pill. `pointer-events` now lives on
+the pill alone, which sizes to its own content.
+
+Two new tests, plus three existing ones (`EntriesScreen.test.jsx`) fixed
+to query with `{ hidden: true }`, since `aria-hidden` correctly removes a
+disabled-at-rest button from a role query by default. Checked live: the
+table's position measured identical before and after ticking a box at two
+viewport widths; `elementFromPoint` past the pill's own edge returned the
+page underneath, not the bar, after the second fix; the actual buttons
+inside were exercised end to end in both themes.
+
 ### 146. #145's Copy landed in the wrong order — DONE (CHANGELOG §67)
 
 Reported straight after #145 shipped: read right to left, the intended
@@ -1460,7 +1494,7 @@ and `1`; a real mouse hover showed the same in a screenshot.
 **Superseded by #140** - hiding the icons was not enough on its own; the
 column holding them, empty or not, was the next thing reported.
 
-### 138. The bulk bar popped in and out, and the owner watched it happen — DONE (CHANGELOG §59)
+### 138. The bulk bar popped in and out, and the owner watched it happen — DONE, its own decision reversed by #147
 
 Checked live, #137's bulk bar still appeared out of nowhere on the first
 tick and vanished on the last - a pop-in/pop-out the owner saw in motion and
@@ -1468,6 +1502,12 @@ rejected. It is always on screen now: at rest, `0 selected` with Copy,
 Delete and Clear all disabled, tinting to the accent-soft highlight the
 moment a row is ticked. The row of buttons itself never mounts or unmounts,
 only which ones answer a click does.
+
+**Reversed by #147** - asked live to bring appearing/disappearing back,
+once it was clear the actual defect this item fixed was the table's own
+position jumping, not the appearing and disappearing on its own. #147's
+`position: fixed` pill keeps that fix while hiding the bar again at rest;
+read that entry for the current mechanism.
 
 Two tests in `EntriesTable.test.jsx` and three in `EntriesScreen.test.jsx`
 had asserted the bar's *absence* at rest - true for the old behaviour, and

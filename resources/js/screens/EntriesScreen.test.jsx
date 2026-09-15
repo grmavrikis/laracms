@@ -232,10 +232,12 @@ describe('EntriesScreen', () => {
             await user.click(screen.getByRole('button', { name: 'Delete' }));
 
             await waitFor(() => expect(api.delete).toHaveBeenCalled());
-            // The bar itself stays on screen (#137) - it is the button's own
-            // enabled state that says the selection emptied out.
+            // The bar itself floats over the page rather than living in it
+            // (#147) - back to nothing selected, it is `aria-hidden` again,
+            // so this reads it with `hidden: true` the way a query still
+            // reaching a genuinely hidden bar would have to.
             await waitFor(() => {
-                expect(screen.getByRole('button', { name: 'Delete selected' })).toBeDisabled();
+                expect(screen.getByRole('button', { name: 'Delete selected', hidden: true })).toBeDisabled();
             });
         });
 
@@ -290,10 +292,11 @@ describe('EntriesScreen', () => {
 
             await user.click(screen.getByRole('button', { name: 'Next' }));
 
-            // The bar stays on screen (#137); the selection it names is what
-            // empties out, back to the disabled row of controls it starts at.
+            // The bar stays mounted, floating over the page (#147); the
+            // selection it names is what empties out, back to the disabled,
+            // `aria-hidden` row of controls it starts at.
             await waitFor(() => {
-                expect(screen.getByRole('button', { name: 'Delete selected' })).toBeDisabled();
+                expect(screen.getByRole('button', { name: 'Delete selected', hidden: true })).toBeDisabled();
             });
         });
 
@@ -324,9 +327,10 @@ describe('EntriesScreen', () => {
 
             await screen.findByRole('checkbox', { name: 'Select entry 1' });
 
-            // The bar itself is always on screen (#137); disabled is what
-            // says there is nothing yet for it to act on.
-            expect(screen.getByRole('button', { name: 'Delete selected' })).toBeDisabled();
+            // The bar itself is always mounted, floating over the page
+            // rather than living in it (#147); disabled and `aria-hidden`
+            // is what says there is nothing yet for it to act on.
+            expect(screen.getByRole('button', { name: 'Delete selected', hidden: true })).toBeDisabled();
             expect(api.delete).not.toHaveBeenCalled();
         });
     });

@@ -467,105 +467,140 @@ export default function EntriesTable({
             )}
 
             {/*
-                Always on screen, not only once something is ticked. It
-                previously appeared out of nowhere on the first tick and
-                vanished on the last, a pop-in/pop-out the owner judged live
-                and rejected outright - "δεν είναι ωραίο". Sitting here at
-                rest with everything disabled and "0 selected" is what removes
-                the jump: the row of buttons never appears or disappears,
-                only its own enabled state changes, and `:count selected`
-                already reads correctly at zero without a second string.
-            */}
+                Floating, not in-flow (#147) - reversing #138's own fix on
+                purpose, because the report this time named the actual
+                defect: it wasn't appearing and disappearing that read as
+                wrong, it was doing so as a block in the page's own flow, so
+                the table itself jumped up and down every time a tick
+                changed the bar's height. `fixed` removes it from that flow
+                entirely - hidden or shown, the table never moves, so the
+                appear/disappear the owner originally rejected is safe to
+                bring back now that the actual cause is gone. Always
+                mounted, never conditionally rendered: `opacity`/`translate-
+                y`/`pointer-events` toggle on `chosen`, the same technique
+                `RowActions`' own floating card already uses, so there is no
+                abrupt mount/unmount to animate around. **One class from each
+                pair, never both at once** - `IconButton`'s own docblock
+                already found that Tailwind's compiled stylesheet resolves a
+                conflict on the same property by its own internal order, not
+                by which class reads more relevant, so a base class plus a
+                conditional override sitting in the string together is not
+                reliable. Measured live here too: `pointer-events-none`
+                (base) plus `pointer-events-auto` (appended) left the whole
+                bottom strip of the page - transparent areas included -
+                eating clicks meant for the table underneath, while the
+                identically-shaped `opacity`/`translate-y` pair happened to
+                resolve the other way. An either/or ternary for the entire
+                fragment sidesteps the ordering question entirely.
+
+                `pointer-events` itself sits on the **pill below, not this
+                shell** - also measured live. This outer `div` is
+                `inset-x-0`, full page width, so it can `flex justify-center`
+                the pill inside it; giving *it* `pointer-events-auto` made
+                its whole width clickable, transparent margins either side
+                of the pill included, which silently ate clicks meant for
+                the table beneath them. The pill sizes to its own content,
+                so scoping `pointer-events` to it instead means only the
+                visible bubble is ever actually clickable. */}
             <div
-                className={`flex flex-wrap items-center gap-2 rounded-xl border p-3 transition-colors ${
-                    chosen > 0 ? 'border-accent/30 bg-accent-soft' : 'border-line bg-surface'
+                aria-hidden={chosen === 0}
+                className={`pointer-events-none fixed inset-x-0 bottom-6 z-30 flex justify-center px-4 transition-[opacity,transform] duration-200 ease-out motion-reduce:transition-none ${
+                    chosen > 0 ? 'translate-y-0 opacity-100' : 'translate-y-3 opacity-0'
                 }`}
             >
-                {/* **The count is the live region, not the bar.** With the
-                    role on the wrapper, every tick re-announced all four
-                    control labels after the number - measured live, fifteen
-                    rows read that whole string fifteen times and buried the
-                    only thing that had changed. */}
-                <span
-                    role="status"
-                    className={`text-sm font-semibold ${chosen > 0 ? 'text-accent-soft-fg' : 'text-fg-muted'}`}
+                <div
+                    className={`flex flex-wrap items-center gap-2 rounded-2xl border p-3 shadow-[0_1px_1px_rgba(0,0,0,0.06),0_4px_8px_rgba(0,0,0,0.10),0_16px_32px_-8px_color-mix(in_oklab,var(--color-accent)_12%,transparent)] transition-colors ${
+                        chosen > 0
+                            ? 'pointer-events-auto border-accent/30 bg-accent-soft'
+                            : 'pointer-events-none border-line bg-surface'
+                    }`}
                 >
-                    {t(':count selected', { count: chosen })}
-                </span>
+                    {/* **The count is the live region, not the bar.** With the
+                        role on the wrapper, every tick re-announced all four
+                        control labels after the number - measured live, fifteen
+                        rows read that whole string fifteen times and buried the
+                        only thing that had changed. */}
+                    <span
+                        role="status"
+                        className={`text-sm font-semibold ${chosen > 0 ? 'text-accent-soft-fg' : 'text-fg-muted'}`}
+                    >
+                        {t(':count selected', { count: chosen })}
+                    </span>
 
-                {confirming ? (
-                    <span className="flex flex-wrap items-center gap-2 sm:ml-auto">
-                        <span className="text-sm font-semibold text-danger-text">
-                            {t('Delete :count entries permanently?', { count: chosen })}
+                    {confirming ? (
+                        <span className="flex flex-wrap items-center gap-2 sm:ml-auto">
+                            <span className="text-sm font-semibold text-danger-text">
+                                {t('Delete :count entries permanently?', { count: chosen })}
+                            </span>
+                            <BulkButton
+                                icon={Trash2}
+                                label={t('Delete')}
+                                tone="danger"
+                                onClick={() => { setConfirming(false); onBulkAction?.('delete', selected); }}
+                            />
+                            <button
+                                type="button"
+                                onClick={() => setConfirming(false)}
+                                className="cursor-pointer rounded-lg px-3 py-1.5 text-sm font-medium text-accent-soft-fg transition-colors hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring-accent"
+                            >
+                                {t('Cancel')}
+                            </button>
                         </span>
-                        <BulkButton
-                            icon={Trash2}
-                            label={t('Delete')}
-                            tone="danger"
-                            onClick={() => { setConfirming(false); onBulkAction?.('delete', selected); }}
-                        />
-                        <button
-                            type="button"
-                            onClick={() => setConfirming(false)}
-                            className="cursor-pointer rounded-lg px-3 py-1.5 text-sm font-medium text-accent-soft-fg transition-colors hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring-accent"
-                        >
-                            {t('Cancel')}
-                        </button>
-                    </span>
-                ) : (
-                    <span className="flex flex-wrap items-center gap-2 sm:ml-auto">
-                        {/*
-                            **Disabled, and this is the whole finding.**
-                            `SchemaRuleBuilder::build()` hard-codes
-                            `data => required` and both entry requests share
-                            it, so `PUT { status }` alone answers 422 with
-                            *The data field is required*. Sending the whole
-                            document back instead would re-post everything
-                            the listing happened to be holding, which is
-                            #86's defect pointing the other way.
+                    ) : (
+                        <span className="flex flex-wrap items-center gap-2 sm:ml-auto">
+                            {/*
+                                **Disabled, and this is the whole finding.**
+                                `SchemaRuleBuilder::build()` hard-codes
+                                `data => required` and both entry requests share
+                                it, so `PUT { status }` alone answers 422 with
+                                *The data field is required*. Sending the whole
+                                document back instead would re-post everything
+                                the listing happened to be holding, which is
+                                #86's defect pointing the other way.
 
-                            Found by pressing the button against the real
-                            API, with 701 tests green.
+                                Found by pressing the button against the real
+                                API, with 701 tests green.
 
-                            TODO(#117 item 19): bulk publishing wants
-                            `data` to be `sometimes` on the **update** path
-                            only - create must keep it required - so a
-                            status-only `PUT` is accepted. That is one line
-                            in `SchemaRuleBuilder::build()` plus a flag from
-                            `UpdateEntryRequest`, and it is PHP.
-                        */}
-                        <BulkButton icon={Eye} label={t('Publish selected')} disabled note={t('not wired yet')} />
-                        <BulkButton icon={EyeOff} label={t('Unpublish selected')} disabled note={t('not wired yet')} />
-                        {/* A duplicate is a fresh `POST` carrying the
-                            original's own `data` - see `bulk.js` for why
-                            that needs the loaded entries rather than the
-                            id alone. No confirmation: unlike delete,
-                            nothing existing is touched. Disabled at zero
-                            selected for the same reason Delete is - there is
-                            nothing for either to act on. */}
-                        <BulkButton
-                            icon={Copy}
-                            label={t('Copy selected')}
-                            disabled={chosen === 0}
-                            onClick={() => onBulkAction?.('copy', selected)}
-                        />
-                        <BulkButton
-                            icon={Trash2}
-                            label={t('Delete selected')}
-                            tone="danger"
-                            disabled={chosen === 0}
-                            onClick={() => setConfirming(true)}
-                        />
-                        <button
-                            type="button"
-                            onClick={() => onSelectionChange?.([])}
-                            disabled={chosen === 0}
-                            className="cursor-pointer rounded-lg px-3 py-1.5 text-sm font-medium text-accent-soft-fg underline-offset-2 transition-colors hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring-accent disabled:cursor-not-allowed disabled:text-fg-subtle disabled:no-underline disabled:hover:no-underline"
-                        >
-                            {t('Clear selection')}
-                        </button>
-                    </span>
-                )}
+                                TODO(#117 item 19): bulk publishing wants
+                                `data` to be `sometimes` on the **update** path
+                                only - create must keep it required - so a
+                                status-only `PUT` is accepted. That is one line
+                                in `SchemaRuleBuilder::build()` plus a flag from
+                                `UpdateEntryRequest`, and it is PHP.
+                            */}
+                            <BulkButton icon={Eye} label={t('Publish selected')} disabled note={t('not wired yet')} />
+                            <BulkButton icon={EyeOff} label={t('Unpublish selected')} disabled note={t('not wired yet')} />
+                            {/* A duplicate is a fresh `POST` carrying the
+                                original's own `data` - see `bulk.js` for why
+                                that needs the loaded entries rather than the
+                                id alone. No confirmation: unlike delete,
+                                nothing existing is touched. Disabled at zero
+                                selected for the same reason Delete is - there is
+                                nothing for either to act on. */}
+                            <BulkButton
+                                icon={Copy}
+                                label={t('Copy selected')}
+                                disabled={chosen === 0}
+                                onClick={() => onBulkAction?.('copy', selected)}
+                            />
+                            <BulkButton
+                                icon={Trash2}
+                                label={t('Delete selected')}
+                                tone="danger"
+                                disabled={chosen === 0}
+                                onClick={() => setConfirming(true)}
+                            />
+                            <button
+                                type="button"
+                                onClick={() => onSelectionChange?.([])}
+                                disabled={chosen === 0}
+                                className="cursor-pointer rounded-lg px-3 py-1.5 text-sm font-medium text-accent-soft-fg underline-offset-2 transition-colors hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring-accent disabled:cursor-not-allowed disabled:text-fg-subtle disabled:no-underline disabled:hover:no-underline"
+                            >
+                                {t('Clear selection')}
+                            </button>
+                        </span>
+                    )}
+                </div>
             </div>
 
             {!entries || entries.length === 0 ? (

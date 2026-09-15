@@ -226,7 +226,7 @@ both — write `t('…')` literally, as `FIELD_TYPE_LABELS` does.
 
 ```bash
 php artisan test                    # 531 tests
-npm test                            # 851 tests
+npm test                            # 853 tests
 npm run build
 php artisan schema:sync-field-types # after changing field type constants
 php artisan pages:warm              # bake the public site to files (#97) - THE DEPLOY STEP
@@ -297,7 +297,27 @@ Started from a repo that would not boot (eight files of merge conflicts).
 Worked through a prioritised list; every item is either done or recorded in
 `CHANGELOG.md` with its reasoning.
 
-- **531 PHP tests, 851 JS tests**, all passing. Build clean.
+- **531 PHP tests, 853 JS tests**, all passing. Build clean.
+- **#147, the bulk bar floats over the page instead of living in it, is
+  DONE, reversing §59's own decision** (CHANGELOG §68) — asked live to hide
+  the bar until something is ticked again, while keeping §59's actual fix
+  (the table never jumps) intact. `position: fixed` removes it from the
+  page's document flow entirely, anchored to the bottom of the viewport as
+  a centred, elevated pill ("σαν ένα bubble") rather than a full-width
+  block - the table's own position is unaffected either way. Always
+  mounted, the same technique `RowActions`' own floating card already uses
+  (#140): `opacity`/`translate-y`/`aria-hidden` toggle on the ticked count.
+  **Two class-conflict bugs found live, neither visible to the test
+  suite**: a base class plus a conditional override left both classes of a
+  pair in the string at once, which the compiled stylesheet resolves by
+  its own internal order rather than which one reads more relevant -
+  `IconButton`'s own docblock already found this once - and separately, the
+  full-width positioning wrapper (needed to centre the pill) getting
+  `pointer-events-auto` made its whole width clickable, transparent
+  margins included, eating clicks meant for the table on any viewport
+  wider than the pill. Fixed by using one either/or ternary per property,
+  and by scoping `pointer-events` to the pill itself rather than the
+  wrapper around it.
 - **#146, #145's Copy landed in the wrong order, is DONE** (CHANGELOG §67)
   — read right to left, the intended order is Edit, Preview, Copy; #145
   had appended Copy after Edit instead. Reordered the three `RowActions`

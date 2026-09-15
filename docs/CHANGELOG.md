@@ -6567,3 +6567,79 @@ Move up, Move down, Copy, Preview, Edit - and a screenshot scaled 2.5×
 showed the same order visually.
 
 531 PHP tests, 851 JS tests, build clean.
+
+## 68. The bulk bar floats over the page instead of living in it, reversing §59
+
+Asked live to reverse §59's own decision: hide the bulk bar until something
+is ticked, the way it worked before that section - but keep §59's actual
+fix (the table never jumps) intact this time. The two were never really in
+conflict. §59's report was specifically that the table's own rows moved up
+and down every time the bar appeared or vanished, because the bar was a
+normal block in the page's own document flow and claimed or released space
+each time. This pass names that as the one thing that has to stay fixed,
+not "appearing and disappearing" itself.
+
+**`position: fixed` removes it from the page's flow entirely**, anchored to
+the bottom of the viewport as a centred, rounded, elevated pill rather than
+a full-width bar - "σαν ένα bubble" was the ask, and a floating pill that
+pops up is a well-worn pattern for exactly this (Gmail, Drive, Notion all
+do the same thing for a row selection). Always mounted, the same technique
+`RowActions`' own floating card already uses (#140), rather than
+conditionally rendered: `opacity`/`translate-y` toggle on `chosen`, so
+there is nothing to abruptly mount or unmount. `aria-hidden` on the wrapper
+at rest keeps a screen reader from finding a bar that is invisible and, at
+rest, entirely disabled anyway - the disabled state itself is unchanged
+from §59.
+
+**Two class-conflict bugs, both found live, neither by the test suite.**
+Written first as a base class (`pointer-events-none`, `opacity-0`,
+`translate-y-3`) with a conditional string appended on top
+(`pointer-events-auto opacity-100 translate-y-0`), both classes of a pair
+sat in the compiled `className` at once whenever `chosen > 0`. `className`
+assertions cannot see this - the substring is present either way - but the
+real, compiled stylesheet resolves a conflict on one CSS property by its
+own internal rule order, not by which class reads more relevant to a
+reader; `IconButton`'s own docblock already recorded finding this once.
+Measured with `getComputedStyle`, `pointer-events` resolved to `none` even
+with `chosen > 0`, silently eating clicks meant for the table underneath,
+while `opacity`/`translate-y` happened to resolve the other way by luck of
+Tailwind's own ordering. Fixed with one either/or ternary per fragment, so
+only one class from each pair is ever in the string.
+
+The second bug survived the first fix. The positioning wrapper is
+`inset-x-0` (full page width, so it can `flex justify-center` the pill
+inside it) - giving *that* element `pointer-events-auto` made its entire
+width clickable, transparent margins either side of the pill included,
+still eating clicks aimed at the table beneath them at any viewport wider
+than the pill itself. Found with `elementFromPoint` at a point clearly
+past the pill's own edge but still inside the wrapper's box, returning the
+wrapper instead of the table underneath. `pointer-events` now lives on the
+pill alone, which sizes to its own content - the wrapper stays
+`pointer-events-none` unconditionally, carrying only the position and the
+opacity/translate-y animation.
+
+### Checked
+
+Two new tests assert the wrapper's `aria-hidden`, `opacity` and
+(unconditional) `pointer-events-none`, and the pill's own `pointer-events`
+- each also asserting the *absence* of the opposing class, which is what
+would have caught the first bug had it shipped with a test. Three existing
+tests elsewhere (`EntriesScreen.test.jsx`) that checked a disabled button
+at zero-selection via `getByRole` needed `{ hidden: true }` added - `aria-
+hidden="true"` correctly removes a subtree from that query by default,
+matching what a screen reader does, so a query that does not ask to see
+hidden elements finds nothing there any more.
+
+Live: both bugs were found this way, not by the test suite, which cannot
+see a real stylesheet's cascade resolution or check whether a transparent
+region of one element's own box still intercepts a click. Confirmed by
+`getBoundingClientRect()` on the table before and after ticking a box -
+identical position, both viewport-narrow (where the pill nearly fills the
+width) and viewport-wide (where it does not) - and by `elementFromPoint`
+at a point past the pill's edge but inside the wrapper's box, returning
+the page underneath rather than the bar, after the second fix. The actual
+buttons inside the pill were exercised end to end: ticking a row revealed
+it, "Clear selection" cleared the tick and hid the bar again. Checked in
+both themes.
+
+531 PHP tests, 853 JS tests, build clean.

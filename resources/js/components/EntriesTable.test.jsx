@@ -151,17 +151,81 @@ describe('EntriesTable, choosing rows', () => {
 });
 
 describe('EntriesTable, the bulk bar', () => {
-    // It used to appear only once something was ticked and vanish on the
-    // last box cleared - a pop-in/pop-out the owner saw live and rejected.
-    // Always on screen now, at rest: the count reads zero and the two
-    // controls that act on a selection have nothing to act on yet.
-    it('stays on screen at rest, rather than appearing only once something is ticked', () => {
+    // It used to be a normal block in the page's own flow, appearing and
+    // vanishing on the first/last tick - the owner saw the table itself
+    // jump up and down every time and rejected it (#138). #147 keeps every
+    // control disabled at rest, same as before, but the bar itself now
+    // floats outside that flow entirely (see the two tests below), so
+    // appearing and disappearing again is safe to bring back.
+    //
+    // `{ hidden: true }` on every query below: the bar is `aria-hidden` at
+    // rest (its own test further down), which is exactly what a screen
+    // reader honours - `getByRole` does too, by default, so without this a
+    // query for a still-disabled button here would find nothing and this
+    // test would pass for the wrong reason.
+    it('disables every control at rest, before it is ever shown', () => {
         draw();
 
         expect(screen.getByText('0 selected')).toBeInTheDocument();
-        expect(screen.getByRole('button', { name: 'Delete selected' })).toBeDisabled();
-        expect(screen.getByRole('button', { name: 'Copy selected' })).toBeDisabled();
-        expect(screen.getByRole('button', { name: 'Clear selection' })).toBeDisabled();
+        expect(screen.getByRole('button', { name: 'Delete selected', hidden: true })).toBeDisabled();
+        expect(screen.getByRole('button', { name: 'Copy selected', hidden: true })).toBeDisabled();
+        expect(screen.getByRole('button', { name: 'Clear selection', hidden: true })).toBeDisabled();
+    });
+
+    /**
+     * #147: floating over the page rather than living in its own row in the
+     * table's own document flow, so appearing and disappearing again never
+     * moves the table underneath it - that was the actual defect #138 was
+     * rejecting, not the appearing and disappearing on its own. Always
+     * mounted rather than conditionally rendered, the same technique
+     * `RowActions`' own floating card already uses: `opacity` on the outer
+     * shell and `pointer-events` on the pill inside it toggle on `chosen`,
+     * so there is no mount/unmount to animate around, and `aria-hidden`
+     * keeps a screen reader from finding a bar that is invisible and, at
+     * rest, entirely disabled anyway.
+     *
+     * **`pointer-events` lives on the pill, not the outer shell.** The shell
+     * is full page width (`inset-x-0`, to centre the pill inside it) and
+     * stays `pointer-events-none` unconditionally - measured live, giving
+     * *it* `pointer-events-auto` made its whole width clickable, including
+     * the transparent margins either side of the pill, silently eating
+     * clicks meant for the table underneath. The pill sizes to its own
+     * content, so that is where "clickable exactly where visible" actually
+     * has to live.
+     */
+    it('stays out of the page\'s flow and hidden from assistive tech at rest', () => {
+        draw();
+
+        const bar = screen.getByText('0 selected').closest('.fixed');
+        const pill = bar.firstElementChild;
+
+        expect(bar).toBeInTheDocument();
+        expect(bar).toHaveAttribute('aria-hidden', 'true');
+        expect(bar.className).toMatch(/\bopacity-0\b/);
+        // Unconditional, not tied to `chosen` - see the comment above.
+        expect(bar.className).toMatch(/\bpointer-events-none\b/);
+        expect(pill.className).toMatch(/\bpointer-events-none\b/);
+        // Exactly one class from each pair, never both: a base class plus a
+        // conditional override sitting in the string together resolves by
+        // Tailwind's own compiled-stylesheet order, not by which one reads
+        // more relevant - `IconButton`'s own docblock already found this
+        // the hard way, and it silently ate clicks on the table here.
+        expect(bar.className).not.toMatch(/\bopacity-100\b/);
+        expect(pill.className).not.toMatch(/\bpointer-events-auto\b/);
+    });
+
+    it('becomes visible and reachable the moment something is ticked', () => {
+        draw({ selected: [11] });
+
+        const bar = screen.getByText('1 selected').closest('.fixed');
+        const pill = bar.firstElementChild;
+
+        expect(bar).not.toHaveAttribute('aria-hidden', 'true');
+        expect(bar.className).toMatch(/\bopacity-100\b/);
+        expect(bar.className).toMatch(/\bpointer-events-none\b/);
+        expect(pill.className).toMatch(/\bpointer-events-auto\b/);
+        expect(bar.className).not.toMatch(/\bopacity-0\b/);
+        expect(pill.className).not.toMatch(/\bpointer-events-none\b/);
     });
 
     it('enables Copy, Delete and Clear the moment a row is ticked', () => {
