@@ -193,7 +193,7 @@ function Cell({ field, entry, currentLangCode }) {
  * in the overlay that reveals it on hover/focus (#140), the narrow card
  * renders it plainly, and neither has to know the other exists.
  */
-function RowActions({ entry, at, orderIds, onReorder, onEdit }) {
+function RowActions({ entry, at, orderIds, onReorder, onEdit, onBulkAction }) {
     return (
         <div className="flex items-center gap-0.5">
             {onReorder && (
@@ -246,6 +246,22 @@ function RowActions({ entry, at, orderIds, onReorder, onEdit }) {
                 onClick={() => onEdit(entry)}
                 className="h-8 w-8"
             />
+            {/* Duplicating one entry without first ticking its checkbox and
+                reaching the bulk bar above the table. Reuses `onBulkAction`
+                rather than a new callback - `bulkRequest('copy', ...)`
+                already looks the entry up by id in the screen's own loaded
+                list (`screens/bulk.js`), and this row's own `entry` is, by
+                definition, already in it. No confirmation, same as the bulk
+                bar's own Copy: nothing existing is touched by a duplicate.
+                Delete stays bulk-only - it is the one irreversible action
+                here and would need its own confirmation step, deliberately
+                not built alongside this. */}
+            <IconButton
+                icon={Copy}
+                label={t('Copy entry :id', { id: entry.id })}
+                onClick={() => onBulkAction?.('copy', [entry.id])}
+                className="h-8 w-8"
+            />
         </div>
     );
 }
@@ -260,7 +276,7 @@ function RowActions({ entry, at, orderIds, onReorder, onEdit }) {
  * scrolling is easiest to trigger by accident and hardest to notice. Stacked
  * vertically instead, so nothing here is ever reached by scrolling sideways.
  */
-function MobileEntryCard({ entry, schema, currentLangCode, at, orderIds, onReorder, onEdit, checked, onToggle }) {
+function MobileEntryCard({ entry, schema, currentLangCode, at, orderIds, onReorder, onEdit, onBulkAction, checked, onToggle }) {
     return (
         // A click anywhere that is not one of the card's own controls
         // toggles selection, the same as clicking the checkbox does - the
@@ -285,7 +301,7 @@ function MobileEntryCard({ entry, schema, currentLangCode, at, orderIds, onReord
                     </Badge>
                 </div>
 
-                <RowActions entry={entry} at={at} orderIds={orderIds} onReorder={onReorder} onEdit={onEdit} />
+                <RowActions entry={entry} at={at} orderIds={orderIds} onReorder={onReorder} onEdit={onEdit} onBulkAction={onBulkAction} />
             </div>
 
             {/* One line per field, label beside its value - not a two-column
@@ -598,6 +614,7 @@ export default function EntriesTable({
                                 orderIds={orderIds}
                                 onReorder={onReorder}
                                 onEdit={onEdit}
+                                onBulkAction={onBulkAction}
                                 checked={selected.some((one) => String(one) === String(entry.id))}
                                 onToggle={() => onSelectionChange?.(toggle(selected, entry.id))}
                             />
@@ -820,7 +837,7 @@ export default function EntriesTable({
                                                 alphas - measured live before
                                                 settling on this. */}
                                             <div className="pointer-events-none absolute left-[var(--action-center,50%)] top-1/2 z-20 flex -translate-x-1/2 -translate-y-1/2 scale-90 items-center gap-0.5 rounded-xl border border-accent/25 bg-gradient-to-b from-surface to-surface-muted p-1 opacity-0 shadow-[0_1px_1px_rgba(0,0,0,0.06),0_4px_8px_rgba(0,0,0,0.10),0_16px_32px_-8px_color-mix(in_oklab,var(--color-accent)_12%,transparent)] transition-[opacity,transform] duration-200 ease-[cubic-bezier(0.34,1.56,0.64,1)] group-hover:pointer-events-auto group-hover:scale-100 group-hover:opacity-100 group-has-[:focus-visible]:pointer-events-auto group-has-[:focus-visible]:scale-100 group-has-[:focus-visible]:opacity-100 motion-reduce:transition-none">
-                                                <RowActions entry={entry} at={at} orderIds={orderIds} onReorder={onReorder} onEdit={onEdit} />
+                                                <RowActions entry={entry} at={at} orderIds={orderIds} onReorder={onReorder} onEdit={onEdit} onBulkAction={onBulkAction} />
                                             </div>
                                         </td>
                                     </tr>

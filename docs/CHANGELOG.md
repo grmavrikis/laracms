@@ -6490,3 +6490,49 @@ and the shadow's colour split both re-point correctly with no theme-specific
 code written for this pass.
 
 531 PHP tests, 846 JS tests, build clean.
+
+## 66. A row-level Copy, and Delete deliberately left for the bulk bar
+
+Discussed live rather than reported as a bug: could the row's own floating
+actions offer Copy and Delete directly, so duplicating or removing a single
+entry did not need a checkbox tick and a trip up to the bulk bar first?
+
+**Copy, yes - Delete, not yet.** Copy is non-destructive, and the bulk bar's
+own Copy already fires immediately with no confirmation (§60-era code,
+`EntriesTable.jsx`), so a row-level one is exactly the same action pre-scoped
+to one id - nothing new to design. Delete is the one irreversible action in
+the panel, and the bulk bar's own version asks first with a dedicated
+confirm/cancel swap keyed to the ticked selection; a row-level Delete would
+need its own version of that, scoped to one row, which is real design work
+(and a real risk if rushed - a slip on a small hover-revealed icon should
+not silently destroy an entry). Decided to ship Copy now and leave Delete
+recorded rather than bolt on a hasty confirmation step.
+
+**Reuses `onBulkAction`, not a new callback.** `RowActions` calls
+`onBulkAction?.('copy', [entry.id])` directly - the identical handler the
+bulk bar already calls. `bulkRequest('copy', ...)` (`screens/bulk.js`) looks
+the entry up by id in the screen's own loaded list, and a row's own `entry`
+is, by definition, already in it, so no new data needed to reach the screen.
+Threaded through `MobileEntryCard` too, since `RowActions` is shared
+unchanged between the desktop overlay and the narrow card.
+
+One new translation key, `Copy entry :id`, in both `lang/en.json` and
+`lang/el.json`.
+
+### Checked
+
+Four new tests: the button is offered, named by the entry; clicking it
+calls `onBulkAction` with `('copy', [id])`; it does not also toggle the
+row's own selection; the narrow card offers it too. All four confirmed to
+fail against the pre-change component first.
+
+Live, against a throwaway entry created via the API (never the real Rooms
+sample data): clicking the new Copy button created a real draft duplicate
+over a genuine HTTP round trip, confirmed by listing the module's entries
+before and after. Checked the icon renders correctly alongside Preview and
+Edit at a real hover reveal (screenshot scaled 2.5× to see it clearly), and
+that it fits without overflow in the narrow card at 390px. The throwaway
+entry and its duplicate were both deleted afterward via the API, restoring
+Rooms to its original four sample entries.
+
+531 PHP tests, 850 JS tests, build clean.

@@ -1251,6 +1251,25 @@ migrations, so a choice follows the person to their second **tab** rather than
 their second machine. Two columns and a save; the panel's own half already
 resolves both against an allow-list before applying them.
 
+### 145. A row-level Copy, discussed and added; a row-level Delete deliberately deferred — DONE (CHANGELOG §66)
+
+Discussed live: could the row's own floating actions offer Copy and Delete
+directly, rather than only through the bulk bar (tick + scroll up)? Copy
+was added - it is non-destructive and reuses the exact `onBulkAction`
+handler the bulk bar already calls, pre-scoped to the one row's id, so
+there was nothing new to design. **Delete was deliberately left as
+bulk-only**: it is the one irreversible action in the panel, the bulk bar's
+own version asks first with a confirm/cancel swap keyed to the ticked
+selection, and a row-level version needs its own equivalent scoped to one
+row rather than a hasty icon with no confirmation. Logged here rather than
+built speculatively - the next pass at this needs to design that
+confirmation step first.
+
+Four tests, confirmed to fail against the pre-change component first.
+Checked live against a throwaway entry created via the API (never the real
+Rooms sample data): the button created a real draft duplicate over a
+genuine HTTP round trip; both entries were deleted afterward via the API.
+
 ### 144. #143's card asked to look more three-dimensional — DONE (CHANGELOG §65)
 
 Judged live against the alternatives tried and reverted after it, #143's

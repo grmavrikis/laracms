@@ -226,7 +226,7 @@ both — write `t('…')` literally, as `FIELD_TYPE_LABELS` does.
 
 ```bash
 php artisan test                    # 531 tests
-npm test                            # 846 tests
+npm test                            # 850 tests
 npm run build
 php artisan schema:sync-field-types # after changing field type constants
 php artisan pages:warm              # bake the public site to files (#97) - THE DEPLOY STEP
@@ -297,7 +297,18 @@ Started from a repo that would not boot (eight files of merge conflicts).
 Worked through a prioritised list; every item is either done or recorded in
 `CHANGELOG.md` with its reasoning.
 
-- **531 PHP tests, 846 JS tests**, all passing. Build clean.
+- **531 PHP tests, 850 JS tests**, all passing. Build clean.
+- **#145, a row-level Copy, is DONE, and a row-level Delete is deliberately
+  deferred** (CHANGELOG §66) — discussed live rather than reported as a
+  bug: could the row's own floating actions offer Copy and Delete directly,
+  rather than only through the bulk bar? Copy was added, reusing the exact
+  `onBulkAction` handler the bulk bar already calls
+  (`onBulkAction('copy', [entry.id])`) - non-destructive, so nothing new to
+  design. **Delete stays bulk-only for now**: it is the one irreversible
+  action in the panel, the bulk bar's own version asks first with a
+  confirm/cancel swap keyed to the ticked selection, and a row-level version
+  needs its own equivalent scoped to one row rather than a hasty icon with
+  no confirmation - logged rather than built speculatively.
 - **#144, #143's card asked to look more three-dimensional, is DONE**
   (CHANGELOG §65) — judged live against the alternatives tried and reverted
   after it, #143's version (one section, Edit's icon carrying the accent

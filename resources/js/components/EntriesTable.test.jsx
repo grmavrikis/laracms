@@ -802,6 +802,57 @@ describe('EntriesTable, copying entries', () => {
     });
 });
 
+/**
+ * Discussed live: duplicating one entry from its own row, without first
+ * ticking its checkbox and reaching the bulk bar above the table. Delete
+ * stays bulk-only - it is the one irreversible action in the panel and
+ * would need its own confirmation step, deliberately not built here.
+ *
+ * Reuses `onBulkAction` rather than a new callback: `bulkRequest('copy', ...)`
+ * already looks the entry up by id in the screen's own loaded list
+ * (`resources/js/screens/bulk.js`), and a row's own `entry` is, by
+ * definition, already in that list.
+ */
+describe('EntriesTable, copying a single entry from its own row', () => {
+    it('offers Copy next to Edit, named by the entry', () => {
+        draw();
+
+        expect(within(rowFor(11)).getByRole('button', { name: 'Copy entry 11' })).toBeInTheDocument();
+    });
+
+    it('fires immediately, scoped to just that one entry', async () => {
+        const user = userEvent.setup();
+        const onBulkAction = vi.fn();
+        draw({ onBulkAction });
+
+        await user.click(within(rowFor(11)).getByRole('button', { name: 'Copy entry 11' }));
+
+        expect(onBulkAction).toHaveBeenCalledWith('copy', [11]);
+    });
+
+    // A click on any of the row's own controls must keep doing only its own
+    // job - the same guard every other button in the row already relies on.
+    it('does not also toggle the row\'s own selection', async () => {
+        const user = userEvent.setup();
+        const { onSelectionChange } = draw();
+
+        await user.click(within(rowFor(11)).getByRole('button', { name: 'Copy entry 11' }));
+
+        expect(onSelectionChange).not.toHaveBeenCalled();
+    });
+
+    it('is offered on the narrow card too, and fires the same way', async () => {
+        stubNarrow(true);
+        const user = userEvent.setup();
+        const onBulkAction = vi.fn();
+        draw({ onBulkAction });
+
+        await user.click(within(cardFor(12)).getByRole('button', { name: 'Copy entry 12' }));
+
+        expect(onBulkAction).toHaveBeenCalledWith('copy', [12]);
+    });
+});
+
 // The checkbox is a small target; the row (desktop) or the card (mobile)
 // around it is the "block" it was reported that a click should work from
 // anywhere in.
